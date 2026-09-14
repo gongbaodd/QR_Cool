@@ -1,0 +1,43 @@
+{
+  "name": "qr-cool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local dry-run preparation CLI for artistic QR posters",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "qr-poster": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "preqr-poster": "pnpm build",
+    "qr-poster": "node dist/cli.js"
+  },
+  "dependencies": {
+    "@zxing/library": "^0.23.0",
+    "commander": "^15.0.0",
+    "jsqr": "^1.4.0",
+    "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  },
+  "packageManager": "pnpm@10.33.2"
+}
