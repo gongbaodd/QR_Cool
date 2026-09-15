@@ -1,5 +1,7 @@
 # QR Cool
 
+Planned next version: [Web QR poster editor](doc/plan/web-qr-poster.md) — upload a poster, enter QR content, move/resize the QR, and assemble in the browser UI. The plan retires the CLI after web parity checks pass.
+
 Local TypeScript CLI for artistic QR posters. It accepts one line of content, generates a qrcode.antfu.me-style QR, detects the central painted region, and uses Qwen to fill the remaining region with decorative rounded black QR-style cells on white. Local compositing preserves every pixel outside the region and overlays the generated QR and quiet zone.
 
 It also ships an offline `--pattern-preview` mode that renders a poster-sized QR cell texture from a random text line, using the same encoder and default rounded style as [antfu/qrcode-toolkit](https://github.com/antfu/qrcode-toolkit), with the finder and alignment markers removed.

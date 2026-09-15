@@ -1,5 +1,7 @@
 # QR pattern fill
 
+Next product direction: [Web QR poster editor](web-qr-poster.md). That plan reuses the offline assembly engine and replaces the CLI after the web workflow passes its acceptance gates. The notes below describe the existing implementation and its history.
+
 ## Behavior
 
 - Keep the current QR size, position, and white margin.

@@ -1,0 +1,154 @@
+# Web QR poster editor
+
+Status: proposed implementation plan, 2026-09-15. This document plans the replacement; it does not implement the web app or remove the CLI. Retire the CLI after the web acceptance gates below pass.
+
+## Product goal
+
+Upload a PNG poster containing a solid black region, enter the text or URL to encode, move and resize the QR on the poster, then assemble and download the finished PNG. Use the existing deterministic assembly style: rounded decorative QR cells inside the black region and the real QR at the selected position.
+
+The black region is part of the uploaded poster, not a second required file. Detect it automatically and show a translucent selection overlay before assembly. Preserve the original poster dimensions and all pixels outside the selected region.
+
+### First release
+
+1. **Upload:** a labeled file input accepts a poster PNG and displays its dimensions. Detect the dense black shape using the current detector. If no suitable region is found, show an actionable error. If the selection is wrong, allow an optional same-size region-mask PNG using an explicitly labeled white-selects-region convention, matching the existing engine. Keep this distinct from the black shape embedded in the poster.
+2. **Content:** accept one nonblank line of text or a URL. Preserve the exact entered value, including surrounding spaces; use trimming only to detect an empty value. Report newline and QR-capacity errors beside the field. A URL is encoded as text and is never fetched.
+3. **Position:** generate the QR and suggest an assembly-valid position. Let users drag it, resize with corner handles, enter X/Y/size values, and reset to automatic placement. Provide zoom, fit-to-screen, keyboard nudging, and touch controls. Keep the QR square, unrotated, and entirely inside the selected region.
+4. **Assemble:** render the full-resolution result from the current content, placement, and seed. Display progress, show the result, and let users return to editing. Changing an input makes the previous result stale and disables its download until reassembled.
+5. **Download:** offer `poster.png` at original resolution. Put the QR PNG, transparent cut PNG, cut SVG, mask PNG, and verification report behind an optional details section. No account is required.
+
+Keep seed, finder margin (1 or 2 modules), and plate corner treatment in advanced settings. Generate the seed once per new poster and retain it across edits; an explicit “New pattern” action changes it. Do not present the old numeric cut-radius control as general silhouette rounding: in assembly it only chooses the marker-corner treatment.
+
+Excluded from this migration: paid Qwen generation, QR image uploads, standalone pattern-preview/pattern-cut tools, freehand mask painting, text printed on the poster, rotation, multiple QRs, accounts, saved projects, and a template marketplace.
+
+## Dependency choices
+
+Prefer established packages and framework/browser primitives for general functionality. The choices below prioritize ecosystem adoption and suitability; they are not a claim of a measured download ranking. Select mutually compatible stable versions at implementation time and commit the pnpm lockfile.
+
+| Responsibility | Choice | Why / boundary |
+| --- | --- | --- |
+| Web application and HTTP endpoints | Next.js App Router, React, TypeScript | One application for the editor and Node rendering endpoints; no separate API framework. [Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route) support standard Request/Response and multipart form data. |
+| Canvas interactions | `konva` + `react-konva` | Use the existing scene graph, dragging, hit testing, and [Transformer](https://konvajs.org/docs/react/Transformer.html) for handles. Write only placement constraints and coordinate conversion. |
+| Image decoding, compositing, PNG/SVG rendering | Existing `sharp` | Retain the current server renderer and raw-pixel checks. Configure its documented [input pixel limit](https://sharp.pixelplumbing.com/api-constructor/). |
+| QR encoding and module classification | Existing `uqr` | [Its encoder](https://github.com/unjs/uqr) exposes the matrix and cell types required by marker removal. Keep it even though generic QR widgets are more common; switching would jeopardize style and module parity. |
+| QR verification | Existing `@zxing/library` and `jsqr` | Retain the tested decoder chain. No custom decoder. |
+| Request and form validation | `zod` | Shared [runtime schemas](https://zod.dev/) and inferred types; image and placement checks remain authoritative on the server. |
+| Tests | Existing Vitest + Playwright | Preserve pixel/geometry tests; add [browser workflow tests](https://playwright.dev/docs/intro) for upload, editing, and download. |
+| Simple UI state, uploads, downloads | React reducer, native form controls, Fetch, FormData, Blob URLs | Sufficient for one editor; no custom state framework, upload protocol, or file-saving library. |
+
+Reuse the project-specific detector, safe-module calculation, phase locking, four-module rim, plate geometry, seeded pattern logic, and rounded cell geometry. These are the product's existing algorithms. Do not reimplement PNG codecs, QR encoding, canvas manipulation, multipart parsing, or validation libraries. Do not add a tracing library for assembly: its boundary consists of whole modules, not a traced silhouette.
+
+## Architecture
+
+Use a browser editor plus a Node server. Sharp, filesystem APIs, and Buffer-dependent rendering stay in server-only modules. The browser owns interaction state and displays server-rendered images; final export always comes from the shared assembly engine. This preserves the current renderer without a browser/WASM rewrite.
+
+```mermaid
+flowchart LR
+  A[Poster PNG + content] --> B[React editor / Konva]
+  B --> C[Next.js Node route handlers]
+  C --> D[Shared layout and assembly engine]
+  D --> E[Sharp + uqr + existing geometry]
+  E --> F[Preview / artifacts / checks]
+  F --> B
+```
+
+### Separate computation from file I/O first
+
+`src/layout.ts` currently reads paths, and `src/assemble.ts` both computes the result and writes artifacts. Extract buffer-based services before building the UI:
+
+- `prepareEditor({ posterBytes, content, maskBytes? })` returns dimensions, detected mask preview, QR image/metadata, and an assembly-valid initial placement.
+- `validatePlacement({ regionMask, qrMetadata, placement, settings })` checks fit, safe cells, remaining texture, and pattern crop feasibility. Share pure coordinate rules with the client; server validation remains required.
+- `assembleFromBuffers({ posterBytes, content, maskBytes?, placement, seed, qrMargin, plateCorners })` returns artifact buffers and the verification report.
+- Keep temporary CLI adapters that call these services and write the existing filenames. Do not invoke the CLI as a subprocess from a web request.
+- Preserve schema-8 assembly reports during migration. Put web revision and response metadata in a separate versioned API envelope, not in incompatible changes to the existing report. Web reports use logical input names rather than server paths.
+
+Proposed structure after migration:
+
+```text
+src/app/                         # Page, layout, Node route handlers
+src/components/editor/          # Upload, content form, Konva canvas, result
+src/lib/editor/                 # Reducer, coordinate mapping, request schemas
+src/server/                     # Buffer services, validation, response adapters
+src/core/                       # Reused QR, mask, placement, pattern, assembly
+test/                           # Engine and route regression tests
+e2e/                            # Playwright user journeys
+```
+
+### API and data lifetime
+
+Start with stateless requests. The browser retains the original File objects and resends them when required; the server retains no uploaded assets between requests. This avoids sessions, databases, and cleanup jobs for the first release.
+
+| Endpoint | Input | Output |
+| --- | --- | --- |
+| `POST /api/prepare` | Multipart poster, optional mask, content, editor revision | Versioned JSON with dimensions, mask/QR PNG previews, QR version/module count, suggested placement, validation messages, revision |
+| `POST /api/assemble` | Same files plus Zod-validated JSON settings, explicit placement, seed, revision | Versioned JSON with canonical placement, artifacts encoded as base64, report, revision |
+
+Base64 is a deliberate initial transport simplification with roughly one-third byte overhead. Convert it to Blob URLs for display/download and revoke them on replacement or unmount. Include response memory in the input-size benchmark; move to binary artifact delivery only if measured limits require it. Mark responses `Cache-Control: no-store` and never log file bytes or QR text.
+
+Use Node runtime route handlers. Validate PNG signatures/decoded format, dimensions, content, integers, masks, and settings server-side. Proposed initial limits: 10 MiB per image, 16 megapixels, one frame; also enforce a bounded total multipart body at ingress before parsing, with room for both files. Benchmark these limits and lower them if the existing integral arrays and artifact generation exceed the deployment memory budget. Bound active rendering concurrency and return a retryable busy response instead of accumulating unlimited jobs.
+
+Return structured errors `{ code, message, field?, revision }`: 400 for malformed requests, 413 for upload limits, 422 for invalid content/mask/layout, and 500 for rendering or invariant failures. The UI retains inputs and offers retry. Abort superseded requests and ignore stale responses using a monotonically increasing editor revision; aborting a fetch does not guarantee that server computation stops.
+
+## Placement and preview correctness
+
+- Store all geometry in original poster pixels, never CSS/display pixels. Invert Konva's stage transform when mapping pointer positions so zoom, pan, and device pixel ratio cannot change export placement.
+- Define X/Y as the top-left of the normalized QR square, including its existing two-module source margin. Let `n` be the code-grid module count and `p` the integer pitch: `size = (n + 4) * p`.
+- Snap X/Y to integer poster pixels and size to a positive integer pitch. The lattice moves with the QR; do not snap position to an unrelated global grid. Convert Transformer scale into canonical size and reset node scale to 1 after committing a resize.
+- Draw immediate drag/resize feedback locally. On commit, apply shared fit rules and flag invalid placement. Never silently move a manually positioned QR during assembly; return a layout error so the user can adjust it.
+- Recompute QR metadata when text changes. Keep the previous center/pitch where possible, then revalidate the new size; surface invalid placement instead of exporting the old content.
+- Automatic placement must satisfy assembly, not just square containment. Try the current placement candidate, then smaller integer pitches/valid candidates until the rim, plate, remaining texture, and phase-locked crop all work. Return a clear error if none do.
+- A drag preview is an editing aid. The assembled preview displays the actual returned PNG, with no canvas re-export or second rasterization. Reuse the same canonical settings for preview and download.
+
+## Assembly contract to preserve
+
+1. Generate the real QR from content with the current `uqr` defaults and rounded style; normalize at integer pitch and verify its decoded text.
+2. Detect/select the poster region and validate the whole normalized QR square inside it.
+3. Generate the seeded marker-free texture and phase-lock it to the QR lattice, with the existing extra-module crop headroom.
+4. Draw only complete modules entirely inside the region and canvas. Force the outer four safe-module rings dark; the plate does not seed this rim.
+5. Cut the current module plate and overlay the exact normalized QR pixels belonging to it, keeping the existing finder-only band of 1 or 2 modules and corner behavior.
+6. Preserve pixels outside the region, partially covered modules, and the original alpha channel. Reject layouts with no remaining texture.
+7. Run all existing mandatory schema-8 checks. Keep `poster`, `posterHalfScale`, and `posterJpeg80` in skipped checks and `phoneScan: untested`; do not present the artistic result as scan-certified. Show a concise result note: “Artistic margins can affect scanning. Test the downloaded poster with your phone.”
+
+The full normalized QR square is the placement constraint; the smaller module plate is the actual compositing footprint. Keep that distinction in engine tests and do not enlarge the plate to the preview bounding box.
+
+## Sequenced implementation and gates
+
+### 1. Extract and freeze the reusable engine
+
+- Capture fixed-content, fixed-seed fixture results before refactoring.
+- Extract in-memory preparation/assembly and move CLI filesystem work into adapters.
+- Eliminate the current `layout -> qr -> pattern -> layout` dependency cycle by separating QR rendering and shared constants/types as needed.
+- Gate: CLI results remain equivalent in decoded pixels, masks, placement, and geometry; deterministic image bytes remain stable under the same dependency versions. Compare reports excluding timestamps, durations, and input/output paths. All existing tests, typecheck, and build pass.
+
+### 2. Add the web shell and upload/content preparation
+
+- Install the selected web dependencies, add scripts, and isolate server imports from the client bundle.
+- Implement request schemas, bounded upload handling, preparation endpoint, region overlay, and generated QR preview.
+- Gate: bundled poster plus text produces a valid initial layout; corrupt PNGs, wrong-size masks, missing regions, empty/multiline/oversize content, and oversized uploads produce useful errors without losing the form state.
+
+### 3. Add position and size editing
+
+- Integrate Konva dragging/Transformer, numeric fields, keyboard controls, zoom, reset, and integer snapping.
+- Add content-change invalidation and revision tracking. Assembly stays disabled while content or placement is invalid.
+- Gate: pointer, touch, and keyboard edits produce the same canonical coordinates at multiple zoom levels; invalid edge/hole placements are rejected; resizing and longer content cannot leave an obsolete QR preview eligible for download.
+
+### 4. Connect assembly and downloads
+
+- Call the in-memory engine with the user's explicit placement; display the exact output PNG and optional artifacts/report.
+- Handle stale responses, retry, new pattern, and Blob URL cleanup.
+- Gate: browser upload -> content -> move -> resize -> assemble -> download succeeds. The downloaded PNG matches engine output at that placement, retains original dimensions, and passes mandatory pixel checks. Test concurrent independent users, repeated edits, and request failures.
+
+### 5. Validate the runnable web release
+
+- Run Vitest, typecheck, production build, and Playwright against the production server.
+- Cover Chromium, Firefox, and WebKit plus a touch viewport. Exercise small/large posters, multiple QR versions, mask holes, partial cells, both finder margins, both corner options, and deterministic seeds.
+- Measure preparation/assembly latency and peak memory at upload limits on the target Node host. Use a host/container supporting Sharp and sufficient request duration; a static-only host cannot execute this architecture.
+- Gate: tests pass, limits are documented, and the core user journey works from a fresh checkout using web commands only. Deployment configuration belongs to implementation; this plan does not publish anything.
+
+### 6. Retire the CLI
+
+- After the previous gates pass, remove `src/cli.ts`, Commander, the `qr-poster` bin entry, CLI-only scripts/options, and CLI-only tests.
+- Remove the retired Qwen/generation/dry-run orchestration and standalone mode entry points after checking imports. Keep any shared mask, SVG, QR, or geometry helpers still used by web assembly; do not delete `pattern-cut.ts` wholesale while assembly imports `buildCutSvg`.
+- Keep engine tests and fixtures. Replace CLI end-to-end coverage with API/browser coverage before deleting it. Remove unused dependencies only after an import audit; retain Sharp, uqr, and both decoders.
+- Make `pnpm dev`, `pnpm build`, and `pnpm start` the web commands; retain `pnpm test` and `pnpm typecheck`, and add `pnpm test:e2e`.
+- Rewrite README and AGENTS.md around the web workflow and mark the previous artistic-QR plan as historical. Remove obsolete CLI/Qwen setup instructions from active documentation, retaining useful design history and verification contracts.
+- Final gate: no active CLI imports or scripts remain; clean-install build, engine tests, API tests, and browser journey pass. The web app is the only supported product interface.
