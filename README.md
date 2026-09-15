@@ -1,78 +1,74 @@
 # QR Cool
 
-本仓库当前提供一个本地、无网络、无付费调用的 Artistic QR Poster dry-run CLI。它从海报中的中央描黑区域生成遮罩，把现有的 qrcode.antfu.me 风格二维码按整数模块缩放并放入区域内，然后输出供人工检查和后续图片编辑使用的文件。
+Local TypeScript CLI for artistic QR posters. It detects the central painted region, places an existing qrcode.antfu.me QR image, and uses Qwen to fill the remaining region with decorative rounded black QR-style cells on white. Local compositing preserves every pixel outside the region and overlays the exact QR and quiet zone.
 
-当前版本不会调用 OpenAI，也不会生成最终的 `poster.png`。
+## Setup
 
-## 环境与运行
-
-需要 Node.js 24+ 和 pnpm。
+Node.js 22+ and pnpm are required.
 
 ```bash
 pnpm install
-
-pnpm qr-poster -- \
-  --dry-run \
-  --input source/poster.png \
-  --qr source/qr.png \
-  --out-dir output
 ```
 
-示例二维码会被解码为：
+For live generation, set the following in `.env` (ignored by Git), or export them in your environment. Existing environment values take precedence. Credentials are loaded only for `--generate` and are never included in reports.
 
-```text
-https://www.instagram.com/grandpasbeehaven/
+```dotenv
+QWEN_API_KEY=your-key
+QWEN_BASE_URL=https://ws-hxrjydip77dx0nxq.cn-beijing.maas.aliyuncs.com/api/v1
 ```
 
-成功后 CLI 会打印识别区域、二维码版本、放置位置和扫码结果。`report.json` 中的 `qualified` 只有在原始二维码、缩放二维码、完整预览、50% 缩小预览和 JPEG quality 80 版本全部可解码时才为 `true`。
+The base URL above is the configured Beijing workspace default. Override it for another workspace. Keys and endpoints must belong to the same region.
 
-## 参数
+## Commands
 
-| 参数 | 说明 |
+```bash
+# Offline preview; no API key required
+pnpm qr-poster -- --dry-run --input source/poster.png --qr test/fixtures/qr.png --out-dir output/preview
+
+# One paid Qwen generation
+pnpm qr-poster -- --generate --input source/poster.png --qr test/fixtures/qr.png --out-dir output/qwen-pattern
+
+# Reuse downloaded artwork without a network call
+pnpm qr-poster -- --generated-image output/qwen-pattern/ai-raw.png --input source/poster.png --qr test/fixtures/qr.png --out-dir output/recomposed
+```
+
+The QR input must be square. The bundled `source/qr.png` is 753×748 and is rejected, so these commands use the square 820×820 `test/fixtures/qr.png`.
+
+Specify exactly one of `--dry-run`, `--generate`, or `--generated-image`. `--input`, `--qr`, and `--out-dir` are required.
+
+| Option | Behavior |
 | --- | --- |
-| `--dry-run` | 必填安全标记；当前版本只支持 dry-run。 |
-| `--input <path>` | 必填，带中央描黑区域的 PNG 海报。 |
-| `--qr <path>` | 必填，带 2 模块留白的 qrcode.antfu.me 风格正方形 PNG。 |
-| `--out-dir <path>` | 必填，产物目录。 |
-| `--text <value>` | 可选，期望二维码内容；与解码结果不同时失败。 |
-| `--mask <path>` | 可选，手动区域遮罩。必须与海报同尺寸；白色且不透明/半透明表示 M，黑色或透明表示区域外。 |
-| `--qr-box <x,y,size>` | 可选，手动指定 Q；size 必须是二维码总模块数的整数倍，且 Q 完全位于 M。 |
-| `--force` | 覆盖产物目录中已有的已知输出文件。 |
+| `--model <name>` | Qwen model; default `qwen-image-2.0`. Account/model availability is checked by the API. |
+| `--prompt <text>` | Pattern instruction; defaults to rounded dots and connected black cells on white, matching the real QR module size and density. |
+| `--text <value>` | Optional exact expected QR content. |
+| `--mask <path>` | Same-size PNG: white with nonzero alpha selects the painted region; black or transparent excludes it. |
+| `--qr-box <x,y,size>` | Manual protection box; size must be an integer multiple of the QR module count and fit entirely inside the region. |
+| `--force` | Replace known artifacts in the output directory. |
 
-自动识别不确定时，CLI 会以 `MASK_AMBIGUOUS` 退出并要求使用 `--mask`，不会猜测或扩大到整张线稿。
+## Artifacts and verification
 
-## 产物
+All modes save `region-mask.png`, `layout-preview.png`, `qr.png`, `edit-mask.png`, `before-ai.png`, and `report.json`. Generation also saves `ai-raw.png`, `reference-canvas.png`, and `poster.png` when those stages succeed.
 
-```text
-output/
-  region-mask.png    # 白色为识别出的 M
-  qr.png             # 按整数模块缩放后的二维码
-  layout-preview.png # 区域轮廓和 Q 的诊断预览
-  edit-mask.png      # E=M-Q 透明，其余不透明的 RGBA 编辑遮罩
-  before-ai.png      # 二维码已覆盖、其余黑区未填充的输入预览
-  report.json        # 输入摘要、布局、耗时和扫码结果
-```
+Qwen receives an opaque selection guide, a crop from the center of the placed QR, and the prepared poster last as Base64 images. The crop uses whole cells from the central third and excludes the circular corner markers (smaller QR versions use a narrower crop to avoid markers). It is saved as `pattern-reference.png` and placed once, without scaling, at the top-left of a plain white reference canvas. Qwen is instructed to generate a fresh arrangement with even density, using the sample only for cell shape and size. Copying, stretching, enlarging, or tiling the sample is prohibited. The prompt forbids generated scene artwork and extra finder rings, and specifies the real QR module pitch. Decorative cells encode no additional data. Inputs are padded on the right and bottom to multiples of 16; the output is cropped back before compositing. The QR square is blanked only in the AI input so the model cannot copy its circular markers. The exact QR and its entire white quiet zone are restored locally. Qwen receives natural-language editing instructions, not an OpenAI mask parameter. Only pixels inside the editable region are used in the final poster.
 
-`before-ai.png` 不是最终成品。CLI 刻意不输出 `poster.png`。
+Dry-run reports retain schema version 1. Generation reports use version 2 and record model, full editing prompt, canvas dimensions, request ID and usage when returned, durations, final scan checks, and protected-pixel checks. Phone scanning is recorded as `untested`. Usage is not a measured monetary cost.
 
-## 库接口
+Qualification requires decoding the source, normalized QR, prepared preview and final poster, including 50% resize and JPEG quality-80 variants, plus exact protected-pixel checks. Verification failures exit with code 4; API/image errors use 3; invalid arguments use 2. Automated qualification does not assess artistic quality; inspect the output for seams or remaining painted areas.
+
+API requests have a five-minute timeout and no automatic retries. A timeout may still incur a charge. Raw downloaded artwork is retained if geometry, compositing, or verification fails. Offline reuse accepts the padded canvas size or the original image size, and must use the same input/layout for meaningful alignment.
+
+## Library
 
 ```ts
-import { compositePoster, preparePoster } from 'qr-cool'
+import { preparePoster, generatePoster } from 'qr-cool'
 
-const result = await preparePoster({
-  inputPath: 'source/poster.png',
-  qrPath: 'source/qr.png',
-  outputDir: 'output',
-  dryRun: true,
-})
-
-console.log(result.report.qualified)
+await preparePoster({ inputPath: 'source/poster.png', qrPath: 'source/qr.png', outputDir: 'output/preview', dryRun: true })
+await generatePoster({ inputPath: 'source/poster.png', qrPath: 'source/qr.png', outputDir: 'output/qwen-pattern', apiKey: process.env.QWEN_API_KEY })
 ```
 
-`compositePoster()` 已提供给后续图片生成阶段：它只在 E 内采用生成背景，保持 M 外原图像素不变，并在最后精确覆盖 Q。
+The library uses explicit credentials or environment variables; it does not load `.env`. `compositePoster()` remains available for direct local compositing.
 
-## 开发验证
+## Development
 
 ```bash
 pnpm test
@@ -80,11 +76,6 @@ pnpm typecheck
 pnpm build
 ```
 
-测试不会联网，不会调用图片 API，也不会修改 `source/`。
+Tests use mocked API responses and local images, with no paid calls. Inputs remain PNG-only. The existing QR uses two quiet-zone modules and integer module scaling. Text-to-QR generation, Web hosting, and closed-outline region detection remain future work.
 
-## 当前限制
-
-- 只接受 PNG 输入。
-- 直接使用现有 QR 图片，不支持从 `--text` 生成新二维码。
-- 自动识别针对“中央实心描黑区域”；复杂或歧义输入应提供手动 mask。
-- 尚未实现 OpenAI 图片编辑、最终海报导出、Web 服务或手机实测。
+API documentation: [Qwen image editing](https://www.alibabacloud.com/help/en/model-studio/qwen-image-edit-api).

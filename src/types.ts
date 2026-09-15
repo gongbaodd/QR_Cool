@@ -53,7 +53,7 @@ export interface QrPlacement {
 }
 
 export interface VerificationCheck {
-  name: 'sourceQr' | 'normalizedQr' | 'beforeAi' | 'halfScale' | 'jpeg80'
+  name: 'sourceQr' | 'normalizedQr' | 'beforeAi' | 'halfScale' | 'jpeg80' | 'poster' | 'posterHalfScale' | 'posterJpeg80' | 'outsideRegionPixels' | 'qrPixels'
   passed: boolean
   decodedText?: string
   decoder?: 'zxing' | 'jsqr'
@@ -124,4 +124,35 @@ export interface CompositePosterInputs {
   regionMask: RegionMask
   qr: Buffer
   placement: QrPlacement
+}
+
+export interface GeneratePosterOptions extends Omit<PreparePosterOptions, 'dryRun'> {
+  apiKey?: string
+  baseUrl?: string
+  model?: string
+  prompt?: string
+  generatedImagePath?: string
+}
+
+export interface ReportV2 extends Omit<ReportV1, 'schemaVersion' | 'status' | 'dryRun' | 'artifacts'> {
+  schemaVersion: 2
+  status: 'generated' | 'verification_failed' | 'generation_failed'
+  dryRun: false
+  artifacts: ReportV1['artifacts'] & { aiRaw?: string; poster?: string; patternReference?: string; referenceCanvas?: string }
+  generation: {
+    source: 'qwen' | 'file'
+    model: string
+    prompt: string
+    canvas: ImageDimensions
+    durationMs: number
+    requestId?: string
+    usage?: unknown
+    error?: string
+  }
+  phoneScan: 'untested'
+}
+
+export interface GenerateResult {
+  report: ReportV2
+  outputDir: string
 }

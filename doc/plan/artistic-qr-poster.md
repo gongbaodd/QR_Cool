@@ -1,231 +1,47 @@
-# 艺术化二维码海报实施规划
+# QR pattern fill
 
-更新日期：2026-09-14
+## Behavior
 
-状态：本地 dry-run CLI 已实现；OpenAI 图片编辑、最终海报和部署服务尚未实现。
+- Keep the current QR size, position, and white margin.
+- Crop whole cells from the central third of the placed QR. Narrow the crop for small QR versions to exclude corner markers and their separators.
+- Save the crop as `pattern-reference.png`.
+- Place the crop once at the top-left of a plain white reference canvas at its original pixel size. Save that canvas as `reference-canvas.png` and send Qwen the selection mask, reference canvas, and prepared poster, in that order.
+- Ask for a new, non-repeating arrangement of rounded black cells on white, with even density and the same cell size. Do not copy, enlarge, stretch, or tile the sample. No markers, text, or scenery.
+- Use generated pixels only inside the fill region. Keep original pixels outside it and overlay the exact QR.
+- No external reference image is needed or accepted.
 
-当前实现说明：
-
-- 首版按已提供的 `source/qr.png` 直接输入二维码，保留其圆形定位点等样式，不从文本重新生成。
-- `--text` 作为可选的解码内容校验参数。
-- 当前命令必须显式传入 `--dry-run`，不会联网或产生图片生成费用。
-- 当前输出止于区域、布局、编辑遮罩、`before-ai.png` 和验证报告，不生成 `poster.png`。
-
-## 1. 目标与已确认需求
-
-- 输入一张图片，图片中央有一块不规则描黑区域。
-- 采用 https://qrcode.antfu.me 的二维码默认的生成方式。
-- 在不规则描黑区域内部放入二维码。
-- 描黑区域中，除二维码及其安全留白之外的部分由 OpenAI 图片生成接口填充二维码的Mask。
-- 描黑区域之外的原图保持不变。
-- 先完成最简单的本地 CLI，再封装为 Web 服务，并选择经济的上线方式。
-
-第一版将二维码整块正方形及安全留白视为保护区，包括二维码内部的浅色格子。AI 只负责周围填充，最终二维码由程序精确覆盖。
-
-输入暂按“区域内部涂满黑色”处理。只有黑色轮廓线的输入需要增加闭合轮廓识别与内部填充，不纳入最小版本默认行为。
-
-## 2. 核心流程
-
-```text
-描黑图片 + 二维码内容 + 风格描述
-  → 提取不规则区域的逐像素遮罩
-  → 在区域内确定二维码位置与尺寸
-  → 生成二维码并合成参考图
-  → OpenAI 填充剩余描黑部分
-  → 本地按遮罩合成并覆盖精确二维码
-  → 扫码验证
-  → 导出海报与报告
-```
-
-定义：
-
-- M：不规则描黑区域，保留实际轮廓、凹陷与孔洞。
-- Q：二维码正方形及安全留白，必须完全位于 M 内。
-- E = M − Q：允许 AI 填充的区域，可包含狭长部分或多个不相连的部分。
-
-最终像素来源：
-
-| 区域 | 来源 |
-| --- | --- |
-| M 之外 | 原始输入图片 |
-| E 内部 | AI 生成结果 |
-| Q 内部 | 程序生成的二维码及安全留白 |
-
-OpenAI 遮罩编辑不保证严格遵守边界，因此必须本地合成，不能直接将模型返回图作为最终海报。
-
-## 3. 技术路线
-
-- Node.js + TypeScript：CLI 与未来 Web 后端共用核心流程。
-- antfu/qrcode-toolkit：核对并抽取需要的二维码生成与渲染逻辑，固定上游版本并保留 MIT 许可证。
-- sharp：图片读取、遮罩生成、尺寸对齐与像素合成。
-- OpenAI 官方 SDK：调用 images.edit。
-- ZXing 等解码器：检查二维码内容和最终输出可读性。
-
-上游依赖包含 uqr，但只使用相同底层库不等于复现网站效果；实现时需要核对实际参数和渲染逻辑。
-
-将处理流程封装为独立函数，使 CLI 和后续 HTTP 接口共用，避免业务逻辑绑定命令行参数或服务器框架。
-
-## 4. 分步实施与验收
-
-### Step 1：输入与不规则区域识别
-
-输入图片和现有二维码 PNG。第一版优先使用 PNG，在图片中央候选范围内识别近黑色区域，生成逐像素遮罩。二维码内容由输入二维码解码得到，可用 `--text` 额外校验。
-
-不得使用外接矩形代替不规则区域。自动识别不能可靠区分相连的原图黑色内容和涂抹，因此提供独立 mask 文件覆盖机制。存在歧义时在调用付费 API 前报错。
-
-规划参数：
-
-- --input：输入图片。
-- --text：二维码内容。
-- --prompt：填充风格。
-- --mask：可选，明确指定涂抹区域；文件约定在实现时文档化，并转换为内部遮罩。
-- --qr-box x,y,size：可选，指定二维码保护区位置和尺寸，仍需检查完全位于 M 内。
-
-验收：输出轮廓和区域预览；凹陷、孔洞与外围黑色内容不会被外接矩形误覆盖。
-
-### Step 2：二维码输入与验证
-
-当前 dry-run 版本直接读取 qrcode.antfu.me 导出的二维码，验证其可解码、正方形、2 模块留白和整数模块尺寸。文本生成二维码保留为后续能力。
-
-验收：独立二维码可解码，内容与输入完全一致。
-
-### Step 3：在不规则区域内放置二维码
-
-寻找完全位于 M 内、能容纳二维码及安全留白的正方形。默认优先靠近区域中心，同时给周围填充留出空间。采用整数像素码点尺寸，避免模糊缩放。
-
-不规则区域的外接矩形仅可用于缩小搜索范围，不能作为可放置空间。区域狭窄、存在孔洞或空间不足时，提示扩大涂抹范围、调整位置或缩短二维码内容。
-
-验收：Q 的全部像素位于 M 内；手动指定的位置同样接受检查。
-
-### Step 4：构造图片编辑遮罩
-
-先将精确二维码合成到输入图，让模型看到布局。生成与编辑输入相同尺寸的 RGBA 遮罩：E 区域透明，其他区域不透明。
-
-保存 edit-mask.png 和 before-ai.png。提供 --dry-run，只生成二维码、遮罩和预览，不调用图片 API。
-
-验收：预览明确显示不规则可编辑区域与二维码保护区。
-
-### Step 5：调用图片编辑 API
-
-使用 images.edit，模型和质量档可配置。初始候选为 gpt-image-2，先用低质量档验证流程，再比较中质量档的效果与合格率；实际调用前核实账户可用性与接口参数。
-
-初始提示词：
-
-> 填充指定区域，延续周围画面的颜色、纹理、光照和艺术风格，使中央二维码自然融入海报。保持二维码周围低干扰，不添加文字或额外二维码。
-
-保存 AI 原始结果、模型参数、耗时与 usage。首版每次生成一张，控制重试次数，避免不确定超时导致重复付费生成。
-
-验收：获得可追踪的生成结果，并能独立重跑本地合成步骤。
-
-### Step 6：精确合成海报
-
-若生成结果尺寸不同，先对齐生成背景，然后按 E 取像素；M 之外恢复原图；最后覆盖目标尺寸下重新渲染的二维码及留白。
-
-边缘融合只在涂抹区域内部进行，二维码保护区不参与羽化。检查描黑边界的抗锯齿像素，避免残留黑边。
-
-验收：M 之外原图像素不变；Q 与程序输出一致；不规则边缘无明显黑边或接缝。
-
-### Step 7：扫码验证与导出
-
-对最终海报解码并比较内容，检查缩小版及 JPEG 压缩版，使用手机实测。
-
-失败时优先调整尺寸、留白和对比度，并复用生成背景。若新保护区不能被已有图层正确覆盖，再判断是否需要重新生成。
-
-验收：记录各版本解码结果；失败输出不能标记为合格海报。手机扫码结果作为实际使用补充验证。
-
-### Step 8：封装 Web
-
-CLI 完成后增加上传、二维码内容、风格输入、区域预览、生成与下载。
-
-公开服务使用任务 ID、持久任务状态、后台处理及状态查询，避免长时间生成与页面请求生命周期绑定。API Key 只放服务端。
-
-加入访问控制、生成额度、并发限制、重复提交去重和临时图片清理。后台任务处理必须与托管平台的执行生命周期匹配，不能依赖 HTTP 返回后的无保障进程继续工作。
-
-验收：刷新页面仍可查询任务；重复提交不重复生成；失败可定位；图片按策略清理。
-
-## 5. CLI 接口草案
-
-当前已实现接口：
+## Run
 
 ```bash
-pnpm qr-poster \
-  --dry-run \
-  --input ./input.png \
-  --qr ./qr.png \
-  --text "https://example.com" \
-  --out-dir ./output
+pnpm qr-poster -- --generate --input source/poster.png --qr test/fixtures/qr.png --out-dir output/qwen-fresh
 ```
 
-当前 dry-run 输出：
+The QR input must be square and pass the existing module and decoding checks. The repository’s `source/qr.png` is 753×748 and is rejected by that check, so the samples use the square 820×820 `test/fixtures/qr.png`. `--dry-run` prepares the layout without a network call. `--generated-image <path>` reuses a saved result offline. API setup and other options are in README.md.
 
-```text
-output/
-  region-mask.png
-  layout-preview.png
-  qr.png
-  edit-mask.png
-  before-ai.png
-  report.json
-```
+## Checks
 
-report.json 记录输入摘要、二维码内容、位置、检测参数、耗时与解码结果。当前版本没有模型参数或 usage，也不接触凭证。
+- Test that the crop contains the supplied QR pixels and excludes corner markers.
+- Test that the reference contains exactly one unscaled crop: the only non-white block in `reference-canvas.png` is the crop at the origin, with no tiles or enlargement.
+- Check API image order and the complete prompt.
+- Check exact QR pixels and original pixels outside the fill region.
+- Decode the final PNG, half-size version, and JPEG quality 80.
+- Inspect the sample for even density, matching cell size, no repeated tiles or enlarged fragments, and no extra markers, text, or scenery. Record this separately from scan results.
+- Phone scanning remains untested until checked manually.
 
-## 6. 经济上线方案
+## Marker protection
 
-以下是 2026-09-14 查询时的参考信息。上线前复核价格、区域和额度；费用不含域名、税费与 OpenAI API。
+The first center-crop trial still produced extra circles because Qwen could see the complete QR in the poster input. The API input now covers the protected QR square with white. The center crop is the only QR pattern visible to Qwen. Local compositing restores the exact QR afterward; `before-ai.png` still shows the actual layout.
 
-| 方案 | 参考成本 | 适用判断 |
-| --- | --- | --- |
-| Cloud Run | 请求计费模式每月免费额度：18 万 vCPU 秒、36 万 GiB 秒、200 万请求；超出按量收费 | 优先候选，容器便于复用 Node、sharp 和解码器；低流量计算费有机会位于免费额度内 |
-| Railway Hobby | 最低 $5/月，包含 $5 用量，超出另计 | 部署省事，适合快速验证 |
-| Cloudflare Workers | 免费档每天 10 万请求，每次 10ms CPU；付费档从 $5/月起 | 适合轻量 API；图片处理 CLI 原样迁移需要额外兼容性与资源评估 |
+The current `source/qr.png` is 753×748 and fails the square-input check. It was left untouched. Tests and these samples use the original 820×820 QR, saved as `test/fixtures/qr.png`.
 
-建议先评估 Cloud Run，允许缩容到零；若更重视首次部署速度，选择 Railway。没有流量、任务耗时和存储数据前，不声称某方案在所有规模下最便宜。
+Previous trials enlarged the crop or repeated it as tiles. The reference now contains one unscaled crop on a plain white canvas. The prompt asks for new cells based only on the sample’s shape and size. No external image is used.
 
-Cloud Run 等待图片 API 响应时仍可能占用计费请求处理时间。还需计算图片存储、网络、构建、镜像仓库和任务组件费用，免费计算额度不代表整套服务永久免费。
+## Fresh-fill trial (2026-09-15)
 
-## 7. 图片生成成本与节省策略
+Run: `pnpm qr-poster -- --generate --input source/poster.png --qr test/fixtures/qr.png --out-dir output/qwen-fresh`. One paid generation was made (request `0e18aab6-11b8-9208-b428-ff7ac6cd49da`). No retry was attempted and the mandated prompt sentence was not reworded.
 
-查询时 gpt-image-2 官方 token 价格：
+Reference, checked: `reference-canvas.png` is 688×576 with exactly one unscaled 65×65 crop at the origin and pure white elsewhere, and `pattern-reference.png` is that same crop pixel for pixel. There are no tiles and no enlargement.
 
-- 图片输入：$4 / 百万 token。
-- 图片输出：$15 / 百万 token。
-- 文字输入：$2.50 / 百万 token。
+Scan result: `report.json` reports `status: generated`, `qualified: true`, all ten checks passing (source, normalized, before-AI, half-scale, JPEG-80, poster, poster half-scale, poster JPEG-80, protected pixels, QR pixels). Phone scanning is untested.
 
-单张价格需按尺寸、质量、输入和实际 usage 计算，不能按涂抹面积比例估算。
-
-```text
-每张合格海报成本 = 全部生成费用 / 合格海报数量
-月成本 = 海报数量 × 每张合格成本 + 托管、存储及其他基础设施费用
-```
-
-先选 10 张代表性图片，覆盖凹形、狭长、带孔洞及复杂背景等情况，比较效果、扫码通过率与成本。
-
-节省方式：先免费预览、一次生成一张、缓存背景、二维码调整只重新合成、限制生成次数与重试。
-
-官方已公告 gpt-image-1-mini 和 gpt-image-1.5 于 2026-12-01 移除，因此新实现不绑定这两个旧型号。
-
-## 8. 首阶段完成标准
-
-交付一个可运行 CLI，以及：
-
-1. 一张从真实不规则涂抹输入生成的最终海报。
-2. 可检查的区域、布局与编辑遮罩预览。
-3. 原图外围和二维码保护区的像素验证结果。
-4. 扫码报告及手机实际扫码记录。
-5. 实测生成耗时与单张合格成本。
-
-这些验证通过后开始 Web 化。
-
-## 9. 参考资料
-
-- 网站：https://qrcode.antfu.me
-- 上游代码与 MIT 许可证：https://github.com/antfu/qrcode-toolkit
-- 上游依赖：https://github.com/antfu/qrcode-toolkit/blob/main/package.json
-- 作者二维码优化说明：https://antfu.me/posts/ai-qrcode-refine
-- OpenAI 图片生成与编辑：https://developers.openai.com/api/docs/guides/image-generation
-- OpenAI 价格：https://developers.openai.com/api/docs/pricing
-- OpenAI 弃用公告：https://developers.openai.com/api/docs/deprecations
-- Cloud Run 价格：https://cloud.google.com/run/pricing
-- Railway 价格：https://railway.com/pricing
-- Cloudflare Workers 价格：https://developers.cloudflare.com/workers/platform/pricing/
+Visual result: failed, and this verdict is separate from the passing scan. The fill region came back as a solid black blob — 94.8% black and 2.9% white pixels inside the region, against 41–50% black and 20–48% white in the earlier cell-like trials. No rounded cells and no even density were generated; the model echoed the input poster instead of repainting the selection. Repeated tiles, enlarged fragments, and extra markers cannot be judged because no cells were produced. A retry needs approval.

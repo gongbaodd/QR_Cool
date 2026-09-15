@@ -1,4 +1,5 @@
 export type ErrorCode =
+  | 'QWEN_API_FAILED'
   | 'INVALID_INPUT'
   | 'MASK_AMBIGUOUS'
   | 'MASK_INVALID'

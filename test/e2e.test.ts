@@ -18,7 +18,7 @@ describe('real fixture dry run', () => {
     temporaryDirectories.push(outputDir)
     const result = await preparePoster({
       inputPath: resolve('source/poster.png'),
-      qrPath: resolve('source/qr.png'),
+      qrPath: resolve('test/fixtures/qr.png'),
       outputDir,
       dryRun: true,
     })
@@ -81,7 +81,7 @@ describe('real fixture dry run', () => {
     temporaryDirectories.push(outputDir)
     const result = await preparePoster({
       inputPath: resolve('source/poster.png'),
-      qrPath: resolve('source/qr.png'),
+      qrPath: resolve('test/fixtures/qr.png'),
       outputDir,
       dryRun: true,
     })
@@ -105,7 +105,7 @@ describe('real fixture dry run', () => {
     temporaryDirectories.push(outputDir)
     await expect(preparePoster({
       inputPath: resolve('source/poster.png'),
-      qrPath: resolve('source/qr.png'),
+      qrPath: resolve('test/fixtures/qr.png'),
       outputDir,
       dryRun: true,
       expectedText: 'https://example.com/',
@@ -113,19 +113,19 @@ describe('real fixture dry run', () => {
 
     await preparePoster({
       inputPath: resolve('source/poster.png'),
-      qrPath: resolve('source/qr.png'),
+      qrPath: resolve('test/fixtures/qr.png'),
       outputDir,
       dryRun: true,
     })
     await expect(preparePoster({
       inputPath: resolve('source/poster.png'),
-      qrPath: resolve('source/qr.png'),
+      qrPath: resolve('test/fixtures/qr.png'),
       outputDir,
       dryRun: true,
     })).rejects.toBeInstanceOf(QrPosterError)
     await expect(preparePoster({
       inputPath: resolve('source/poster.png'),
-      qrPath: resolve('source/qr.png'),
+      qrPath: resolve('test/fixtures/qr.png'),
       outputDir,
       dryRun: true,
     })).rejects.toMatchObject({ code: 'OUTPUT_EXISTS', exitCode: 2 })

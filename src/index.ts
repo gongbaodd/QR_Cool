@@ -16,3 +16,6 @@ export type {
   ReportV1,
   VerificationResult,
 } from './types.js'
+
+export { generatePoster } from './generate.js'
+export type { GeneratePosterOptions, GenerateResult, ReportV2 } from './types.js'
