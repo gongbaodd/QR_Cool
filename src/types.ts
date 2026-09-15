@@ -269,6 +269,8 @@ export interface PatternCutReport {
     /** A mask pixel selects the shape when it is transparent or dark. */
     keep: 'transparent-or-dark'
     minLoopArea: number
+    /** Solid black band retained inside the letter outline, in pixels. */
+    borderWidth: number
   }
   shape: {
     loopsTraced: number

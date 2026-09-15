@@ -1,10 +1,4 @@
-import {
-  BinaryBitmap,
-  DecodeHintType,
-  HybridBinarizer,
-  QRCodeReader,
-  RGBLuminanceSource,
-} from '@zxing/library'
+import zxing from '@zxing/library'
 import jsQR from 'jsqr'
 import type { QRCode as JsQrResult } from 'jsqr'
 import sharp from 'sharp'
@@ -13,6 +7,14 @@ import { QrPosterError } from './errors.js'
 import type { LoadedPng } from './image.js'
 import { decodePng, luma, rgbaToPng } from './image.js'
 import type { QrMetadata, QrSourceTrim, VerificationCheck } from './types.js'
+
+const {
+  BinaryBitmap,
+  DecodeHintType,
+  HybridBinarizer,
+  QRCodeReader,
+  RGBLuminanceSource,
+} = zxing
 
 const QUIET_ZONE_MODULES = 2 as const
 const INK_LUMA_THRESHOLD = 128
@@ -110,7 +112,7 @@ export function decodeQrRawDetailed(data: Uint8Array, width: number, height: num
   try {
     const source = new RGBLuminanceSource(pixels, width, height)
     const bitmap = new BinaryBitmap(new HybridBinarizer(source))
-    const hints = new Map<DecodeHintType, unknown>([
+    const hints = new Map<number, unknown>([
       [DecodeHintType.TRY_HARDER, true],
       [DecodeHintType.CHARACTER_SET, 'UTF-8'],
     ])

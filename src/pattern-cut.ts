@@ -11,6 +11,8 @@ import type { BoundingBox, PatternCutOptions, PatternCutReport, PatternCutResult
 export const CUT_RADIUS = 5
 /** Default Douglas-Peucker tolerance in pixels for the traced outline. */
 export const CUT_SMOOTH_TOLERANCE = 3
+/** Solid black band retained inside the letter outline. */
+export const CUT_BORDER_WIDTH = 20
 /** A mask pixel selects the cut shape when it is transparent or dark. */
 export const CUT_KEEP_RULE = 'transparent-or-dark' as const
 
@@ -524,17 +526,25 @@ async function rasterizeCoverage(svg: string, width: number, height: number, lab
 }
 
 /**
- * Applies the cut coverage to the untouched source pixels, so the pattern is never resampled:
- * everything inside the cut stays bit-exact and everything outside is fully transparent.
+ * Applies the cut coverage without resampling the source. An optional black band is composited
+ * inside the outline; pixels beyond it stay bit-exact and everything outside is transparent.
  */
-export async function renderCutPng(pattern: LoadedPng, pathData: string): Promise<Buffer> {
-  const coverage = await renderCutCoverage(pathData, pattern.width, pattern.height)
+export async function renderCutPng(
+  pattern: LoadedPng,
+  pathData: string,
+  borderWidth = 0,
+): Promise<Buffer> {
+  const [coverage, borderCoverage] = await Promise.all([
+    renderCutCoverage(pathData, pattern.width, pattern.height),
+    renderCutBorderCoverage(pathData, pattern.width, pattern.height, borderWidth),
+  ])
   const output = new Uint8Array(pattern.width * pattern.height * 4)
   for (let index = 0; index < pattern.width * pattern.height; index++) {
     const offset = index * 4
-    output[offset] = pattern.data[offset]!
-    output[offset + 1] = pattern.data[offset + 1]!
-    output[offset + 2] = pattern.data[offset + 2]!
+    const border = borderCoverage[index]! / 255
+    output[offset] = Math.round(pattern.data[offset]! * (1 - border))
+    output[offset + 1] = Math.round(pattern.data[offset + 1]! * (1 - border))
+    output[offset + 2] = Math.round(pattern.data[offset + 2]! * (1 - border))
     output[offset + 3] = Math.round(pattern.data[offset + 3]! * coverage[index]! / 255)
   }
   return rgbaToPng(output, pattern.width, pattern.height)
@@ -564,8 +574,8 @@ export async function generatePatternCut(options: PatternCutOptions): Promise<Pa
 
   const selected = buildShapeSelection(mask)
   const cut = buildCutPath(selected, pattern.width, pattern.height, { radius, smoothTolerance })
-  const svg = buildCutSvg(cut.d, pattern.width, pattern.height, pattern.file)
-  const png = await renderCutPng(pattern, cut.d)
+  const svg = buildCutSvg(cut.d, pattern.width, pattern.height, pattern.file, { borderWidth: CUT_BORDER_WIDTH })
+  const png = await renderCutPng(pattern, cut.d, CUT_BORDER_WIDTH)
 
   await writeFile(join(outputDir, ARTIFACT_NAMES.svg), svg, 'utf8')
   await writeFile(join(outputDir, ARTIFACT_NAMES.png), png)
@@ -605,6 +615,7 @@ export async function generatePatternCut(options: PatternCutOptions): Promise<Pa
       smoothTolerance,
       keep: CUT_KEEP_RULE,
       minLoopArea,
+      borderWidth: CUT_BORDER_WIDTH,
     },
     shape: cut.stats,
     artifacts: {

@@ -87,9 +87,9 @@ The mask uses the edit-mask convention: a pixel is inside the cut shape when it 
 
 The outline is traced along pixel borders, collapsed to corners, simplified with a Douglas-Peucker tolerance (`--cut-smooth`, default 3px), and every corner is filleted with `--cut-radius` (default 5px). The fillet clamps to half of each neighbouring edge so narrow features stay inside the polygon; a feature narrower than roughly twice the smoothing tolerance is erased entirely, so lower `--cut-smooth` when a thin shape disappears. Loops smaller than the fillet area (radius²) are dropped as specks. The path carries `fill-rule="evenodd"`, so enclosed mask holes remain holes. With the maximum 246×246 QR on the bundled mask, the removed box reaches the region's right-hand notch instead of forming an enclosed hole; the result has one kept loop, 197 surviving vertices, and 21 pixel-jagged specks dropped.
 
-The PNG comes from rasterizing only the path and applying it as the alpha channel of the untouched pattern pixels, so everything inside the cut stays bit-exact and everything outside is fully transparent; only the cut edge is antialiased.
+Both outputs draw a solid 20px black band inside the traced edge, preserving the complete outline of the letter B instead of letting the QR texture cut through it. Beyond that border, the PNG keeps the original pattern pixels bit-exact; everything outside is fully transparent and the cut edge is antialiased.
 
-Reports use schema version 4 and record the pattern and mask hashes and sizes, the radius, smoothing tolerance, keep rule and speck threshold, the traced and kept loop counts, traced and simplified vertex counts, holes, cut area and bounds, both artifact hashes, and warnings.
+Reports use schema version 4 and record the pattern and mask hashes and sizes, the radius, smoothing tolerance, 20px border width, keep rule and speck threshold, the traced and kept loop counts, traced and simplified vertex counts, holes, cut area and bounds, both artifact hashes, and warnings.
 
 ## Assembly
 

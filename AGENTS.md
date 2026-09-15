@@ -25,7 +25,7 @@ Local TypeScript CLI (`qr-poster`) for artistic QR posters. Six modes: `--dry-ru
 - Pitch defaults to the pitch the placement pipeline uses. The version is the smallest whose modules plus margin cover the canvas, the code is center-cropped at whole-module offsets, and cells are never scaled. At a 5px pitch that is version 30 (705px code, crop 10/70, 1370-character random line); at 20px it is version 4 (62 characters).
 - The random text is seeded lowercase-plus-digits sized to the version's byte capacity so no repeating pad codewords appear; the same seed reproduces identical bytes.
 - `--pattern-preview` writes only `pattern.png` and a schema-3 `report.json`, composites nothing onto the poster, and is deliberately undecodable; the scannable QR always comes from the placement pipeline.
-- `--pattern-cut` treats a mask pixel as selected when it is transparent or dark, traces the outline into a vector path with `--cut-radius` fillets and `--cut-smooth` smoothing, and writes only `pattern-cut.svg`, `pattern-cut.png`, and a schema-4 `report.json`. Pixels inside the cut stay bit-exact; the SVG embeds the pattern as a data URI.
+- `--pattern-cut` treats a mask pixel as selected when it is transparent or dark, traces the outline into a vector path with `--cut-radius` fillets and `--cut-smooth` smoothing, retains a complete 20px black band inside the letter outline, and writes only `pattern-cut.svg`, `pattern-cut.png`, and a schema-4 `report.json`. Pattern pixels beyond the border stay bit-exact; the SVG embeds the pattern as a data URI.
 
 ## Assembly
 

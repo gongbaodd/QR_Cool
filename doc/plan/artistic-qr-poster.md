@@ -87,8 +87,8 @@ Pipeline (`src/pattern-cut.ts`, `--pattern-cut`):
 - Straight runs collapse to corners, then each closed ring is simplified with Douglas-Peucker. Closed rings are split at the vertex farthest from the first point before simplifying, because an open-run simplifier collapses a ring whose start and end coincide.
 - Every corner is filleted: the tangent distance is capped at half of each neighbouring edge and the arc radius is recomputed from the capped tangent, so arcs on narrow features cannot overlap. Sweep direction comes from the cross product, which rounds concave corners — such as the inside of the QR-box hole — the same way as convex ones. Near-straight corners pass through unrounded.
 - Rings smaller than the fillet area (radius², at least 4px²) are dropped as specks and counted in the report.
-- `pattern-cut.svg` is self-contained: the pattern is embedded as a base64 data URI inside `<image>` under a `clipPath` holding just the traced path, so the file opens anywhere and the cut edge stays vector.
-- `pattern-cut.png` rasterizes only the path and applies it as the alpha channel of the untouched pattern pixels, so no source pixel is resampled.
+- `pattern-cut.svg` is self-contained: the pattern is embedded as a base64 data URI inside `<image>` under a `clipPath` holding the traced path, and a clipped 40px centered stroke retains a complete 20px black band inside the letter edge.
+- `pattern-cut.png` rasterizes the same cut and inner border coverage. Pixels beyond the 20px border retain the source pattern exactly, while the border is composited black without resampling the source.
 
 Measured by preparing and cutting the bundled poster and version-5 QR at seed 1 and the automatic 6px pitch:
 

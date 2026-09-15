@@ -240,7 +240,13 @@ describe('pattern cut mode', () => {
     expect((await readdir(outputDir)).sort()).toEqual(['pattern-cut.png', 'pattern-cut.svg', 'report.json'])
     expect(result.report.schemaVersion).toBe(4)
     expect(result.report.mode).toBe('pattern-cut')
-    expect(result.report.cut).toEqual({ radius: 5, smoothTolerance: 3, keep: 'transparent-or-dark', minLoopArea: 25 })
+    expect(result.report.cut).toEqual({
+      radius: 5,
+      smoothTolerance: 3,
+      keep: 'transparent-or-dark',
+      minLoopArea: 25,
+      borderWidth: 20,
+    })
     expect(result.report.shape.loopsKept).toBe(1)
 
     const written = JSON.parse(await readFile(join(outputDir, 'report.json'), 'utf8'))
@@ -269,18 +275,25 @@ describe('pattern cut mode', () => {
           continue
         }
         interior++
-        const sourceOffset = (y * source.info.width + x) * 3
-        if (cut.data[offset] !== source.data[sourceOffset]
-          || cut.data[offset + 1] !== source.data[sourceOffset + 1]
-          || cut.data[offset + 2] !== source.data[sourceOffset + 2])
-          mismatches++
+        // The retained outline occupies the first 20px inside the shape. Check source fidelity only
+        // beyond it; the separate assertions below verify that the outline is solid black.
+        if (x >= 61 && x < 139 && y >= 51 && y < 129) {
+          const sourceOffset = (y * source.info.width + x) * 3
+          if (cut.data[offset] !== source.data[sourceOffset]
+            || cut.data[offset + 1] !== source.data[sourceOffset + 1]
+            || cut.data[offset + 2] !== source.data[sourceOffset + 2])
+            mismatches++
+        }
       }
     }
     expect(outside).toBeGreaterThan(0)
     expect(edge).toBeGreaterThan(0)
-    // Every pixel strictly inside the cut keeps the original pattern bits.
+    // Every pixel beyond the retained black outline keeps the original pattern bits.
     expect(interior).toBeGreaterThan(100 * 120)
     expect(mismatches).toBe(0)
+    // This checker cell was white in the source but is covered by the retained left outline.
+    const borderOffset = (50 * cut.info.width + 45) * 4
+    expect(Array.from(cut.data.subarray(borderOffset, borderOffset + 4))).toEqual([0, 0, 0, 255])
 
     const svg = await readFile(join(outputDir, 'pattern-cut.svg'), 'utf8')
     expect(svg).toContain('<clipPath id="pattern-cut">')
@@ -354,7 +367,7 @@ describe('pattern cut mode', () => {
 
     const mask = await loadPng(join(preparedDir, 'edit-mask.png'), 'mask')
     const selected = buildShapeSelection(mask)
-    const deepInside = erode(selected, mask.width, mask.height, 12)
+    const deepInside = erode(selected, mask.width, mask.height, 28)
 
     let sampled = 0
     let mismatches = 0
@@ -376,7 +389,7 @@ describe('pattern cut mode', () => {
           mismatches++
       }
     }
-    expect(sampled).toBeGreaterThan(30_000)
+    expect(sampled).toBeGreaterThan(5_000)
     expect(mismatches).toBe(0)
   })
 
