@@ -3,15 +3,19 @@ import process from 'node:process'
 import { Command, CommanderError } from 'commander'
 import { QrPosterError } from './errors.js'
 import { generatePoster } from './generate.js'
+import { generatePatternPreview } from './pattern.js'
 import { preparePoster } from './prepare.js'
 import type { QrBoxInput } from './types.js'
 
 interface CliOptions {
   dryRun?: boolean
   generate?: boolean
+  patternPreview?: boolean
   generatedImage?: string
   model?: string
   prompt?: string
+  modulePixels?: string
+  seed?: string
   input: string
   qr: string
   outDir: string
@@ -23,13 +27,16 @@ interface CliOptions {
 
 const program = new Command()
   .name('qr-poster')
-  .description('Prepare or generate an artistic QR poster with Qwen.')
+  .description('Prepare, generate, or preview artistic QR poster artwork.')
   .version('0.1.0')
   .option('--dry-run', 'prepare previews without network calls')
   .option('--generate', 'generate artwork using Qwen (paid API call)')
   .option('--generated-image <path>', 'recompose saved artwork offline')
+  .option('--pattern-preview', 'write a poster-sized marker-free QR pattern texture')
   .option('--model <name>', 'Qwen image model (default: qwen-image-2.0)')
   .option('--prompt <text>', 'QR pattern style instruction')
+  .option('--module-pixels <n>', 'pattern module pitch in pixels (default: the placed QR pitch)')
+  .option('--seed <n>', 'seed for the pattern random text line')
   .requiredOption('--input <path>', 'painted poster PNG')
   .requiredOption('--qr <path>', 'qrcode.antfu.me-compatible QR PNG')
   .requiredOption('--out-dir <path>', 'directory for artifacts')
@@ -47,10 +54,17 @@ async function main(): Promise<void> {
       : process.argv
     await program.parseAsync(argv)
     const options = program.opts<CliOptions>()
-    if ([options.dryRun, options.generate, options.generatedImage !== undefined].filter(Boolean).length !== 1)
-      throw new QrPosterError('INVALID_INPUT', 'Specify exactly one of --dry-run, --generate, or --generated-image.')
-    if (options.dryRun && (options.model !== undefined || options.prompt !== undefined))
+    const modes = [options.dryRun, options.generate, options.patternPreview, options.generatedImage !== undefined]
+    if (modes.filter(Boolean).length !== 1) {
+      throw new QrPosterError(
+        'INVALID_INPUT',
+        'Specify exactly one of --dry-run, --generate, --pattern-preview, or --generated-image.',
+      )
+    }
+    if (!options.generate && (options.model !== undefined || options.prompt !== undefined))
       throw new QrPosterError('INVALID_INPUT', '--model and --prompt require generation mode.')
+    if (!options.patternPreview && (options.modulePixels !== undefined || options.seed !== undefined))
+      throw new QrPosterError('INVALID_INPUT', '--module-pixels and --seed require --pattern-preview.')
     if (options.generate) {
       try { process.loadEnvFile() }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new QrPosterError('INVALID_INPUT', 'Could not load .env.') }
@@ -63,6 +77,23 @@ async function main(): Promise<void> {
       ...(options.mask !== undefined ? { maskPath: options.mask } : {}),
       ...(options.qrBox !== undefined ? { qrBox: parseQrBox(options.qrBox) } : {}),
       ...(options.force !== undefined ? { force: options.force } : {}),
+    }
+    if (options.patternPreview) {
+      const result = await generatePatternPreview({
+        ...common,
+        ...(options.modulePixels !== undefined ? { modulePixels: parsePositiveInteger('--module-pixels', options.modulePixels) } : {}),
+        ...(options.seed !== undefined ? { seed: parsePositiveInteger('--seed', options.seed) } : {}),
+      })
+      const { report } = result
+      process.stdout.write([
+        `Pattern written to ${result.outputDir}`,
+        `Region: ${report.region.area} pixels (${report.region.source})`,
+        `Pattern: version ${report.pattern.version}, ${report.pattern.modulePixels}px/module (${report.pitchSource}), seed ${report.pattern.seed}`,
+        `Random text: ${report.pattern.textLength} characters`,
+        `Removed modules: ${report.pattern.removedTypes.join(', ')}`,
+        '',
+      ].join('\n'))
+      return
     }
     const result = options.dryRun
       ? await preparePoster({ ...common, dryRun: true })
@@ -108,6 +139,13 @@ function parseQrBox(value: string): QrBoxInput {
   if (!numbers.every(Number.isInteger))
     throw new QrPosterError('QR_LAYOUT_INVALID', '--qr-box values must be integers.')
   return { x: numbers[0]!, y: numbers[1]!, size: numbers[2]! }
+}
+
+function parsePositiveInteger(flag: string, value: string): number {
+  const parsed = Number(value.trim())
+  if (!Number.isInteger(parsed) || parsed < 1)
+    throw new QrPosterError('INVALID_INPUT', `${flag} must be a positive integer.`)
+  return parsed
 }
 
 await main()

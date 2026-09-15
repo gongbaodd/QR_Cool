@@ -31,7 +31,8 @@
     "@zxing/library": "^0.23.0",
     "commander": "^15.0.0",
     "jsqr": "^1.4.0",
-    "sharp": "^0.35.4"
+    "sharp": "^0.35.4",
+    "uqr": "^0.1.3"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -156,3 +156,56 @@ export interface GenerateResult {
   report: ReportV2
   outputDir: string
 }
+
+export interface PatternPreviewOptions {
+  inputPath: string
+  qrPath: string
+  outputDir: string
+  /** Module pitch in poster pixels; defaults to the pitch the pipeline places on the poster. */
+  modulePixels?: number
+  /** Seed for the random text line; defaults to a fresh random seed per run. */
+  seed?: number
+  maskPath?: string
+  qrBox?: QrBoxInput
+  expectedText?: string
+  force?: boolean
+}
+
+export interface PatternReport {
+  schemaVersion: 3
+  mode: 'pattern-preview'
+  status: 'generated'
+  createdAt: string
+  durationMs: number
+  inputs: ReportV1['inputs']
+  region: ReportV1['region']
+  placement: QrPlacement
+  pitchSource: 'placement' | 'override'
+  pattern: {
+    seed: number
+    alphabet: string
+    textLength: number
+    textSha256: string
+    ecc: 'M'
+    version: number
+    qrModules: number
+    quietZoneModules: 2
+    totalModules: number
+    modulePixels: number
+    pixelStyle: 'rounded'
+    removedTypes: Array<'Position' | 'Alignment'>
+    codeSize: number
+    canvas: ImageDimensions
+    crop: { left: number, top: number }
+  }
+  artifacts: {
+    pattern: string
+    patternSha256: string
+  }
+  warnings: string[]
+}
+
+export interface PatternPreviewResult {
+  report: PatternReport
+  outputDir: string
+}

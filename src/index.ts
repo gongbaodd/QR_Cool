@@ -19,3 +19,16 @@ export type {
 
 export { generatePoster } from './generate.js'
 export type { GeneratePosterOptions, GenerateResult, ReportV2 } from './types.js'
+
+export {
+  PATTERN_ALPHABET,
+  PATTERN_ECC,
+  PATTERN_PIXEL_STYLE,
+  createPatternText,
+  generatePatternPreview,
+  renderRoundedPattern,
+  selectPatternVersion,
+  stripMarkerModules,
+} from './pattern.js'
+export type { PatternRenderOptions, PatternRenderWindow } from './pattern.js'
+export type { PatternPreviewOptions, PatternPreviewResult, PatternReport } from './types.js'
