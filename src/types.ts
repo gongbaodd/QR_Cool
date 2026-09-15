@@ -65,7 +65,19 @@ export interface QrPlacement {
 }
 
 export interface VerificationCheck {
-  name: 'sourceQr' | 'normalizedQr' | 'beforeAi' | 'halfScale' | 'jpeg80' | 'poster' | 'posterHalfScale' | 'posterJpeg80' | 'outsideRegionPixels' | 'qrPixels' | 'alphaPreserved'
+  name:
+    | 'sourceQr'
+    | 'normalizedQr'
+    | 'beforeAi'
+    | 'halfScale'
+    | 'jpeg80'
+    | 'poster'
+    | 'posterHalfScale'
+    | 'posterJpeg80'
+    | 'outsideRegionPixels'
+    | 'qrPixels'
+    | 'qrPlateCorners'
+    | 'alphaPreserved'
   passed: boolean
   decodedText?: string
   decoder?: 'zxing' | 'jsqr'
@@ -300,7 +312,7 @@ export interface AssemblePosterOptions {
 }
 
 export interface AssembleReport {
-  schemaVersion: 5
+  schemaVersion: 6
   mode: 'assemble'
   status: 'generated' | 'verification_failed'
   qualified: boolean
@@ -341,6 +353,17 @@ export interface AssembleReport {
     minLoopArea: number
     /** The cut edge is blended into the original pixels by its coverage; nothing outside the region changes. */
     edgeBlend: 'coverage-over-original'
+  }
+  /** The rounded white plate the texture is cut around and the QR is drawn in. */
+  qrPlate: {
+    /** Light margin modules kept around the code grid inside the plate. */
+    marginModules: 1
+    /** Corner radius of the plate in pixels; follows the effective `--cut-radius`. */
+    radius: number
+    path: 'rounded-rect'
+    box: BoundingBox
+    /** Window pixels the rounding leaves as texture instead of the QR's own light margin. */
+    cornerTexturePixels: number
   }
   shape: PatternCutReport['shape']
   artifacts: {

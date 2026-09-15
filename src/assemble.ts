@@ -20,7 +20,7 @@ import type { AssemblePosterOptions, AssembleReport, AssembleResult, Verificatio
 
 /** Quiet-zone modules the QR input profile carries; the overlay keeps one of them as a light margin. */
 const QUIET_ZONE_MODULES = 2 as const
-/** Light margin modules composited around the code grid, so the QR reads as one block with the texture. */
+/** Light margin modules around the code grid: the plate the texture is cut around. */
 const OVERLAY_MARGIN_MODULES = 1 as const
 /** Mask cleanup disc radius in module pitches, so pixel jags smaller than a module disappear. */
 const CLEAN_MODULES = 1 as const
@@ -97,9 +97,24 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
     rawSelection[index] = regionMask.data[index] ? 1 : 0
   const selection = cleanMaskSelection(rawSelection, width, height, cleanRadius)
   const cut = buildCutPath(selection, width, height, { radius, smoothTolerance })
-  const coverage = await renderCutCoverage(cut.d, width, height)
+
+  // The QR plate: the window keeps one quiet-zone module and is cut out of the texture as a rounded
+  // rectangle, so the pattern and the written cut layer end on a rounded edge instead of the
+  // straight slice the square window used to stamp. Its radius follows --cut-radius, so
+  // `--cut-radius 0` writes the square window back. The placement is always inside the region, so
+  // the plate never reaches the silhouette or its border band.
+  const { x, y, size } = placement
+  const overlayInset = (QUIET_ZONE_MODULES - OVERLAY_MARGIN_MODULES) * placement.modulePixels
+  const overlaySize = size - overlayInset * 2
+  const overlayX = x + overlayInset
+  const overlayY = y + overlayInset
+  const plateRadius = radius
+  const platePath = buildQrPlatePath(overlayX, overlayY, overlaySize, plateRadius)
+  const cutPath = cut.d + platePath
+  const plateCoverage = await renderCutCoverage(platePath, width, height)
+  const coverage = await renderCutCoverage(cutPath, width, height)
   const borderCoverage = await renderCutBorderCoverage(cut.d, width, height, borderWidth)
-  const cutSvg = buildCutSvg(cut.d, width, height, render.file, { borderWidth })
+  const cutSvg = buildCutSvg(cutPath, width, height, render.file, { borderWidth })
 
   // The written cut layer is exactly what the composition applies: the filleted shape clipped to
   // the painted region, with the black border along the inside of the edge and the antialiased
@@ -125,70 +140,77 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
 
   const output = Uint8Array.from(poster.data)
   for (let index = 0; index < regionMask.data.length; index++) {
-    const cover = coverage[index]!
-    const border = borderCoverage[index]!
-    if (!regionMask.data[index] || (cover === 0 && border === 0))
+    if (!regionMask.data[index])
       continue
     const offset = index * 4
-    // Blend the antialiased edge into the artwork underneath; the alpha channel never changes.
-    if (cover > 0) {
-      const weight = cover / 255
+    const cover = coverage[index]! / 255
+    const plate = plateCoverage[index]! / 255
+    const border = borderCoverage[index]! / 255
+    // The texture and the white plate are one artwork layer split by a shared antialiased edge, so
+    // they are mixed by their coverage before they are blended over the original pixels. Blending
+    // them one after the other would leak the artwork underneath along the plate's edge.
+    const art = cover + plate
+    if (art > 0) {
+      const weight = Math.min(1, art)
       for (let channel = 0; channel < 3; channel++) {
-        output[offset + channel] = Math.round(
-          render.data[offset + channel]! * weight + output[offset + channel]! * (1 - weight),
-        )
+        const value = (render.data[offset + channel]! * cover + 255 * plate) / art
+        output[offset + channel] = Math.round(value * weight + output[offset + channel]! * (1 - weight))
       }
     }
-    // The black border follows the mask silhouette, not the QR, and sits on top of the texture.
+    // The black border follows the mask silhouette, not the QR plate, and sits on top of the texture.
     if (border > 0) {
-      const weight = border / 255
       for (let channel = 0; channel < 3; channel++)
-        output[offset + channel] = Math.round(output[offset + channel]! * (1 - weight))
+        output[offset + channel] = Math.round(output[offset + channel]! * (1 - border))
     }
   }
 
-  // The QR keeps a single quiet-zone module and drops the rest: the 39-module window (code grid plus
-  // a 5px light margin) is copied verbatim, so the texture stops one module short of the code instead
-  // of wrapping it in a wide white square. Half the profile margin is enough for the local decoders
-  // on this fixture but not a promise for a phone camera, so the poster stays unverified.
+  // The QR keeps a single quiet-zone module and drops the rest: the 39-module plate (code grid plus
+  // a 5px light margin) is copied verbatim, but only where the rounded plate is fully opaque, so its
+  // corner cells keep the texture that wraps the rounding. Half the profile margin is enough for the
+  // local decoders on this fixture but not a promise for a phone camera, so the poster stays
+  // unverified.
   const qrRaw = await sharp(normalizedQr)
     .flatten({ background: '#ffffff' })
     .ensureAlpha()
     .raw()
     .toBuffer()
-  const { x, y, size } = placement
-  const overlayInset = (QUIET_ZONE_MODULES - OVERLAY_MARGIN_MODULES) * placement.modulePixels
-  const overlaySize = size - overlayInset * 2
-  const overlayX = x + overlayInset
-  const overlayY = y + overlayInset
-  for (let row = 0; row < height; row++) {
-    for (let column = 0; column < width; column++) {
-      const insideQr = column >= overlayX && column < overlayX + overlaySize
-        && row >= overlayY && row < overlayY + overlaySize
-      if (!insideQr)
-        continue
-      const target = (row * width + column) * 4
-      const source = ((row - overlayY + overlayInset) * size + column - overlayX + overlayInset) * 4
-      for (let channel = 0; channel < 4; channel++)
-        output[target + channel] = qrRaw[source + channel]!
-    }
+  for (let index = 0; index < regionMask.data.length; index++) {
+    if (plateCoverage[index] !== 255)
+      continue
+    const row = Math.floor(index / width)
+    const column = index - row * width
+    const target = index * 4
+    const source = ((row - overlayY + overlayInset) * size + column - overlayX + overlayInset) * 4
+    for (let channel = 0; channel < 4; channel++)
+      output[target + channel] = qrRaw[source + channel]!
   }
 
   let outsidePassed = true
   let qrPassed = true
+  let plateCornersPassed = true
   let alphaPassed = true
+  let cornerTexturePixels = 0
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
       const index = row * width + column
       const offset = index * 4
-      const insideQr = column >= overlayX && column < overlayX + overlaySize
+      const insidePlate = plateCoverage[index] === 255
+      const insideWindow = column >= overlayX && column < overlayX + overlaySize
         && row >= overlayY && row < overlayY + overlaySize
+      // The square window's corners outside the rounded plate must be the texture the cut layer
+      // wrote, never the QR's own light margin: that is what makes the cut read as rounded.
+      const isCorner = insideWindow && plateCoverage[index] === 0 && coverage[index] === 255
+        && borderCoverage[index] === 0
+      if (isCorner)
+        cornerTexturePixels++
       for (let channel = 0; channel < 4; channel++) {
         const value = output[offset + channel]!
         if (!regionMask.data[index] && value !== poster.data[offset + channel]!)
           outsidePassed = false
-        if (insideQr && value !== qrRaw[((row - overlayY + overlayInset) * size + column - overlayX + overlayInset) * 4 + channel]!)
+        if (insidePlate && value !== qrRaw[((row - overlayY + overlayInset) * size + column - overlayX + overlayInset) * 4 + channel]!)
           qrPassed = false
+        if (isCorner && value !== render.data[offset + channel]!)
+          plateCornersPassed = false
       }
       if (output[offset + 3] !== poster.data[offset + 3]!)
         alphaPassed = false
@@ -211,6 +233,7 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
     await verifyQrVariant('normalizedQr', normalizedQr, decoded.text),
     { name: 'outsideRegionPixels', passed: outsidePassed },
     { name: 'qrPixels', passed: qrPassed },
+    { name: 'qrPlateCorners', passed: plateCornersPassed },
     { name: 'alphaPreserved', passed: alphaPassed },
   ]
   const qualified = checks.every(check => check.passed)
@@ -218,8 +241,10 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
   const minLoopArea = cutMinLoopArea(radius)
   const warnings: string[] = []
   warnings.push(
-    `The QR quiet zone was trimmed to ${OVERLAY_MARGIN_MODULES} module in the composited overlay, so the `
-    + 'assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
+    `The QR quiet zone was trimmed to ${OVERLAY_MARGIN_MODULES} module in the composited plate, and the `
+    + `${formatPathNumber(plateRadius)}px rounding keeps only ${cornerTexturePixels} of the window's corner `
+    + 'pixels as texture, so the assembled poster is not decode-verified; only the QR input and the '
+    + 'geometry checks ran.',
   )
   if (placement.modulePixels < 6)
     warnings.push(`The normalized QR uses ${placement.modulePixels}px modules; 6px or larger is preferred.`)
@@ -242,7 +267,7 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
   ])
 
   const report: AssembleReport = {
-    schemaVersion: 5,
+    schemaVersion: 6,
     mode: 'assemble',
     status: qualified ? 'generated' : 'verification_failed',
     qualified,
@@ -314,7 +339,20 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
       minLoopArea,
       edgeBlend: 'coverage-over-original',
     },
-    shape: cut.stats,
+    qrPlate: {
+      marginModules: OVERLAY_MARGIN_MODULES,
+      radius: plateRadius,
+      path: 'rounded-rect',
+      box: { x: overlayX, y: overlayY, width: overlaySize, height: overlaySize },
+      cornerTexturePixels,
+    },
+    shape: {
+      ...cut.stats,
+      // The plate is an analytic subpath, so it never enters the traced loop counts: it is the
+      // extra hole the written path carries and the rounded area the net cut loses.
+      holes: cut.stats.holes + 1,
+      area: Math.round((cut.stats.area - roundedRectArea(overlaySize, plateRadius)) * 100) / 100,
+    },
     artifacts: {
       poster: ARTIFACT_NAMES.poster,
       posterSha256: sha256(assembled),
@@ -336,6 +374,42 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
 
 function sha256(value: string | Buffer): string {
   return createHash('sha256').update(value).digest('hex')
+}
+
+function formatPathNumber(value: number): string {
+  const rounded = Math.round(value * 100) / 100
+  return String(rounded === 0 ? 0 : rounded)
+}
+
+/**
+ * Analytic rounded-rectangle subpath for the QR plate. Appended to the traced region path, the
+ * even-odd fill of the cut turns the window into a hole, so the texture keeps its rounded corners
+ * instead of being sliced by the square overlay. A radius of zero or a plate radius wider than half
+ * the window degrades gracefully to a plain rectangle or a full round.
+ */
+export function buildQrPlatePath(x: number, y: number, size: number, radius: number): string {
+  if (!Number.isFinite(size) || size <= 0)
+    throw new QrPosterError('INVALID_INPUT', 'The QR plate size must be a positive number.')
+  if (!Number.isFinite(radius) || radius < 0)
+    throw new QrPosterError('INVALID_INPUT', 'The QR plate radius must be zero or a positive number.')
+  const corner = Math.min(radius, size / 2)
+  const format = formatPathNumber
+  const right = x + size
+  const bottom = y + size
+  if (corner < 0.01)
+    return `M${format(x)},${format(y)}L${format(right)},${format(y)}L${format(right)},${format(bottom)}L${format(x)},${format(bottom)}Z`
+  const arc = `A${format(corner)},${format(corner)} 0 0 1`
+  return `M${format(x + corner)},${format(y)}`
+    + `L${format(right - corner)},${format(y)}${arc} ${format(right)},${format(y + corner)}`
+    + `L${format(right)},${format(bottom - corner)}${arc} ${format(right - corner)},${format(bottom)}`
+    + `L${format(x + corner)},${format(bottom)}${arc} ${format(x)},${format(bottom - corner)}`
+    + `L${format(x)},${format(y + corner)}${arc} ${format(x + corner)},${format(y)}Z`
+}
+
+/** Area of a rounded rectangle: the square minus the four corner segments the arcs cut away. */
+export function roundedRectArea(size: number, radius: number): number {
+  const corner = Math.min(Math.max(radius, 0), size / 2)
+  return size * size - (4 - Math.PI) * corner * corner
 }
 
 function normalizedPath(path: string): string {

@@ -137,8 +137,10 @@ async function main(): Promise<void> {
         `QR overlay: ${report.qr.overlay.crop.size}px window at ${report.qr.overlay.x},${report.qr.overlay.y} `
         + `(${report.qr.overlay.crop.size - report.qr.overlay.quietZoneModules * 2 * report.placement.modulePixels}px code grid`
         + ` + ${report.qr.overlay.quietZoneModules}-module margin)`,
+        `QR plate: rounded ${report.qrPlate.box.width}px window, ${report.qrPlate.radius}px corners, `
+        + `${report.qrPlate.cornerTexturePixels} texture pixel(s) where the rounding meets the pattern`,
         `Pattern: version ${report.pattern.version}, ${report.pattern.modulePixels}px/module, seed ${report.pattern.seed}, aligned to the QR lattice`,
-        `Cut: ${report.shape.loopsKept} loop(s), ${report.shape.verticesSimplified} vertices, ${report.cut.radius}px fillet, ${report.cut.cleanRadius}px cleanup, ${report.cut.border.width}px border`,
+        `Cut: ${report.shape.loopsKept} loop(s), ${report.shape.holes} hole(s), ${report.shape.verticesSimplified} vertices, ${report.cut.radius}px fillet, ${report.cut.cleanRadius}px cleanup, ${report.cut.border.width}px border`,
         `Verification: ${report.qualified ? 'passed (geometry only, poster decode skipped)' : 'failed'}`,
         '',
       ].join('\n'))

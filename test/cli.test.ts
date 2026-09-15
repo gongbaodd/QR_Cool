@@ -18,6 +18,7 @@ async function temporaryDirectory(): Promise<string> {
 
 interface CliRun {
   status: number | null
+  stdout: string
 }
 
 /** Runs the CLI through tsx, using the same `-- <mode>` path the pnpm script documents. */
@@ -25,11 +26,11 @@ function runCli(args: string[]): CliRun {
   const result = spawnSync(
     process.execPath,
     ['--import', 'tsx', resolve('src/cli.ts'), '--', ...args],
-    { cwd: resolve('.') },
+    { cwd: resolve('.'), encoding: 'utf8' },
   )
   if (result.error)
     throw result.error
-  return { status: result.status }
+  return { status: result.status, stdout: result.stdout ?? '' }
 }
 
 /**
@@ -150,7 +151,17 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
       x: 254,
       y: 206,
     })
+    // The plate follows --cut-radius, so the 4px fillet above rounds its corners by four pixels.
+    expect(report.qrPlate).toEqual({
+      marginModules: 1,
+      radius: 4,
+      path: 'rounded-rect',
+      box: { x: 254, y: 206, width: 195, height: 195 },
+      cornerTexturePixels: 4,
+    })
+    expect(report.shape.holes).toBe(1)
     expect(report.cut.border).toEqual({ width: 20, color: '#000000', side: 'inside' })
+    expect(result.stdout).toMatch(/QR plate: rounded 195px window, 4px corners, 4 texture pixel\(s\)/)
   }, 120_000)
 
   it('rejects options that do not belong to assembly', async () => {
