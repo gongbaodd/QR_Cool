@@ -47,9 +47,9 @@ const program = new Command()
   .option('--module-pixels <n>', 'pattern module pitch in pixels (default: the placed QR pitch)')
   .option('--seed <n>', 'seed for the pattern random text line (--pattern-preview, --assemble)')
   .option('--cut-mask <path>', 'cut shape mask PNG: transparent or dark pixels are kept')
-  .option('--cut-radius <px>', 'fillet radius for --pattern-cut (default: 5); for --assemble, 0 keeps the plate window square and any positive value rounds its corners (default: two modules)')
+  .option('--cut-radius <px>', 'fillet radius for --pattern-cut (default: 5); for --assemble, 0 keeps the corner block beside each marker light and any positive value hands it to the texture (default: two modules)')
   .option('--cut-smooth <px>', 'outline simplification tolerance for --pattern-cut (default: 3); not used by --assemble')
-  .option('--qr-margin <modules>', 'light margin around the code for --assemble, in modules (default: 1; whole modules keep the cut module-level, a fraction is pixel-tight and trims the cells along the plate edge)')
+  .option('--qr-margin <modules>', 'depth of the light band beside each QR marker for --assemble, in whole modules (default: 1; 1 or 2, the profile quiet zone; the rest of the code edge stays flush with the texture)')
   .requiredOption('--input <path>', 'painted poster PNG, or the pattern PNG for --pattern-cut')
   .option('--content <value>', 'one-line content to encode into the generated QR')
   .requiredOption('--out-dir <path>', 'directory for artifacts')
@@ -140,16 +140,17 @@ async function main(): Promise<void> {
         ...(options.seed !== undefined ? { seed: parsePositiveInteger('--seed', options.seed) } : {}),
         ...(options.cutRadius !== undefined ? { radius: parsePositiveNumber('--cut-radius', options.cutRadius) } : {}),
         ...(options.cutSmooth !== undefined ? { smoothTolerance: parsePositiveNumber('--cut-smooth', options.cutSmooth) } : {}),
-        ...(options.qrMargin !== undefined ? { qrMargin: parsePositiveNumber('--qr-margin', options.qrMargin) } : {}),
+        ...(options.qrMargin !== undefined ? { qrMargin: parsePositiveInteger('--qr-margin', options.qrMargin) } : {}),
       })
       const { report } = result
       process.stdout.write([
         `Assembled poster written to ${result.outputDir}`,
         `Region: ${report.region.area} pixels (${report.region.source})`,
         `QR: version ${report.qr.version}, ${report.placement.modulePixels}px/module, box ${report.placement.x},${report.placement.y},${report.placement.size}`,
-        `QR plate: ${report.qrPlate.box.width}px window, ${report.qrPlate.holeModules} module hole, `
-        + `${report.qrPlate.marginPixels}px (${report.qrPlate.marginModules} module) margin, `
-        + `${report.qrPlate.cornerModules} corner module(s) handed to the texture`
+        `QR plate: code grid ${report.qrPlate.box.width}px in a ${report.qrPlate.holeModules} module hole, `
+        + `${report.qrPlate.bandCells} light cell(s) beside the markers `
+        + `(${report.qrPlate.marginPixels}px = ${report.qrPlate.marginModules} module deep), `
+        + `${report.qrPlate.cornerModules} corner block module(s) handed to the texture`
         + ` (${report.qrPlate.cornerTexturePixels} px)`,
         `Pattern: version ${report.pattern.version}, ${report.pattern.modulePixels}px/module, seed ${report.pattern.seed}, aligned to the QR lattice`,
         `Cut: ${report.cut.modulePixels}px modules on lattice ${report.cut.lattice.x},${report.cut.lattice.y}, `

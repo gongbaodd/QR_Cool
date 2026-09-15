@@ -7,6 +7,7 @@ import { assemblePoster } from '../src/assemble.js'
 import { buildModuleLattice, buildModulePath, computeRimModules, moduleCellIndex } from '../src/module-cut.js'
 import { buildPosterPattern, renderRoundedPattern } from '../src/pattern.js'
 import { decodeQrBuffer } from '../src/qr.js'
+import type { AssembleReport } from '../src/types.js'
 
 const POSTER = resolve('source/poster.png')
 const FIXTURE_QR = resolve('test/fixtures/qr.png')
@@ -58,12 +59,83 @@ function safeModules(mask: RawImage, lattice: ReturnType<typeof buildModuleLatti
   return grid
 }
 
+type Lattice = ReturnType<typeof buildModuleLattice>
+
+/** Lattice cells a poster-pixel rectangle covers in full, the rule the plate is built on. */
+function rectCells(lattice: Lattice, x: number, y: number, width: number, height: number): number[] {
+  const pitch = lattice.modulePixels
+  const firstColumn = Math.ceil((x - lattice.x) / pitch)
+  const firstRow = Math.ceil((y - lattice.y) / pitch)
+  const lastColumn = Math.floor((x + width - lattice.x) / pitch) - 1
+  const lastRow = Math.floor((y + height - lattice.y) / pitch) - 1
+  const cells: number[] = []
+  for (let row = firstRow; row <= lastRow; row++) {
+    for (let column = firstColumn; column <= lastColumn; column++) {
+      if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows)
+        continue
+      cells.push(row * lattice.columns + column)
+    }
+  }
+  return cells
+}
+
+/**
+ * The marker band as poster-pixel rectangles: beside each 7x7 finder, the arm above or below it and
+ * the arm on its outer side, plus the diagonal corner block. Rebuilt from the report, so the tests
+ * check the geometry the report claims rather than the implementation.
+ */
+function markerBandRects(report: AssembleReport): { arms: number[][], cornerBlocks: number[][] } {
+  const pitch = report.placement.modulePixels
+  const grid = report.qrPlate.box
+  const markerPixels = report.qrPlate.markerModules * pitch
+  const marginPixels = report.qrPlate.marginPixels
+  const last = report.qr.qrModules - report.qrPlate.markerModules
+  const arms: number[][] = []
+  const cornerBlocks: number[][] = []
+  for (const { column, row } of [{ column: 0, row: 0 }, { column: last, row: 0 }, { column: 0, row: last }]) {
+    const markerX = grid.x + column * pitch
+    const markerY = grid.y + row * pitch
+    const outerX = column === 0 ? grid.x - marginPixels : grid.x + grid.width
+    const outerY = row === 0 ? grid.y - marginPixels : grid.y + grid.height
+    arms.push([markerX, outerY, markerPixels, marginPixels])
+    arms.push([outerX, markerY, marginPixels, markerPixels])
+    cornerBlocks.push([outerX, outerY, marginPixels, marginPixels])
+  }
+  // The band lives inside the placement box; this guards the rebuild against a stale report.
+  expect(Math.min(...arms.map(arm => arm[0]!))).toBeGreaterThanOrEqual(report.placement.x)
+  expect(Math.min(...arms.map(arm => arm[1]!))).toBeGreaterThanOrEqual(report.placement.y)
+  return { arms, cornerBlocks }
+}
+
+/** Cells the plate paints: the code grid plus the marker arms, the corner blocks when kept light. */
+function plateCells(report: AssembleReport, lattice: Lattice): Set<number> {
+  const grid = report.qrPlate.box
+  const { arms, cornerBlocks } = markerBandRects(report)
+  const rects = [[grid.x, grid.y, grid.width, grid.height], ...arms]
+  if (report.qrPlate.cornerModules === 0)
+    rects.push(...cornerBlocks)
+  const cells = new Set<number>()
+  for (const [x, y, width, height] of rects)
+    for (const cell of rectCells(lattice, x!, y!, width!, height!))
+      cells.add(cell)
+  return cells
+}
+
+/** Cells the texture keeps: the diagonal corner block beside each of the three markers. */
+function cornerBlockCells(report: AssembleReport, lattice: Lattice): Set<number> {
+  const cells = new Set<number>()
+  for (const [x, y, width, height] of markerBandRects(report).cornerBlocks)
+    for (const cell of rectCells(lattice, x!, y!, width!, height!))
+      cells.add(cell)
+  return cells
+}
+
 describe('assemble mode', () => {
   it('cuts the texture in whole modules sampled from the region mask', async () => {
     const outputDir = await temporaryDirectory()
     const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
 
-    expect(result.report.schemaVersion).toBe(7)
+    expect(result.report.schemaVersion).toBe(8)
     expect(result.report.mode).toBe('assemble')
     expect(result.report.status).toBe('generated')
     expect(result.report.qualified).toBe(true)
@@ -93,33 +165,37 @@ describe('assemble mode', () => {
       safeModules: 3_284,
       droppedPartialModules: 367,
       droppedPartialPixels: 7_273,
-      drawnModules: 1_767,
+      drawnModules: 1_873,
       rim: { modules: 4, style: 'cell' },
-      plateCornerModules: 4,
+      plateCornerModules: 3,
       keep: 'region-mask',
       edgeBlend: 'cell-aligned-over-original',
     })
-    // The plate keeps one whole light module, so its window sits on the lattice and the cut's hole
-    // is whole modules: the 39x39 window minus its four corner modules, which stay texture.
+    // The light band is kept beside the three finder markers only: 42 cells (two 7-cell arms per
+    // marker) sit outside the 37x37 code grid, and the three corner blocks go back to the texture.
     expect(result.report.qrPlate).toEqual({
+      band: 'markers',
       marginModules: 1,
       marginPixels: 6,
-      cornerModules: 1,
-      path: 'module-window',
-      box: { x: 224, y: 187, width: 234, height: 234 },
-      holeModules: 1_517,
-      cornerTexturePixels: 144,
+      markerModules: 7,
+      bandCells: 42,
+      box: { x: 230, y: 193, width: 222, height: 222 },
+      holeModules: 1_411,
+      cornerModules: 3,
+      cornerTexturePixels: 108,
     })
     expect(result.report.qr.overlay).toEqual({
+      band: 'markers',
       quietZoneModules: 1,
-      crop: { left: 6, top: 6, size: 234 },
-      x: 224,
-      y: 187,
+      markerModules: 7,
+      crop: { left: 12, top: 12, size: 222 },
+      x: 230,
+      y: 193,
     })
-    expect(result.report.shape.modules).toBe(1_767)
-    expect(result.report.shape.rimModules).toBe(1_008)
-    expect(result.report.shape.textureModules).toBe(759)
-    expect(result.report.shape.area).toBe(1_767 * 36)
+    expect(result.report.shape.modules).toBe(1_873)
+    expect(result.report.shape.rimModules).toBe(1_029)
+    expect(result.report.shape.textureModules).toBe(844)
+    expect(result.report.shape.area).toBe(1_873 * 36)
     expect(result.report.shape.bounds).toEqual({ x: 176, y: 109, width: 366, height: 408 })
 
     expect(result.report.verification.checks.map(check => check.name)).toEqual([
@@ -133,9 +209,9 @@ describe('assemble mode', () => {
     ])
     expect(result.report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
     expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
-    expect(result.report.warnings.join(' ')).toMatch(/The QR quiet zone is 6px \(1 module\)/)
-    // A whole-module margin is module-level everywhere, so nothing warns about a trimmed cell.
-    expect(result.report.warnings.join(' ')).not.toMatch(/trims/)
+    expect(result.report.warnings.join(' ')).toMatch(/The light band is kept beside the three finder markers only: 42 cell\(s\)/)
+    // The band is whole cells, so nothing warns about a trimmed or pixel-precise plate.
+    expect(result.report.warnings.join(' ')).not.toMatch(/trims|pixel precision/)
     expect(result.report.warnings.join(' ')).toMatch(/367 module\(s\) crossed the painted region's edge/)
   }, 120_000)
 
@@ -174,6 +250,7 @@ describe('assemble mode', () => {
     expect(drawn.reduce<number>((total, value) => total + value, 0)).toBe(result.report.cut.drawnModules)
 
     const safe = safeModules(mask, lattice)
+    const plate = plateCells(result.report, lattice)
     let outsideChanged = 0
     let changedOutsideModules = 0
     let changedInDroppedModules = 0
@@ -187,10 +264,8 @@ describe('assemble mode', () => {
         const offset = index * 4
         const cell = moduleCellIndex(lattice, column, row)
         const isDrawn = cell >= 0 && drawn[cell] === 1
-        const inHole = cell >= 0 && result.report.qrPlate.box.x <= column
-          && column < result.report.qrPlate.box.x + result.report.qrPlate.box.width
-          && result.report.qrPlate.box.y <= row
-          && row < result.report.qrPlate.box.y + result.report.qrPlate.box.height
+        // The plate hole is the code grid plus the marker band, not a rectangle.
+        const inHole = cell >= 0 && plate.has(cell)
         let changed = false
         for (let channel = 0; channel < 4; channel++) {
           if (assembled.data[offset + channel] !== source.data[offset + channel])
@@ -307,120 +382,144 @@ describe('assemble mode', () => {
     expect(rimDark / rimPixels).toBeGreaterThan(0.97)
   }, 120_000)
 
-  it('copies the QR into the plate window and hands the corner modules to the texture', async () => {
+  it('keeps the light band beside the markers and leaves the rest of the code edge to the texture', async () => {
     const outputDir = await temporaryDirectory()
     const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
     const { width } = result.report.inputs.poster
-    const plate = result.report.qrPlate
-    const overlay = result.report.qr.overlay
     const pitch = result.report.placement.modulePixels
     const lattice = buildModuleLattice(width, result.report.inputs.poster.height, pitch, result.report.placement)
     const poster = await raw(join(outputDir, 'poster.png'))
     const qr = await raw(join(outputDir, 'qr.png'))
     const cut = await raw(join(outputDir, 'pattern-cut.png'))
+    const plate = plateCells(result.report, lattice)
+    const corners = cornerBlockCells(result.report, lattice)
+    const grid = result.report.qrPlate.box
+    const placement = result.report.placement
 
-    let qrPixels = 0
+    // The QR is copied verbatim at its placement position: the code grid plus the band cells, whose
+    // pixels are the QR's own light margin. The corner blocks are the only plate cells left out.
+    let platePixels = 0
     let qrMismatch = 0
-    let cornerPixels = 0
-    let cornerMismatch = 0
-    let drawnInsideWindow = 0
-    // The handed-back corner modules are the ones holding the window's corner pixels.
-    const cornerCells = new Set<number>()
-    if (plate.cornerModules > 0) {
-      for (const [x, y] of [
-        [plate.box.x, plate.box.y],
-        [plate.box.x + plate.box.width - 1, plate.box.y],
-        [plate.box.x, plate.box.y + plate.box.height - 1],
-        [plate.box.x + plate.box.width - 1, plate.box.y + plate.box.height - 1],
-      ])
-        cornerCells.add(moduleCellIndex(lattice, x!, y!))
-    }
-    for (let row = plate.box.y; row < plate.box.y + plate.box.height; row++) {
-      for (let column = plate.box.x; column < plate.box.x + plate.box.width; column++) {
-        const offset = (row * width + column) * 4
-        const cell = moduleCellIndex(lattice, column, row)
-        const corner = cornerCells.has(cell)
-        if (corner) {
-          cornerPixels++
-          // The corner module's in-window pixels are texture the cut wrote, not the QR's margin.
-          if (cut.data[offset + 3] !== 255)
-            cornerMismatch++
-          for (let channel = 0; channel < 3; channel++) {
-            if (poster.data[offset + channel] !== cut.data[offset + channel])
-              cornerMismatch++
+    for (const cell of plate) {
+      const row = Math.floor(cell / lattice.columns)
+      const column = cell - row * lattice.columns
+      for (let offsetY = 0; offsetY < pitch; offsetY++) {
+        for (let offsetX = 0; offsetX < pitch; offsetX++) {
+          const x = lattice.x + column * pitch + offsetX
+          const y = lattice.y + row * pitch + offsetY
+          const source = ((y - placement.y) * placement.size + x - placement.x) * 4
+          platePixels++
+          for (let channel = 0; channel < 4; channel++) {
+            if (poster.data[(y * width + x) * 4 + channel] !== qr.data[source + channel])
+              qrMismatch++
           }
-          continue
-        }
-        qrPixels++
-        const source = ((row - plate.box.y + overlay.crop.left) * result.report.placement.size
-          + column - plate.box.x + overlay.crop.top) * 4
-        for (let channel = 0; channel < 4; channel++) {
-          if (poster.data[offset + channel] !== qr.data[source + channel])
-            qrMismatch++
         }
       }
     }
-    // The corner modules are the only window pixels that are not the QR's own margin.
-    expect(qrPixels + cornerPixels).toBe(plate.box.width * plate.box.height)
+    expect(plate.size).toBe(result.report.qrPlate.holeModules)
+    expect(platePixels).toBe(result.report.qrPlate.holeModules * pitch * pitch)
     expect(qrMismatch).toBe(0)
-    expect(cornerPixels).toBe(plate.cornerTexturePixels)
-    expect(cornerMismatch).toBe(0)
 
-    // The window is lattice-aligned at a whole-module margin: its 39x39 modules are the cut's hole
-    // plus the corner modules handed back, and only those corners carry texture.
-    let insideModules = 0
+    // The band is exactly the cells beside the markers: every other cell of the code edge is drawn
+    // as texture, so the margin there is zero, and the cut has no hole outside the band.
+    let bandCells = 0
+    let textureEdgeCells = 0
+    let edgeMismatch = 0
     for (let row = 0; row < lattice.rows; row++) {
       for (let column = 0; column < lattice.columns; column++) {
         const x = lattice.x + column * pitch
         const y = lattice.y + row * pitch
-        if (x < plate.box.x || y < plate.box.y
-          || x + pitch > plate.box.x + plate.box.width || y + pitch > plate.box.y + plate.box.height)
+        const insideGrid = x >= grid.x && y >= grid.y
+          && x + pitch <= grid.x + grid.width && y + pitch <= grid.y + grid.height
+        const insidePlacement = x >= placement.x && y >= placement.y
+          && x + pitch <= placement.x + placement.size && y + pitch <= placement.y + placement.size
+        if (insideGrid || !insidePlacement)
           continue
-        insideModules++
-        if (cut.data[(y * width + x) * 4 + 3] === 255)
-          drawnInsideWindow++
+        const cell = row * lattice.columns + column
+        const offset = (y * width + x) * 4
+        if (plate.has(cell)) {
+          bandCells++
+          if (cut.data[offset + 3] === 255)
+            edgeMismatch++
+          continue
+        }
+        textureEdgeCells++
+        // Everything the plate leaves on the code edge carries the texture, corner blocks included.
+        if (cut.data[offset + 3] !== 255)
+          edgeMismatch++
+        for (let channel = 0; channel < 4; channel++) {
+          if (poster.data[offset + channel] !== cut.data[offset + channel])
+            edgeMismatch++
+        }
       }
     }
-    expect(insideModules).toBe(plate.holeModules + result.report.cut.plateCornerModules)
-    expect(drawnInsideWindow).toBe(result.report.cut.plateCornerModules)
+    expect(edgeMismatch).toBe(0)
+    expect(bandCells).toBe(result.report.qrPlate.bandCells)
+    expect(bandCells).toBe(42)
+    // The three corner blocks are handed back, so they are texture; the rest of the ring is too.
+    expect(textureEdgeCells).toBeGreaterThan(100)
+    expect(corners.size).toBe(result.report.qrPlate.cornerModules)
+    expect(corners.size).toBe(3)
+    for (const corner of corners)
+      expect(plate.has(corner)).toBe(false)
   }, 120_000)
 
-  it('writes the square window back when the plate radius is zero', async () => {
+  it('keeps the marker corner blocks light when the plate radius is zero', async () => {
     const outputDir = await temporaryDirectory()
     const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1, radius: 0 })
     expect(result.report.qrPlate).toEqual({
+      band: 'markers',
       marginModules: 1,
       marginPixels: 6,
+      markerModules: 7,
+      bandCells: 45,
+      box: { x: 230, y: 193, width: 222, height: 222 },
+      holeModules: 1_414,
       cornerModules: 0,
-      path: 'module-window',
-      box: { x: 224, y: 187, width: 234, height: 234 },
-      holeModules: 1_521,
       cornerTexturePixels: 0,
     })
     expect(result.report.cut.plateCornerModules).toBe(0)
-    expect(result.report.cut.drawnModules).toBe(3_284 - 1_521)
+    expect(result.report.cut.drawnModules).toBe(3_284 - 1_414)
     expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
-    expect(result.report.warnings.join(' ')).toMatch(/plate's 0 corner module\(s\) are handed back/)
+    expect(result.report.warnings.join(' ')).toMatch(/plate's 0 corner block module\(s\) handed back/)
 
-    // With no corner handback the plain 39x39-module window carries the QR's own margin.
+    // With no corner handback the band is the full L: the three corner blocks carry the QR's own
+    // light margin and are part of the plate, so the cut has no hole there.
     const { width } = result.report.inputs.poster
     const poster = await raw(join(outputDir, 'poster.png'))
     const qr = await raw(join(outputDir, 'qr.png'))
-    const box = result.report.qrPlate.box
+    const cut = await raw(join(outputDir, 'pattern-cut.png'))
+    const pitch = result.report.placement.modulePixels
+    const lattice = buildModuleLattice(width, result.report.inputs.poster.height, pitch, result.report.placement)
+    const corners = cornerBlockCells(result.report, lattice)
+    const plate = plateCells(result.report, lattice)
+    expect(corners.size).toBe(3 * result.report.qrPlate.marginModules ** 2)
     let mismatch = 0
-    for (let row = box.y; row < box.y + box.height; row++) {
-      for (let column = box.x; column < box.x + box.width; column++) {
-        const source = ((row - box.y + 6) * result.report.placement.size + column - box.x + 6) * 4
-        for (let channel = 0; channel < 4; channel++) {
-          if (poster.data[(row * width + column) * 4 + channel] !== qr.data[source + channel])
+    for (const cell of plate) {
+      const row = Math.floor(cell / lattice.columns)
+      const column = cell - row * lattice.columns
+      for (let offsetY = 0; offsetY < pitch; offsetY++) {
+        for (let offsetX = 0; offsetX < pitch; offsetX++) {
+          const x = lattice.x + column * pitch + offsetX
+          const y = lattice.y + row * pitch + offsetY
+          const offset = (y * width + x) * 4
+          const source = ((y - result.report.placement.y) * result.report.placement.size
+            + x - result.report.placement.x) * 4
+          for (let channel = 0; channel < 4; channel++) {
+            if (poster.data[offset + channel] !== qr.data[source + channel])
+              mismatch++
+          }
+          if (cut.data[offset + 3] === 255)
             mismatch++
         }
       }
     }
     expect(mismatch).toBe(0)
+    for (const corner of corners)
+      expect(plate.has(corner)).toBe(true)
   }, 120_000)
 
-  it('keeps every drawn cell whole when the margin is a whole module', async () => {
+  it('keeps every drawn cell whole even where the code edge loses its margin', async () => {
     const outputDir = await temporaryDirectory()
     const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
     const { width, height } = result.report.inputs.poster
@@ -461,76 +560,47 @@ describe('assemble mode', () => {
     expect(trimmedCells).toBe(0)
   }, 120_000)
 
-  it('paints a fractional margin at pixel precision and says what it costs', async () => {
+  it('accepts a two-module band and rejects a fractional or out-of-range margin', async () => {
     const outputDir = await temporaryDirectory()
-    const result = await assemblePoster({
-      inputPath: POSTER,
-      qrPath: TRIMMED_QR,
-      outputDir,
-      seed: 1,
-      qrMargin: 0.2,
-    })
-    // The tight look: a 1px band around the code, which needs a pixel-precise plate window and
-    // therefore trims the cells along the plate edge. The report warns about both halves of that.
+    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1, qrMargin: 2 })
+    // Two modules deep: the arms double and the corner blocks grow with them, so the band is 84
+    // cells and 12 whole modules go back to the texture.
     expect(result.report.qrPlate).toEqual({
-      marginModules: 0.2,
-      marginPixels: 1,
-      cornerModules: 1,
-      path: 'pixel-window',
-      box: { x: 229, y: 192, width: 224, height: 224 },
-      holeModules: 1_369,
-      cornerTexturePixels: 4,
+      band: 'markers',
+      marginModules: 2,
+      marginPixels: 12,
+      markerModules: 7,
+      bandCells: 84,
+      box: { x: 230, y: 193, width: 222, height: 222 },
+      holeModules: 1_453,
+      cornerModules: 12,
+      cornerTexturePixels: 432,
     })
-    expect(result.report.cut.drawnModules).toBe(1_915)
+    expect(result.report.cut.plateCornerModules).toBe(12)
+    expect(result.report.cut.drawnModules).toBe(3_284 - 1_453)
     expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
-    expect(result.report.warnings.join(' ')).toMatch(/trims 1px off every texture cell along its edge/)
+    expect(result.report.warnings.join(' ')).toMatch(/84 cell\(s\) 2 module deep/)
 
-    // Only the cells bordering the plate lose their inner pixel; everything else stays whole.
-    const { width, height } = result.report.inputs.poster
-    const pitch = result.report.placement.modulePixels
-    const lattice = buildModuleLattice(width, height, pitch, result.report.placement)
-    const cut = await raw(join(outputDir, 'pattern-cut.png'))
-    const poster = await raw(join(outputDir, 'poster.png'))
-    let drawnCells = 0
-    let trimmedCells = 0
-    for (let row = 0; row < lattice.rows; row++) {
-      for (let column = 0; column < lattice.columns; column++) {
-        const x = lattice.x + column * pitch
-        const y = lattice.y + row * pitch
-        if (x + pitch > width || y + pitch > height)
-          continue
-        if (cut.data[(y * width + x) * 4 + 3] !== 255)
-          continue
-        drawnCells++
-        let trimmed = false
-        for (let offsetY = 0; offsetY < pitch && !trimmed; offsetY++) {
-          for (let offsetX = 0; offsetX < pitch; offsetX++) {
-            const offset = ((y + offsetY) * width + x + offsetX) * 4
-            for (let channel = 0; channel < 3; channel++) {
-              if (poster.data[offset + channel] !== cut.data[offset + channel]) {
-                trimmed = true
-                break
-              }
-            }
-            if (trimmed)
-              break
-          }
-        }
-        if (trimmed)
-          trimmedCells++
-      }
+    // The band is a row of whole cells beside each marker, so a fraction is rejected rather than
+    // rounded, zero would leave the code grid flush with the texture, and the profile's quiet zone
+    // is the cap.
+    for (const qrMargin of [0, 0.2, 1.5, 3]) {
+      await expect(assemblePoster({
+        inputPath: POSTER,
+        qrPath: TRIMMED_QR,
+        outputDir: await temporaryDirectory(),
+        qrMargin,
+      })).rejects.toMatchObject({ code: 'INVALID_INPUT', exitCode: 2 })
     }
-    expect(drawnCells).toBe(1_915)
-    // The cells that touch the pixel-tight window lose exactly the pixel the plate paints.
-    expect(trimmedCells).toBeGreaterThan(0)
   }, 120_000)
 
-  it('keeps the module cut decodable at three scales', async () => {
+  it('keeps the marker band decodable at three scales', async () => {
     const outputDir = await temporaryDirectory()
     const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
-    // Local-decoder evidence only: the plate trims the quiet zone to one module and its corner
-    // modules go to the texture, so the run still reports the poster decode checks as skipped and
-    // phoneScan as untested. This asserts the module cut did not cost the three scales.
+    // Local-decoder evidence only: the light band is kept beside the three finder markers and the
+    // rest of the code edge sits flush against the texture, so the run still reports the poster
+    // decode checks as skipped and phoneScan as untested. Measured: the marker band did not cost the
+    // three scales, because the finder patterns are what a decoder locks onto.
     const poster = await sharp(join(outputDir, 'poster.png')).png().toBuffer()
     const { width } = result.report.inputs.poster
     await expect(decodeQrBuffer(poster)).resolves.toBe(result.report.qr.decodedText)

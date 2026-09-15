@@ -300,16 +300,16 @@ export type AssemblePosterOptions = PosterInputOptions & QrInputOptions & {
   /** Seed for the pattern random text line and the marker refill; defaults to a fresh seed per run. */
   seed?: number
   /**
-   * Light quiet-zone margin kept around the code grid, in modules; defaults to 1. It may be a
-   * fraction because the plate window is painted at pixel precision, and it is floored at one pixel
-   * so a margin never rounds away.
+   * Depth of the light band kept beside each finder marker, in whole modules; defaults to 1 and
+   * capped at the profile's two-module quiet zone. The band is a row of whole cells, so a fraction
+   * is rejected rather than rounded.
    */
   qrMargin?: number
   /**
-   * Plate corner treatment: zero writes the square module window back, and any positive value hands
-   * each plate corner module to the texture. Defaults to two module pitches (12px on the bundled
-   * version-5 fixture), which
-   * rounds the plate. The region silhouette is always whole modules, so there is no fillet to size.
+   * Plate corner treatment: zero keeps the diagonal corner block beside each finder marker light,
+   * and any positive value hands those three blocks to the texture. Defaults to two module pitches
+   * (12px on the bundled version-5 fixture), which rounds the plate. The region silhouette is always
+   * whole modules, so there is no fillet to size.
    */
   radius?: number
   /** Not used by assembly: the cut is module-aligned rather than traced. Rejected when supplied. */
@@ -317,7 +317,7 @@ export type AssemblePosterOptions = PosterInputOptions & QrInputOptions & {
 }
 
 export interface AssembleReport {
-  schemaVersion: 7
+  schemaVersion: 8
   mode: 'assemble'
   status: 'generated' | 'verification_failed'
   qualified: boolean
@@ -326,10 +326,15 @@ export interface AssembleReport {
   inputs: ReportV1['inputs']
   region: ReportV1['region']
   qr: ReportV1['qr'] & {
-    /** The pixels actually composited: the code grid plus the light margin. */
+    /** The pixels actually composited: the code grid plus the light band beside the markers. */
     overlay: {
-      /** Light margin kept around the code grid, in modules; a fraction is allowed. */
+      /** The light band is kept beside the finder markers only. */
+      band: 'markers'
+      /** Depth of the light band beside each marker, in modules. */
       quietZoneModules: number
+      /** Finder footprint each band arm spans, in modules. */
+      markerModules: number
+      /** Crop of the normalized QR the plate copies verbatim: the code grid, no quiet zone. */
       crop: { left: number, top: number, size: number }
       x: number
       y: number
@@ -364,27 +369,32 @@ export interface AssembleReport {
     drawnModules: number
     /** Outer rings of drawn modules forced dark, so the rim is whole modules too. */
     rim: { modules: number, style: 'cell' }
-    /** Corner modules of the plate handed back to the texture, 0 or 4. */
+    /** Modules of the plate handed back to the texture: the diagonal block at each marker corner. */
     plateCornerModules: number
     /** The cut shape is the detected or supplied painted region itself. */
     keep: 'region-mask'
     /** Whole modules replace the original pixels; dropped modules keep them bit-exact. */
     edgeBlend: 'cell-aligned-over-original'
   }
-  /** The white plate the texture is cut around and the QR is drawn in; both are whole modules. */
+  /** The plate the texture is cut around and the QR is drawn in; all of it is whole modules. */
   qrPlate: {
-    /** Requested light margin around the code grid, in modules; a fraction is allowed. */
+    /** The light band is kept beside the finder markers only, never around the whole code. */
+    band: 'markers'
+    /** Requested depth of the light band beside each marker, in whole modules; 1 or 2. */
     marginModules: number
-    /** The margin actually painted, in pixels: the requested margin rounded up to at least one. */
+    /** The band actually painted, in pixels: `marginModules * modulePixels`. */
     marginPixels: number
-    /** Corner modules handed back to the texture, 0 when `--cut-radius` is zero. */
-    cornerModules: 0 | 1
-    /** `module-window` when a whole-module margin keeps the plate on the lattice, else pixel-tight. */
-    path: 'module-window' | 'pixel-window'
+    /** Finder footprint each band arm spans, in modules. */
+    markerModules: number
+    /** Light cells the band keeps beside the three markers, corner blocks included. */
+    bandCells: number
+    /** The code grid the plate copies verbatim; the band sits outside it. */
     box: BoundingBox
-    /** Modules the hole covers, corners already handed back. */
+    /** Modules the hole covers: code grid plus band, corner blocks already handed back. */
     holeModules: number
-    /** Window pixels the corner modules leave as texture instead of the QR's own light margin. */
+    /** Modules handed back to the texture, 0 when `--cut-radius` is zero. */
+    cornerModules: number
+    /** Pixels those modules leave as texture instead of the QR's own light band. */
     cornerTexturePixels: number
   }
   shape: {

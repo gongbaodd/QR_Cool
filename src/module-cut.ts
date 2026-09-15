@@ -41,13 +41,14 @@ export interface SafeArea {
 export interface PlateModules {
   /** Row-major grid: 1 for every module the cut drops for the QR plate, corners already handed back. */
   cells: Uint8Array
-  /** Row-major grid: 1 for the corner modules handed back to the texture. */
+  /** Row-major grid: 1 for the modules handed back to the texture. */
   corners: Uint8Array
   /** Modules the hole covers after the corners are handed back. */
   holeModules: number
-  /** Corner modules the texture keeps, 0 or up to 4. */
+  /** Modules the texture keeps, 0 when the hand-back rectangles are empty. */
   cornerModules: number
-  box: BoundingBox
+  /** Canvas-pixel bounds of the plate cells, the hand-backs already removed. */
+  bounds: BoundingBox
 }
 
 /**
@@ -168,61 +169,89 @@ export function computeSafeArea(
 }
 
 /**
- * Marks the plate window on the module lattice. The hole is every module whose whole block sits
- * inside the window, so the cut never relies on artwork showing through the plate; the window
- * itself is painted at pixel precision, which is what lets the light margin be a fraction of a
- * module. When the corner treatment is on, the four modules holding the window's corner pixels are
- * handed back to the texture and left unpainted, so the plate's corners stay texture the way the
- * module window's corners used to.
+ * Marks the plate on the module lattice. The hole is every module whose whole block sits inside one
+ * of the plate rectangles — the code grid plus the light arms beside the finder markers — so the cut
+ * never relies on artwork showing through the plate and no drawn edge crosses a module. The
+ * hand-back rectangles (the corner blocks `--cut-radius` carves out of the arms) leave the hole
+ * again and keep the texture, so the plate's corners stay texture instead of the QR's own light
+ * band. Rectangles may share edges and may reach past the canvas; only lattice cells are marked.
  */
 export function computePlateModules(
   lattice: ModuleLattice,
-  window: ModuleWindow,
-  cornerModules: number,
+  plateRects: BoundingBox[],
+  handbackRects: BoundingBox[] = [],
 ): PlateModules {
   const pitch = lattice.modulePixels
-  if (![window.x, window.y, window.size].every(Number.isFinite))
-    throw new QrPosterError('INVALID_INPUT', 'The QR plate window must use finite numbers.')
-  if (window.size <= 0)
-    throw new QrPosterError('INVALID_INPUT', 'The QR plate window must have a positive size.')
+  if (plateRects.length === 0)
+    throw new QrPosterError('INVALID_INPUT', 'The QR plate needs at least one rectangle.')
+  for (const rect of [...plateRects, ...handbackRects]) {
+    if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite))
+      throw new QrPosterError('INVALID_INPUT', 'The QR plate rectangles must use finite numbers.')
+    if (rect.width <= 0 || rect.height <= 0)
+      throw new QrPosterError('INVALID_INPUT', 'The QR plate rectangles must have a positive size.')
+  }
 
   const cells = new Uint8Array(lattice.columns * lattice.rows)
   const corners = new Uint8Array(lattice.columns * lattice.rows)
-  const firstColumn = Math.ceil((window.x - lattice.x) / pitch)
-  const firstRow = Math.ceil((window.y - lattice.y) / pitch)
-  const lastColumn = Math.floor((window.x + window.size - lattice.x) / pitch) - 1
-  const lastRow = Math.floor((window.y + window.size - lattice.y) / pitch) - 1
-  const cornerColumns = cornerModules > 0
-    ? [window.x, window.x + window.size - 1].map(x => Math.floor((x - lattice.x) / pitch))
-    : []
-  const cornerRows = cornerModules > 0
-    ? [window.y, window.y + window.size - 1].map(y => Math.floor((y - lattice.y) / pitch))
-    : []
-
   let holeModules = 0
-  for (let row = firstRow; row <= lastRow; row++) {
-    for (let column = firstColumn; column <= lastColumn; column++) {
-      if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows)
-        continue
-      cells[row * lattice.columns + column] = 1
-      holeModules++
+  for (const rect of plateRects) {
+    // A rectangle marks only the modules it covers in full: a partly covered module would slice.
+    const firstColumn = Math.ceil((rect.x - lattice.x) / pitch)
+    const firstRow = Math.ceil((rect.y - lattice.y) / pitch)
+    const lastColumn = Math.floor((rect.x + rect.width - lattice.x) / pitch) - 1
+    const lastRow = Math.floor((rect.y + rect.height - lattice.y) / pitch) - 1
+    for (let row = firstRow; row <= lastRow; row++) {
+      for (let column = firstColumn; column <= lastColumn; column++) {
+        if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows)
+          continue
+        const index = row * lattice.columns + column
+        if (cells[index])
+          continue
+        cells[index] = 1
+        holeModules++
+      }
     }
   }
 
-  // The corner modules stay texture even when the window is not lattice-aligned, so their pixels
-  // inside the plate are handed back rather than painted over.
+  // Hand-back modules leave the hole and stay texture, so the plate never paints over them.
   let cornerCount = 0
-  for (const row of cornerRows) {
-    for (const column of cornerColumns) {
-      if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows)
-        continue
-      const index = row * lattice.columns + column
-      if (cells[index]) {
-        cells[index] = 0
-        holeModules--
+  for (const rect of handbackRects) {
+    const firstColumn = Math.ceil((rect.x - lattice.x) / pitch)
+    const firstRow = Math.ceil((rect.y - lattice.y) / pitch)
+    const lastColumn = Math.floor((rect.x + rect.width - lattice.x) / pitch) - 1
+    const lastRow = Math.floor((rect.y + rect.height - lattice.y) / pitch) - 1
+    for (let row = firstRow; row <= lastRow; row++) {
+      for (let column = firstColumn; column <= lastColumn; column++) {
+        if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows)
+          continue
+        const index = row * lattice.columns + column
+        if (cells[index]) {
+          cells[index] = 0
+          holeModules--
+        }
+        if (corners[index]) {
+          continue
+        }
+        corners[index] = 1
+        cornerCount++
       }
-      corners[index] = 1
-      cornerCount++
+    }
+  }
+
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  for (let row = 0; row < lattice.rows; row++) {
+    for (let column = 0; column < lattice.columns; column++) {
+      if (!cells[row * lattice.columns + column])
+        continue
+      const x = lattice.x + column * pitch
+      const y = lattice.y + row * pitch
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x + pitch)
+      maxY = Math.max(maxY, y + pitch)
     }
   }
   return {
@@ -230,7 +259,9 @@ export function computePlateModules(
     corners,
     holeModules,
     cornerModules: cornerCount,
-    box: { x: window.x, y: window.y, width: window.size, height: window.size },
+    bounds: holeModules === 0
+      ? { x: 0, y: 0, width: 0, height: 0 }
+      : { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
   }
 }
 

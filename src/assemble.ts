@@ -15,7 +15,6 @@ import {
   moduleCellIndex,
   renderModuleCoverage,
 } from './module-cut.js'
-import type { ModuleWindow } from './module-cut.js'
 import {
   PATTERN_ALPHABET,
   PATTERN_ECC,
@@ -27,22 +26,27 @@ import {
 } from './pattern.js'
 import { buildCutSvg } from './pattern-cut.js'
 import { verifyQrVariant } from './qr.js'
-import type { AssemblePosterOptions, AssembleReport, AssembleResult, VerificationCheck } from './types.js'
+import type {
+  AssemblePosterOptions,
+  AssembleReport,
+  AssembleResult,
+  BoundingBox,
+  QrPlacement,
+  VerificationCheck,
+} from './types.js'
 
-/** Quiet-zone modules the QR input profile carries; the overlay keeps one of them as a light margin. */
+/** Quiet-zone modules the QR input profile carries; the plate band is cut out of them. */
 const QUIET_ZONE_MODULES = PATTERN_QUIET_ZONE_MODULES
 /**
- * Light margin kept around the code grid, in modules. A whole module keeps the plate on the lattice,
- * so every drawn cell stays whole; a fraction is painted at pixel precision, which trims that many
- * pixels off each texture cell along the plate edge. The band cannot be smaller than one cell and
- * still be module-level, because it is a row of whole cells.
+ * Depth of the light band kept beside each finder marker, in modules. The band is a row of whole
+ * cells, so it cannot be a fraction of one, and it stops at the profile's quiet zone.
  */
-const OVERLAY_MARGIN_MODULES = 1
-/** Module margins below this are tighter than the local decoder tolerates at half scale. */
-const NARROW_MARGIN_PIXELS = 2
+const BAND_MODULES = 1
+/** Finder patterns are 7x7 modules; the band arms span that footprint along the code edge. */
+const MARKER_MODULES = 7 as const
 /** Outer rings of drawn modules forced dark, the module-level version of the old 20px border. */
 const RIM_MODULES = 4 as const
-/** A requested `--cut-radius` below this keeps the plate window square; any larger value rounds it. */
+/** A requested `--cut-radius` below this keeps the marker corner blocks light; any larger value cuts them. */
 const PLATE_CORNER_EPSILON = 0.01
 const SKIPPED_DECODE_CHECKS = ['poster', 'posterHalfScale', 'posterJpeg80'] as const
 const REMOVED_TYPES = ['Position', 'Alignment'] as const
@@ -85,9 +89,16 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
   if (options.qrMargin !== undefined && (!Number.isFinite(options.qrMargin) || options.qrMargin <= 0)) {
     throw new QrPosterError(
       'INVALID_INPUT',
-      '--qr-margin must be a positive number of modules. Zero removes the code\'s quiet zone, which '
-      + 'stops the local decoder at every scale; the tightest usable margins are 0.2 module (1px, '
-      + 'painted at pixel precision) and 1 module (the smallest module-level margin).',
+      '--qr-margin must be a positive number of modules. Zero leaves the code grid flush against the '
+      + 'texture with no light band beside the markers.',
+    )
+  }
+  if (options.qrMargin !== undefined && (!Number.isInteger(options.qrMargin) || options.qrMargin > QUIET_ZONE_MODULES)) {
+    throw new QrPosterError(
+      'INVALID_INPUT',
+      `--qr-margin must be a whole number of modules between 1 and ${QUIET_ZONE_MODULES}: the light `
+      + 'band is a row of whole cells beside each finder marker, and the profile\'s quiet zone is '
+      + `${QUIET_ZONE_MODULES} modules.`,
     )
   }
   if (options.smoothTolerance !== undefined) {
@@ -113,19 +124,30 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
   const selection = Uint8Array.from(regionMask.data, value => (value ? 1 : 0))
   const safeArea = computeSafeArea(selection, width, height, lattice)
 
-  const marginModules = options.qrMargin ?? OVERLAY_MARGIN_MODULES
-  const marginPixels = Math.max(1, Math.round(marginModules * pitch))
-  // A whole-module margin leaves the plate on the lattice, so the plate covers whole cells and every
-  // drawn cell stays intact. A fractional margin paints the plate at pixel precision instead.
-  const plateOnLattice = Number.isInteger(marginModules)
-  const overlayInset = QUIET_ZONE_MODULES * pitch - marginPixels
-  const overlayX = placement.x + overlayInset
-  const overlayY = placement.y + overlayInset
-  const overlaySize = placement.size - overlayInset * 2
-  const plateWindow: ModuleWindow = { x: overlayX, y: overlayY, size: overlaySize }
+  const marginModules = options.qrMargin ?? BAND_MODULES
+  const marginPixels = marginModules * pitch
   const radius = options.radius ?? 2 * pitch
-  const plateCornerModules = radius < PLATE_CORNER_EPSILON ? 0 : 1
-  const plate = computePlateModules(lattice, plateWindow, plateCornerModules)
+  // The plate copies the normalized QR verbatim at its placement position, but keeps a light band
+  // only beside the three finder markers: the rest of the code edge sits flush against the texture,
+  // so the margin there is zero. Only the markers keep a band, because they are what a decoder locks
+  // onto. The code grid sits inside the placement box by the profile's quiet zone.
+  const codeGrid: BoundingBox = {
+    x: placement.x + QUIET_ZONE_MODULES * pitch,
+    y: placement.y + QUIET_ZONE_MODULES * pitch,
+    width: qrMetadata.qrModules * pitch,
+    height: qrMetadata.qrModules * pitch,
+  }
+  const { arms, cornerBlocks } = markerBandRects(codeGrid, qrMetadata.qrModules, pitch, marginModules)
+  // The corner blocks are the diagonal cells beside each marker: light under --cut-radius 0, and
+  // handed back to the texture otherwise, which is what rounds the plate's corners.
+  const plateCornersCut = radius >= PLATE_CORNER_EPSILON
+  const plate = computePlateModules(
+    lattice,
+    [codeGrid, ...arms, ...(plateCornersCut ? [] : cornerBlocks)],
+    plateCornersCut ? cornerBlocks : [],
+  )
+  // The light cells the plate actually paints: the hole minus the code grid it copies verbatim.
+  const bandCells = plate.holeModules - qrMetadata.qrModules * qrMetadata.qrModules
 
   const drawn = new Uint8Array(lattice.columns * lattice.rows)
   let drawnModules = 0
@@ -222,10 +244,11 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
   const cutPng = await rgbaToPng(cutLayer, width, height)
   const cutSvg = buildCutSvg(unitPath, width, height, texturePng)
 
-  // The QR keeps a fraction of a quiet-zone module and drops the rest: the window (code grid plus
-  // `marginPixels`) is copied verbatim, corner modules excepted, over the texture the ring modules
-  // drew underneath. A margin that tight is below what the local decoder tolerates at half scale,
-  // so the poster stays unverified and the report warns about it.
+  // The normalized QR is copied verbatim where the plate is: the code grid and the light arms beside
+  // the three finder markers. Every plate pixel maps to the same position inside the placement box,
+  // so the arms carry the QR's own quiet zone and the corner blocks keep the texture the drawn
+  // modules put underneath. The rest of the code edge is texture, so the poster stays unverified and
+  // the report warns about it.
   const qrRaw = await sharp(normalizedQr)
     .flatten({ background: '#ffffff' })
     .ensureAlpha()
@@ -237,11 +260,8 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
       const index = row * width + column
       const offset = index * 4
       const cell = moduleCellIndex(lattice, column, row)
-      const inWindow = column >= overlayX && column < overlayX + overlaySize
-        && row >= overlayY && row < overlayY + overlaySize
-      // The plate is the window at pixel precision; the corner modules stay texture.
-      if (inWindow && !(cell >= 0 && plate.corners[cell])) {
-        const source = ((row - overlayY + overlayInset) * placement.size + column - overlayX + overlayInset) * 4
+      if (cell >= 0 && plate.cells[cell] === 1) {
+        const source = qrSourceOffset(placement, column, row)
         for (let channel = 0; channel < 4; channel++)
           output[offset + channel] = qrRaw[source + channel]!
         continue
@@ -265,12 +285,9 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
       const offset = index * 4
       const cell = moduleCellIndex(lattice, column, row)
       const isCorner = cell >= 0 && plate.corners[cell] === 1
+      const isPlate = cell >= 0 && plate.cells[cell] === 1
       const isDrawn = cell >= 0 && drawn[cell] === 1
-      const inWindow = column >= overlayX && column < overlayX + overlaySize
-        && row >= overlayY && row < overlayY + overlaySize
-      const insidePlate = inWindow && !isCorner
-      const insideCorner = inWindow && isCorner
-      if (insideCorner)
+      if (isCorner)
         cornerTexturePixels++
       let changed = false
       for (let channel = 0; channel < 4; channel++) {
@@ -279,15 +296,14 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
           changed = true
         if (!regionMask.data[index] && value !== poster.data[offset + channel]!)
           outsidePassed = false
-        if (insidePlate
-          && value !== qrRaw[((row - overlayY + overlayInset) * placement.size + column - overlayX + overlayInset) * 4 + channel]!)
+        if (isPlate && value !== qrRaw[qrSourceOffset(placement, column, row) + channel]!)
           qrPassed = false
-        if (insideCorner && value !== render.data[offset + channel]!)
+        if (isCorner && value !== render.data[offset + channel]!)
           plateCornersPassed = false
       }
       // Whole modules or nothing: a pixel can only differ from the original inside a drawn module.
       // The plate hole is the one region the cut hands over wholesale to the QR.
-      if (changed && !isDrawn && !insidePlate)
+      if (changed && !isDrawn && !isPlate)
         moduleCutPassed = false
       if (output[offset + 3] !== poster.data[offset + 3]!)
         alphaPassed = false
@@ -318,26 +334,12 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
 
   const warnings: string[] = []
   warnings.push(
-    `The QR quiet zone is ${marginPixels}px (${formatNumber(marginModules)} module) in the composited plate `
-    + `against the profile's ${QUIET_ZONE_MODULES}, and the plate's ${plate.cornerModules} corner module(s) `
-    + 'are handed back to the texture, so the assembled poster is not decode-verified; only the QR input '
-    + 'and the geometry checks ran.',
+    `The light band is kept beside the three finder markers only: ${bandCells} cell(s) `
+    + `${formatNumber(marginModules)} module deep (${marginPixels}px at ${pitch}px modules), with the `
+    + `plate's ${plate.cornerModules} corner block module(s) handed back to the texture. The code's other `
+    + `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not `
+    + 'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
   )
-  if (marginPixels < NARROW_MARGIN_PIXELS) {
-    warnings.push(
-      `The ${marginPixels}px margin (${formatNumber(marginModules)} module at ${pitch}px modules) is tighter than `
-      + 'the local decoder tolerates at half scale: the bundled poster decodes at full size and JPEG-80, not '
-      + `at 50%. Raise --qr-margin so the plate keeps at least ${NARROW_MARGIN_PIXELS}px `
-      + `(${formatNumber(NARROW_MARGIN_PIXELS / pitch)} module at ${pitch}px modules) for all three.`,
-    )
-  }
-  if (!plateOnLattice) {
-    warnings.push(
-      `The plate margin is ${formatNumber(marginModules)} module, which is not a whole cell, so the plate is `
-      + `painted at pixel precision and trims ${marginPixels}px off every texture cell along its edge. Use a `
-      + 'whole-module --qr-margin to keep the cut module-level everywhere.',
-    )
-  }
   if (safeArea.partialModules > 0) {
     warnings.push(
       `${safeArea.partialModules} module(s) crossed the painted region's edge and kept the original `
@@ -361,7 +363,7 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
   ])
 
   const report: AssembleReport = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     mode: 'assemble',
     status: qualified ? 'generated' : 'verification_failed',
     qualified,
@@ -394,10 +396,16 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
       normalizedSize: placement.size,
       normalizedModulePixels: pitch,
       overlay: {
+        band: 'markers',
         quietZoneModules: marginModules,
-        crop: { left: overlayInset, top: overlayInset, size: overlaySize },
-        x: overlayX,
-        y: overlayY,
+        markerModules: MARKER_MODULES,
+        crop: {
+          left: QUIET_ZONE_MODULES * pitch,
+          top: QUIET_ZONE_MODULES * pitch,
+          size: codeGrid.width,
+        },
+        x: codeGrid.x,
+        y: codeGrid.y,
       },
     },
     placement,
@@ -435,12 +443,14 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
       edgeBlend: 'cell-aligned-over-original',
     },
     qrPlate: {
+      band: 'markers',
       marginModules,
       marginPixels,
-      cornerModules: plate.cornerModules > 0 ? 1 : 0,
-      path: plateOnLattice ? 'module-window' : 'pixel-window',
-      box: plate.box,
+      markerModules: MARKER_MODULES,
+      bandCells,
+      box: codeGrid,
       holeModules: plate.holeModules,
+      cornerModules: plate.cornerModules,
       cornerTexturePixels,
     },
     shape: {
@@ -471,6 +481,46 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
 
 function sha256(value: string | Buffer): string {
   return createHash('sha256').update(value).digest('hex')
+}
+
+/**
+ * Geometry of the marker-only light band, in poster pixels: beside each 7x7 finder marker, the two
+ * arms that run along its outer edges plus the diagonal corner block, all whole cells on the module
+ * lattice. The arms span the finder footprint exactly — the separator inside the code grid already
+ * carries its own light row and column — so the band is three small Ls rather than a quiet zone
+ * around the code.
+ */
+function markerBandRects(
+  codeGrid: BoundingBox,
+  qrModules: number,
+  pitch: number,
+  marginModules: number,
+): { arms: BoundingBox[], cornerBlocks: BoundingBox[] } {
+  const marginPixels = marginModules * pitch
+  const markerPixels = MARKER_MODULES * pitch
+  const last = qrModules - MARKER_MODULES
+  const origins = [{ column: 0, row: 0 }, { column: last, row: 0 }, { column: 0, row: last }]
+  const arms: BoundingBox[] = []
+  const cornerBlocks: BoundingBox[] = []
+  for (const { column, row } of origins) {
+    const markerX = codeGrid.x + column * pitch
+    const markerY = codeGrid.y + row * pitch
+    const outerX = column === 0 ? codeGrid.x - marginPixels : codeGrid.x + codeGrid.width
+    const outerY = row === 0 ? codeGrid.y - marginPixels : codeGrid.y + codeGrid.height
+    arms.push({ x: markerX, y: outerY, width: markerPixels, height: marginPixels })
+    arms.push({ x: outerX, y: markerY, width: marginPixels, height: markerPixels })
+    cornerBlocks.push({ x: outerX, y: outerY, width: marginPixels, height: marginPixels })
+  }
+  return { arms, cornerBlocks }
+}
+
+/**
+ * Byte offset of the normalized QR pixel that sits at the same position inside the placement box.
+ * Every plate cell lies in that box — the code grid plus at most the profile's quiet zone — so the
+ * arms read the QR's own light margin and the grid reads the code itself.
+ */
+function qrSourceOffset(placement: QrPlacement, column: number, row: number): number {
+  return ((row - placement.y) * placement.size + column - placement.x) * 4
 }
 
 function formatNumber(value: number): string {

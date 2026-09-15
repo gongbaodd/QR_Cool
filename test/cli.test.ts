@@ -189,33 +189,39 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
       'report.json',
     ])
     const report = JSON.parse(await readFile(join(outDir, 'report.json'), 'utf8'))
-    expect(report.schemaVersion).toBe(7)
+    expect(report.schemaVersion).toBe(8)
     expect(report.cut.radius).toBe(4)
     expect(report.cut.modulePixels).toBe(7)
     expect(report.cut.lattice).toEqual({ x: 2, y: 6 })
     expect(report.cut.rim).toEqual({ modules: 4, style: 'cell' })
     expect(report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
     expect(report.qr.overlay).toEqual({
+      band: 'markers',
       quietZoneModules: 1,
-      crop: { left: 7, top: 7, size: 245 },
-      x: 212,
-      y: 181,
+      markerModules: 7,
+      crop: { left: 14, top: 14, size: 231 },
+      x: 219,
+      y: 188,
     })
-    // Any positive --cut-radius hands the plate's four corner modules back to the texture.
+    // Any positive --cut-radius hands the corner block beside each of the three markers to the
+    // texture; the light band is the two 7-cell arms beside each finder marker.
     expect(report.qrPlate).toEqual({
+      band: 'markers',
       marginModules: 1,
       marginPixels: 7,
-      cornerModules: 1,
-      path: 'module-window',
-      box: { x: 212, y: 181, width: 245, height: 245 },
-      holeModules: 1221,
-      cornerTexturePixels: 196,
+      markerModules: 7,
+      bandCells: 42,
+      box: { x: 219, y: 188, width: 231, height: 231 },
+      holeModules: 1131,
+      cornerModules: 3,
+      cornerTexturePixels: 147,
     })
-    expect(result.stdout).toMatch(/QR plate: 245px window, 1221 module hole, 7px \(1 module\) margin, 1 corner module\(s\)/)
-    expect(result.stdout).toMatch(/Cut: 7px modules on lattice 2,6, 1172 module\(s\) drawn/)
+    expect(report.cut.plateCornerModules).toBe(3)
+    expect(result.stdout).toMatch(/QR plate: code grid 231px in a 1131 module hole, 42 light cell\(s\) beside the markers/)
+    expect(result.stdout).toMatch(/Cut: 7px modules on lattice 2,6, 1262 module\(s\) drawn/)
   }, 120_000)
 
-  it('accepts an explicit --qr-margin and rejects it outside assembly', async () => {
+  it('accepts a deeper --qr-margin and rejects fractional, zero, and oversized values', async () => {
     const directory = await temporaryDirectory()
     const outDir = join(directory, 'out')
     const result = runCli([
@@ -224,24 +230,28 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
       '--content', QR_CONTENT,
       '--out-dir', outDir,
       '--seed', '1',
-      '--qr-margin', '0.4',
+      '--qr-margin', '2',
     ])
     expect(result.status).toBe(0)
     const report = JSON.parse(await readFile(join(outDir, 'report.json'), 'utf8'))
-    expect(report.qrPlate.marginModules).toBe(0.4)
-    expect(report.qrPlate.marginPixels).toBe(2)
-    // A fractional margin paints the plate at pixel precision, which the report says out loud.
-    expect(report.qrPlate.path).toBe('pixel-window')
-    expect(report.qrPlate.holeModules).toBe(1089)
-    expect(report.qrPlate.cornerTexturePixels).toBe(16)
-    expect(result.stdout).toMatch(/2px \(0\.4 module\) margin/)
-    expect(runCli([
-      '--assemble',
-      '--input', resolve('source/poster.png'),
-      '--content', QR_CONTENT,
-      '--qr-margin', '0',
-      '--out-dir', join(directory, 'zero'),
-    ]).status).toBe(2)
+    expect(report.qrPlate.marginModules).toBe(2)
+    expect(report.qrPlate.marginPixels).toBe(14)
+    expect(report.qrPlate.bandCells).toBe(84)
+    expect(report.qrPlate.holeModules).toBe(1173)
+    expect(report.qrPlate.cornerModules).toBe(12)
+    expect(report.qrPlate.cornerTexturePixels).toBe(588)
+    expect(result.stdout).toMatch(/84 light cell\(s\) beside the markers \(14px = 2 module deep\)/)
+    // A fraction is rejected rather than rounded, zero leaves no light band at all, and the profile's
+    // two-module quiet zone is the cap.
+    for (const [index, qrMargin] of ['0', '0.4', '3'].entries()) {
+      expect(runCli([
+        '--assemble',
+        '--input', resolve('source/poster.png'),
+        '--content', QR_CONTENT,
+        '--qr-margin', qrMargin,
+        '--out-dir', join(directory, `bad-${index}`),
+      ]).status).toBe(2)
+    }
     expect(runCli(['--dry-run', '--input', resolve('source/poster.png'), '--content', QR_CONTENT, '--qr-margin', '0.4', '--out-dir', join(directory, 'two')]).status).toBe(2)
   }, 120_000)
 

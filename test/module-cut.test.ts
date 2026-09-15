@@ -114,41 +114,59 @@ describe('rim modules', () => {
 })
 
 describe('plate modules', () => {
-  it('covers the aligned window and hands its four corners back', () => {
+  it('unions the plate rectangles and hands the corner blocks back', () => {
     const lattice = buildModuleLattice(60, 60, 5, { x: 2, y: 2 })
-    const plate = computePlateModules(lattice, { x: 7, y: 7, size: 25 }, 1)
-    expect(plate.holeModules).toBe(25 - 4)
-    expect(plate.cornerModules).toBe(4)
-    expect(plate.box).toEqual({ x: 7, y: 7, width: 25, height: 25 })
+    // A code grid plus the two arms beside a marker and its diagonal corner block.
+    const plate = computePlateModules(
+      lattice,
+      [{ x: 7, y: 7, width: 25, height: 25 }, { x: 2, y: 7, width: 5, height: 25 }, { x: 7, y: 2, width: 25, height: 5 }],
+      [{ x: 2, y: 2, width: 5, height: 5 }],
+    )
+    expect(plate.holeModules).toBe(25 + 5 + 5)
+    expect(plate.cornerModules).toBe(1)
+    expect(plate.bounds).toEqual({ x: 2, y: 2, width: 30, height: 30 })
     let corners = 0
     for (const value of plate.corners)
       corners += value
-    expect(corners).toBe(4)
+    expect(corners).toBe(1)
     // No module is both the hole and a corner handed to the texture.
     for (let index = 0; index < plate.cells.length; index++)
       expect(plate.cells[index]! + plate.corners[index]!).toBeLessThanOrEqual(1)
   })
 
-  it('covers the whole window when the corners are not handed back', () => {
+  it('covers the whole band when the corner blocks are not handed back', () => {
     const lattice = buildModuleLattice(60, 60, 5, { x: 2, y: 2 })
-    const plate = computePlateModules(lattice, { x: 7, y: 7, size: 25 }, 0)
-    expect(plate.holeModules).toBe(25)
+    // With no hand-back the corner block belongs to the band, so the plate is the whole L.
+    const plate = computePlateModules(lattice, [
+      { x: 7, y: 7, width: 25, height: 25 },
+      { x: 2, y: 7, width: 5, height: 25 },
+      { x: 7, y: 2, width: 25, height: 5 },
+      { x: 2, y: 2, width: 5, height: 5 },
+    ])
+    expect(plate.holeModules).toBe(25 + 5 + 5 + 1)
     expect(plate.cornerModules).toBe(0)
+    expect(plate.bounds).toEqual({ x: 2, y: 2, width: 30, height: 30 })
   })
 
-  it('handles a window that does not sit on the lattice', () => {
-    // An off-lattice window is what a fractional margin produces: the hole is the modules the
-    // window covers in full, and the corner modules are still handed back so the plate does not
-    // paint over them.
+  it('marks only the modules a rectangle covers in full and reaches past the canvas safely', () => {
+    // The hole is the modules each rectangle covers in full, so a rectangle that starts inside a
+    // module does not slice it, and one that runs off the canvas simply stops at the edge.
     const lattice = buildModuleLattice(60, 60, 5, { x: 2, y: 2 })
-    const plate = computePlateModules(lattice, { x: 6, y: 6, size: 28 }, 1)
-    // The window spans 6..34; modules 1..5 (blocks 7..32) are the ones it covers in full, and the
-    // corner modules it only partly covers are handed back rather than painted.
-    expect(plate.holeModules).toBe(5 * 5)
-    expect(plate.cornerModules).toBe(4)
-    expect(plate.box).toEqual({ x: 6, y: 6, width: 28, height: 28 })
-    expect(() => computePlateModules(lattice, { x: 7, y: 7, size: 0 }, 1))
+    const plate = computePlateModules(lattice, [
+      // Covers columns 1..5 and rows 1..5.
+      { x: 6, y: 6, width: 28, height: 28 },
+      // Starts off-canvas, so only the columns that sit fully inside it are marked: 0..1.
+      { x: -20, y: 30, width: 32, height: 20 },
+      // Overlaps the first rectangle, which must not be counted twice.
+      { x: 7, y: 7, width: 15, height: 15 },
+    ])
+    expect(plate.holeModules).toBe(5 * 5 + 2 * 3)
+    expect(plate.cornerModules).toBe(0)
+    expect(plate.bounds).toEqual({ x: 2, y: 7, width: 30, height: 40 })
+    expect(() => computePlateModules(lattice, [{ x: 7, y: 7, width: 0, height: 25 }]))
       .toThrowError(/positive size/)
+    expect(() => computePlateModules(lattice, []))
+      .toThrowError(/at least one rectangle/)
   })
 })
 
