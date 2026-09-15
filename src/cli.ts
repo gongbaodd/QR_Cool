@@ -25,9 +25,8 @@ interface CliOptions {
   cutSmooth?: string
   qrMargin?: string
   input: string
-  qr?: string
+  content?: string
   outDir: string
-  text?: string
   mask?: string
   qrBox?: string
   force?: boolean
@@ -52,9 +51,8 @@ const program = new Command()
   .option('--cut-smooth <px>', 'outline simplification tolerance for --pattern-cut (default: 3); not used by --assemble')
   .option('--qr-margin <modules>', 'light margin around the code for --assemble, in modules (default: 1; whole modules keep the cut module-level, a fraction is pixel-tight and trims the cells along the plate edge)')
   .requiredOption('--input <path>', 'painted poster PNG, or the pattern PNG for --pattern-cut')
-  .option('--qr <path>', 'qrcode.antfu.me-compatible QR PNG, or its code-grid crop (not used by --pattern-cut)')
+  .option('--content <value>', 'one-line content to encode into the generated QR')
   .requiredOption('--out-dir <path>', 'directory for artifacts')
-  .option('--text <value>', 'expected QR content; mismatch is an error')
   .option('--mask <path>', 'optional white-on-black/transparent region mask PNG')
   .option('--qr-box <x,y,size>', 'manual QR protection box in poster pixels')
   .option('--force', 'overwrite known artifact files')
@@ -94,6 +92,10 @@ async function main(): Promise<void> {
       throw new QrPosterError('INVALID_INPUT', '--cut-radius and --cut-smooth require --pattern-cut or --assemble.')
     if (!options.assemble && options.qrMargin !== undefined)
       throw new QrPosterError('INVALID_INPUT', '--qr-margin requires --assemble.')
+    if (options.patternCut && options.content !== undefined)
+      throw new QrPosterError('INVALID_INPUT', '--content is not used by --pattern-cut.')
+    if (!options.patternCut && options.content === undefined)
+      throw new QrPosterError('INVALID_INPUT', '--content is required for this mode.')
     if (options.assemble && options.cutSmooth !== undefined) {
       throw new QrPosterError(
         'INVALID_INPUT',
@@ -108,7 +110,6 @@ async function main(): Promise<void> {
     const base = {
       inputPath: options.input,
       outputDir: options.outDir,
-      ...(options.text !== undefined ? { expectedText: options.text } : {}),
       ...(options.mask !== undefined ? { maskPath: options.mask } : {}),
       ...(options.qrBox !== undefined ? { qrBox: parseQrBox(options.qrBox) } : {}),
       ...(options.force !== undefined ? { force: options.force } : {}),
@@ -132,7 +133,7 @@ async function main(): Promise<void> {
       ].join('\n'))
       return
     }
-    const common = { ...base, qrPath: requireQr(options.qr) }
+    const common = { ...base, content: requireContent(options.content) }
     if (options.assemble) {
       const result = await assemblePoster({
         ...common,
@@ -238,9 +239,13 @@ function parsePositiveNumber(flag: string, value: string): number {
   return parsed
 }
 
-function requireQr(value: string | undefined): string {
+function requireContent(value: string | undefined): string {
   if (value === undefined)
-    throw new QrPosterError('INVALID_INPUT', '--qr is required unless --pattern-cut is used.')
+    throw new QrPosterError('INVALID_INPUT', '--content is required for this mode.')
+  if (value.trim().length === 0)
+    throw new QrPosterError('INVALID_INPUT', '--content must not be empty or whitespace-only.')
+  if (/\r|\n/.test(value))
+    throw new QrPosterError('INVALID_INPUT', '--content must contain exactly one line.')
   return value
 }
 

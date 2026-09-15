@@ -3,16 +3,20 @@ import { loadPng } from './image.js'
 import type { LoadedPng } from './image.js'
 import { buildManualRegionMask, detectRegionMask } from './mask.js'
 import { placeQr } from './placement.js'
-import { decodeQrRawDetailed, inspectAntfuQr, normalizeQr, resolveQrSource } from './qr.js'
+import {
+  decodeQrRawDetailed,
+  generateQrFromContent,
+  inspectAntfuQr,
+  normalizeQr,
+  resolveQrSource,
+} from './qr.js'
 import type { DecodedQr } from './qr.js'
-import type { QrBoxInput, QrMetadata, QrPlacement, RegionMask } from './types.js'
+import type { QrBoxInput, QrInputOptions, QrMetadata, QrPlacement, RegionMask } from './types.js'
 
-export interface LayoutInput {
+export type LayoutInput = QrInputOptions & {
   inputPath: string
-  qrPath: string
   maskPath?: string
   qrBox?: QrBoxInput
-  expectedText?: string
 }
 
 export interface ResolvedLayout {
@@ -35,14 +39,29 @@ export interface ResolvedLayout {
  * the decoded QR, its metadata, the placement box, and the normalized QR that is overlaid verbatim.
  */
 export async function resolveLayout(options: LayoutInput): Promise<ResolvedLayout> {
+  const hasContent = typeof options.content === 'string'
+  const hasQrPath = typeof options.qrPath === 'string'
+  if (hasContent === hasQrPath) {
+    throw new QrPosterError(
+      'INVALID_INPUT',
+      'Supply exactly one QR source: content or qrPath.',
+    )
+  }
+  if (hasContent && options.expectedText !== undefined)
+    throw new QrPosterError('INVALID_INPUT', 'expectedText is only valid with qrPath.')
+
   const poster = await loadPng(options.inputPath, 'poster input')
-  const qrSource = await loadPng(options.qrPath, 'QR input')
+  const generated = hasContent ? await generateQrFromContent(options.content!) : undefined
+  const qrSource = generated?.image ?? await loadPng(options.qrPath!, 'QR input')
   const maskInput = options.maskPath ? await loadPng(options.maskPath, 'region mask') : undefined
   const regionMask = maskInput
     ? buildManualRegionMask(maskInput, poster.width, poster.height)
     : detectRegionMask(poster)
 
-  const decoded = decodeQrRawDetailed(qrSource.data, qrSource.width, qrSource.height)
+  const decodedResult = decodeQrRawDetailed(qrSource.data, qrSource.width, qrSource.height)
+  const decoded: DecodedQr = generated && decodedResult.version === undefined
+    ? { ...decodedResult, version: generated.version }
+    : decodedResult
   if (options.expectedText !== undefined && decoded.text !== options.expectedText) {
     throw new QrPosterError(
       'QR_TEXT_MISMATCH',
@@ -50,7 +69,9 @@ export async function resolveLayout(options: LayoutInput): Promise<ResolvedLayou
     )
   }
 
-  const resolved = await resolveQrSource(qrSource, decoded.version)
+  const resolved = generated
+    ? { source: qrSource, image: qrSource, quietZoneSource: 'source' as const }
+    : await resolveQrSource(qrSource, decoded.version)
   const qrMetadata = inspectAntfuQr(resolved.image, decoded.text, decoded.version)
   if (resolved.quietZoneSource === 'added')
     qrMetadata.quietZoneSource = 'added'

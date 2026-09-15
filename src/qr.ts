@@ -8,6 +8,7 @@ import {
 import jsQR from 'jsqr'
 import type { QRCode as JsQrResult } from 'jsqr'
 import sharp from 'sharp'
+import { QrCodeDataType, encode } from 'uqr'
 import { QrPosterError } from './errors.js'
 import type { LoadedPng } from './image.js'
 import { decodePng, luma, rgbaToPng } from './image.js'
@@ -22,6 +23,68 @@ const GRID_SIZE_TOLERANCE = 2
 const GRID_ORIGIN_SEARCH = 2
 const MIN_VERSION = 1
 const MAX_VERSION = 40
+const GENERATED_QR_MODULE_PIXELS = 20
+export const GENERATED_QR_PATH = '<generated>'
+
+export interface GeneratedQr {
+  image: LoadedPng
+  version: number
+}
+
+/** Builds the same rounded, two-module-margin QR profile accepted from legacy PNG inputs. */
+export async function generateQrFromContent(content: string): Promise<GeneratedQr> {
+  if (content.trim().length === 0)
+    throw new QrPosterError('INVALID_INPUT', '--content must not be empty or whitespace-only.')
+  if (/\r|\n/.test(content))
+    throw new QrPosterError('INVALID_INPUT', '--content must contain exactly one line.')
+
+  let encoded
+  try {
+    encoded = encode(content, { ecc: 'M', maskPattern: -1, border: 0 })
+  }
+  catch (error) {
+    throw new QrPosterError(
+      'QR_INVALID',
+      'Could not encode --content as a QR code. The content may exceed the QR capacity.',
+      2,
+      { cause: error },
+    )
+  }
+
+  // Keep pattern.ts as the single source of truth for the qrcode.antfu.me rounded cell geometry.
+  // The dynamic import avoids a static layout -> qr -> pattern -> layout module cycle.
+  const { renderRoundedPattern } = await import('./pattern.js')
+  const marginModules = QUIET_ZONE_MODULES
+  const rounded = await renderRoundedPattern(encoded.data, GENERATED_QR_MODULE_PIXELS, {
+    skipInk: (moduleX, moduleY) => {
+      const x = moduleX - marginModules
+      const y = moduleY - marginModules
+      return encoded.types[y]?.[x] === QrCodeDataType.Position
+    },
+  })
+  const file = await sharp(rounded)
+    .composite([{ input: Buffer.from(finderMarkerSvg(encoded.size, GENERATED_QR_MODULE_PIXELS, marginModules)) }])
+    .png()
+    .toBuffer()
+  return {
+    image: await decodePng(file, GENERATED_QR_PATH, 'generated QR'),
+    version: encoded.version,
+  }
+}
+
+/** Circular qrcode.antfu.me finder markers over the cleared Position cells. */
+function finderMarkerSvg(modules: number, pitch: number, marginModules: number): string {
+  const size = (modules + marginModules * 2) * pitch
+  const origins = [[0, 0], [modules - 7, 0], [0, modules - 7]] as const
+  const markers = origins.map(([x, y]) => {
+    const cx = (marginModules + x + 3.5) * pitch
+    const cy = (marginModules + y + 3.5) * pitch
+    return `<circle cx="${cx}" cy="${cy}" r="${3.5 * pitch}" fill="#000"/>`
+      + `<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="#fff"/>`
+      + `<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`
+  }).join('')
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">${markers}</svg>`
+}
 
 export async function decodeQrBuffer(buffer: Buffer): Promise<string> {
   return (await decodeQrBufferDetailed(buffer)).text

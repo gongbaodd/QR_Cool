@@ -43,6 +43,8 @@ export interface PatternRenderOptions {
    * exactly as `--pattern-preview` renders.
    */
   include?: (moduleX: number, moduleY: number) => boolean
+  /** Suppresses black geometry for selected cells while retaining the white canvas beneath them. */
+  skipInk?: (moduleX: number, moduleY: number) => boolean
 }
 
 export interface PosterPatternOptions {
@@ -179,6 +181,7 @@ export async function renderRoundedPattern(
   const half = modulePixels / 2
   const radius = half + WEDGE_RADIUS_PADDING
   const include = options.include
+  const skipInk = options.skipInk
   const included = (x: number, y: number): boolean => {
     if (x < 0 || y < 0 || x >= totalModules || y >= totalModules)
       return false
@@ -188,6 +191,8 @@ export async function renderRoundedPattern(
   // cannot pull a wedge into the artwork around the silhouette.
   const dark = (x: number, y: number): boolean => {
     if (!included(x, y))
+      return false
+    if (skipInk?.(x, y))
       return false
     const column = x - marginModules
     const row = y - marginModules
@@ -213,6 +218,8 @@ export async function renderRoundedPattern(
   for (let y = 0; y < totalModules; y++) {
     for (let x = 0; x < totalModules; x++) {
       if (!included(x, y))
+        continue
+      if (skipInk?.(x, y))
         continue
       const ox = x * modulePixels
       const oy = y * modulePixels
@@ -309,7 +316,7 @@ export async function generatePatternPreview(options: PatternPreviewOptions): Pr
         height: poster.height,
       },
       qr: {
-        path: normalizedPath(options.qrPath),
+        path: qrSource.path === '<generated>' ? qrSource.path : normalizedPath(qrSource.path),
         sha256: qrSource.sha256,
         width: qrSource.width,
         height: qrSource.height,

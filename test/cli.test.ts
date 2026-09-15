@@ -19,7 +19,10 @@ async function temporaryDirectory(): Promise<string> {
 interface CliRun {
   status: number | null
   stdout: string
+  stderr: string
 }
+
+const QR_CONTENT = 'https://www.instagram.com/grandpasbeehaven/'
 
 /** Runs the CLI through tsx, using the same `-- <mode>` path the pnpm script documents. */
 function runCli(args: string[]): CliRun {
@@ -30,7 +33,7 @@ function runCli(args: string[]): CliRun {
   )
   if (result.error)
     throw result.error
-  return { status: result.status, stdout: result.stdout ?? '' }
+  return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' }
 }
 
 /**
@@ -98,10 +101,55 @@ describe.skipIf(!spawnAvailable)('cli pattern cut mode', () => {
     expect(result.status).toBe(2)
   }, 60_000)
 
-  it('still requires --qr for the poster modes', async () => {
+  it('requires --content for the poster modes', async () => {
     const directory = await temporaryDirectory()
     const { pattern } = await writeFixtures(directory)
     const result = runCli(['--dry-run', '--input', pattern, '--out-dir', join(directory, 'out')])
+    expect(result.status).toBe(2)
+  }, 60_000)
+
+  it('rejects invalid content and the removed QR flags', async () => {
+    const directory = await temporaryDirectory()
+    const base = ['--dry-run', '--input', resolve('source/poster.png'), '--out-dir']
+    expect(runCli([...base, join(directory, 'blank'), '--content', '   ']).status).toBe(2)
+    expect(runCli([...base, join(directory, 'multiline'), '--content', 'first\nsecond']).status).toBe(2)
+    expect(runCli([...base, join(directory, 'large'), '--content', 'x'.repeat(5_000)]).status).toBe(2)
+    expect(runCli([...base, join(directory, 'qr'), '--qr', resolve('source/qr.png')]).status).toBe(2)
+    expect(runCli([...base, join(directory, 'text'), '--text', 'test']).status).toBe(2)
+  }, 60_000)
+
+  it('generates QR inputs for dry-run and pattern-preview', async () => {
+    const directory = await temporaryDirectory()
+    for (const [mode, outDir] of [
+      ['--dry-run', join(directory, 'dry')],
+      ['--pattern-preview', join(directory, 'pattern')],
+    ] as const) {
+      const result = runCli([
+        mode,
+        '--input', resolve('source/poster.png'),
+        '--content', QR_CONTENT,
+        '--out-dir', outDir,
+        ...(mode === '--pattern-preview' ? ['--seed', '1'] : []),
+      ])
+      expect(result.status).toBe(0)
+      const report = JSON.parse(await readFile(join(outDir, 'report.json'), 'utf8'))
+      expect(report.inputs.qr.path).toBe('<generated>')
+      expect(report.inputs.qr).toMatchObject({ width: 740, height: 740 })
+      if (mode === '--dry-run')
+        expect(report.qr.decodedText).toBe(QR_CONTENT)
+    }
+  }, 120_000)
+
+  it('rejects --content for pattern-cut', async () => {
+    const directory = await temporaryDirectory()
+    const { pattern, mask } = await writeFixtures(directory)
+    const result = runCli([
+      '--pattern-cut',
+      '--input', pattern,
+      '--cut-mask', mask,
+      '--content', 'unused',
+      '--out-dir', join(directory, 'out'),
+    ])
     expect(result.status).toBe(2)
   }, 60_000)
 
@@ -111,7 +159,7 @@ describe.skipIf(!spawnAvailable)('cli pattern cut mode', () => {
     const result = runCli([
       '--dry-run',
       '--input', pattern,
-      '--qr', pattern,
+      '--content', 'test',
       '--cut-radius', '4',
       '--out-dir', join(directory, 'out'),
     ])
@@ -126,7 +174,7 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
     const result = runCli([
       '--assemble',
       '--input', resolve('source/poster.png'),
-      '--qr', resolve('source/qr.png'),
+      '--content', QR_CONTENT,
       '--out-dir', outDir,
       '--seed', '1',
       '--cut-radius', '4',
@@ -143,28 +191,28 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
     const report = JSON.parse(await readFile(join(outDir, 'report.json'), 'utf8'))
     expect(report.schemaVersion).toBe(7)
     expect(report.cut.radius).toBe(4)
-    expect(report.cut.modulePixels).toBe(5)
-    expect(report.cut.lattice).toEqual({ x: 4, y: 1 })
+    expect(report.cut.modulePixels).toBe(6)
+    expect(report.cut.lattice).toEqual({ x: 2, y: 1 })
     expect(report.cut.rim).toEqual({ modules: 4, style: 'cell' })
     expect(report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
     expect(report.qr.overlay).toEqual({
       quietZoneModules: 1,
-      crop: { left: 5, top: 5, size: 195 },
-      x: 254,
-      y: 206,
+      crop: { left: 6, top: 6, size: 210 },
+      x: 236,
+      y: 199,
     })
     // Any positive --cut-radius hands the plate's four corner modules back to the texture.
     expect(report.qrPlate).toEqual({
       marginModules: 1,
-      marginPixels: 5,
+      marginPixels: 6,
       cornerModules: 1,
       path: 'module-window',
-      box: { x: 254, y: 206, width: 195, height: 195 },
-      holeModules: 1517,
-      cornerTexturePixels: 100,
+      box: { x: 236, y: 199, width: 210, height: 210 },
+      holeModules: 1221,
+      cornerTexturePixels: 144,
     })
-    expect(result.stdout).toMatch(/QR plate: 195px window, 1517 module hole, 5px \(1 module\) margin, 1 corner module\(s\)/)
-    expect(result.stdout).toMatch(/Cut: 5px modules on lattice 4,1, 3261 module\(s\) drawn/)
+    expect(result.stdout).toMatch(/QR plate: 210px window, 1221 module hole, 6px \(1 module\) margin, 1 corner module\(s\)/)
+    expect(result.stdout).toMatch(/Cut: 6px modules on lattice 2,1, 2063 module\(s\) drawn/)
   }, 120_000)
 
   it('accepts an explicit --qr-margin and rejects it outside assembly', async () => {
@@ -173,7 +221,7 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
     const result = runCli([
       '--assemble',
       '--input', resolve('source/poster.png'),
-      '--qr', resolve('source/qr.png'),
+      '--content', QR_CONTENT,
       '--out-dir', outDir,
       '--seed', '1',
       '--qr-margin', '0.4',
@@ -184,23 +232,23 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
     expect(report.qrPlate.marginPixels).toBe(2)
     // A fractional margin paints the plate at pixel precision, which the report says out loud.
     expect(report.qrPlate.path).toBe('pixel-window')
-    expect(report.qrPlate.holeModules).toBe(1369)
+    expect(report.qrPlate.holeModules).toBe(1089)
     expect(report.qrPlate.cornerTexturePixels).toBe(16)
     expect(result.stdout).toMatch(/2px \(0\.4 module\) margin/)
     expect(runCli([
       '--assemble',
       '--input', resolve('source/poster.png'),
-      '--qr', resolve('source/qr.png'),
+      '--content', QR_CONTENT,
       '--qr-margin', '0',
       '--out-dir', join(directory, 'zero'),
     ]).status).toBe(2)
-    expect(runCli(['--dry-run', '--input', resolve('source/poster.png'), '--qr', resolve('source/qr.png'), '--qr-margin', '0.4', '--out-dir', join(directory, 'two')]).status).toBe(2)
+    expect(runCli(['--dry-run', '--input', resolve('source/poster.png'), '--content', QR_CONTENT, '--qr-margin', '0.4', '--out-dir', join(directory, 'two')]).status).toBe(2)
   }, 120_000)
 
   it('rejects options that do not belong to assembly', async () => {
     const directory = await temporaryDirectory()
     const { pattern, mask } = await writeFixtures(directory)
-    const shared = ['--assemble', '--input', pattern, '--qr', pattern, '--out-dir', join(directory, 'out')]
+    const shared = ['--assemble', '--input', pattern, '--content', 'test', '--out-dir', join(directory, 'out')]
 
     expect(runCli([...shared, '--module-pixels', '20']).status).toBe(2)
     expect(runCli([...shared, '--cut-mask', mask]).status).toBe(2)
@@ -212,7 +260,7 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
   it('still rejects seeds and cut options outside the modes that accept them', async () => {
     const directory = await temporaryDirectory()
     const { pattern } = await writeFixtures(directory)
-    expect(runCli(['--dry-run', '--input', pattern, '--qr', pattern, '--seed', '1', '--out-dir', join(directory, 'a')]).status).toBe(2)
+    expect(runCli(['--dry-run', '--input', pattern, '--content', 'test', '--seed', '1', '--out-dir', join(directory, 'a')]).status).toBe(2)
     expect(runCli(['--pattern-cut', '--input', pattern, '--cut-mask', pattern, '--seed', '1', '--out-dir', join(directory, 'b')]).status).toBe(2)
   }, 120_000)
 })

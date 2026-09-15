@@ -3,14 +3,16 @@ export { QrPosterError } from './errors.js'
 export { buildManualRegionMask, detectRegionMask } from './mask.js'
 export { boxIsInsideMask, placeQr } from './placement.js'
 export { preparePoster } from './prepare.js'
-export { decodeQrBuffer, decodeQrRaw, decodeQrRawDetailed, inspectAntfuQr, normalizeQr, resolveQrSource } from './qr.js'
-export type { DecodedQr, ResolvedQrSource } from './qr.js'
+export { decodeQrBuffer, decodeQrRaw, decodeQrRawDetailed, generateQrFromContent, inspectAntfuQr, normalizeQr, resolveQrSource } from './qr.js'
+export type { DecodedQr, GeneratedQr, ResolvedQrSource } from './qr.js'
 export type {
   BoundingBox,
   CompositePosterInputs,
   PreparePosterOptions,
   PrepareResult,
+  PosterInputOptions,
   QrBoxInput,
+  QrInputOptions,
   QrMetadata,
   QrPlacement,
   QrSourceTrim,

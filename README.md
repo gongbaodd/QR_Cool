@@ -1,6 +1,6 @@
 # QR Cool
 
-Local TypeScript CLI for artistic QR posters. It detects the central painted region, places an existing qrcode.antfu.me QR image, and uses Qwen to fill the remaining region with decorative rounded black QR-style cells on white. Local compositing preserves every pixel outside the region and overlays the exact QR and quiet zone.
+Local TypeScript CLI for artistic QR posters. It accepts one line of content, generates a qrcode.antfu.me-style QR, detects the central painted region, and uses Qwen to fill the remaining region with decorative rounded black QR-style cells on white. Local compositing preserves every pixel outside the region and overlays the generated QR and quiet zone.
 
 It also ships an offline `--pattern-preview` mode that renders a poster-sized QR cell texture from a random text line, using the same encoder and default rounded style as [antfu/qrcode-toolkit](https://github.com/antfu/qrcode-toolkit), with the finder and alignment markers removed.
 
@@ -29,33 +29,33 @@ The base URL above is the configured Beijing workspace default. Override it for 
 
 ```bash
 # Offline preview; no API key required
-pnpm qr-poster -- --dry-run --input source/poster.png --qr test/fixtures/qr.png --out-dir output/preview
+pnpm qr-poster -- --dry-run --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/preview
 
 # One paid Qwen generation
-pnpm qr-poster -- --generate --input source/poster.png --qr test/fixtures/qr.png --out-dir output/qwen-pattern
+pnpm qr-poster -- --generate --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/qwen-pattern
 
 # Reuse downloaded artwork without a network call
-pnpm qr-poster -- --generated-image output/qwen-pattern/ai-raw.png --input source/poster.png --qr test/fixtures/qr.png --out-dir output/recomposed
+pnpm qr-poster -- --generated-image output/qwen-pattern/ai-raw.png --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/recomposed
 
 # Offline marker-free QR cell texture sized to the poster; no API key required
-pnpm qr-poster -- --pattern-preview --input source/poster.png --qr test/fixtures/qr.png --out-dir output/pattern-preview --seed 1
+pnpm qr-poster -- --pattern-preview --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/pattern-preview --seed 1
 
 # Offline cut of a rendered texture; no QR input and no API key required
 pnpm qr-poster -- --pattern-cut --input output/pattern-preview/pattern.png --cut-mask output/qwen-fresh/edit-mask.png --out-dir output/pattern-cut
 
 # Offline end-to-end poster: texture, cut, composite and QR overlay in one run
-pnpm qr-poster -- --assemble --input source/poster.png --qr source/qr.png --out-dir output/assemble --seed 1
+pnpm qr-poster -- --assemble --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/assemble --seed 1
 ```
 
-The QR input should be square with the qrcode.antfu.me two-module quiet zone. The bundled `source/qr.png` is a tight 753×748 crop of that same code — a 740px code at 20px/module with an uneven 8/5/5/3px margin — so its missing quiet zone is rebuilt locally from the code pixels without resampling. `test/fixtures/qr.png` is the same code with its margin intact and produces the same poster. A crop that does not sit on an integer module grid is still rejected.
+`--content` must be one nonblank line. It is encoded locally with `uqr` at ECC M and automatic mask selection, rendered with rounded cells at 20px/module, and surrounded by a two-module light margin before entering the existing placement and verification pipeline. The exact quoted value, including leading or trailing whitespace, is preserved.
 
-Specify exactly one of `--dry-run`, `--generate`, `--assemble`, `--pattern-preview`, `--pattern-cut`, or `--generated-image`. `--input` and `--out-dir` are required; `--qr` is required by every mode except `--pattern-cut`.
+Specify exactly one of `--dry-run`, `--generate`, `--assemble`, `--pattern-preview`, `--pattern-cut`, or `--generated-image`. `--input` and `--out-dir` are required. `--content` is required by every mode except `--pattern-cut`, where it is rejected.
 
 | Option | Behavior |
 | --- | --- |
 | `--model <name>` | Qwen model; default `qwen-image-2.0`. Account/model availability is checked by the API. |
 | `--prompt <text>` | Pattern instruction; defaults to rounded dots and connected black cells on white, matching the real QR module size and density. |
-| `--text <value>` | Optional exact expected QR content. |
+| `--content <value>` | Nonblank, single-line content encoded into the generated QR. Required except for `--pattern-cut`. |
 | `--mask <path>` | Same-size PNG: white with nonzero alpha selects the painted region; black or transparent excludes it. |
 | `--qr-box <x,y,size>` | Manual protection box; size must be an integer multiple of the QR module count and fit entirely inside the region. |
 | `--pattern-preview` | Write `pattern.png` and `report.json` only: a poster-sized, marker-free QR cell texture. |
@@ -133,7 +133,7 @@ Dry-run reports retain schema version 1. Generation reports use version 2 and re
 
 Qualification requires decoding the source, normalized QR, prepared preview and final poster, including 50% resize and JPEG quality-80 variants, plus exact protected-pixel checks. Verification failures exit with code 4; API/image errors use 3; invalid arguments use 2. Automated qualification does not assess artistic quality; inspect the output for seams or remaining painted areas.
 
-Before any of that, the QR input is resolved to a square image with a two-module quiet zone. The documented profile is preferred; when the image is a tight code-grid crop instead, the integer-scaled module grid is located by fitting the ink bounding box and minimizing the per-module luma variance, then the code pixels are copied 1:1 onto a fresh light margin and `quietZoneSource: "added"` plus the trimmed margin are recorded. Nothing is rescaled, so a conforming source and its code-grid crop produce byte-identical posters. A crop that cannot be fitted to the grid is rejected with `QR_INVALID`.
+Before any of that, the CLI-generated QR is decoded and checked as a square image with a two-module quiet zone. Reports retain their schema versions and record its input path as `"<generated>"`; the hash and dimensions describe the in-memory 20px/module PNG. Legacy library calls using `qrPath` still resolve conforming images and tight code-grid crops through the existing profile checks and quiet-zone rebuild.
 
 API requests have a five-minute timeout and no automatic retries. A timeout may still incur a charge. Raw downloaded artwork is retained if geometry, compositing, or verification fails. Offline reuse accepts the padded canvas size or the original image size, and must use the same input/layout for meaningful alignment.
 
@@ -142,14 +142,14 @@ API requests have a five-minute timeout and no automatic retries. A timeout may 
 ```ts
 import { assemblePoster, generatePatternCut, generatePatternPreview, generatePoster, preparePoster } from 'qr-cool'
 
-await preparePoster({ inputPath: 'source/poster.png', qrPath: 'source/qr.png', outputDir: 'output/preview', dryRun: true })
-await generatePoster({ inputPath: 'source/poster.png', qrPath: 'source/qr.png', outputDir: 'output/qwen-pattern', apiKey: process.env.QWEN_API_KEY })
-await generatePatternPreview({ inputPath: 'source/poster.png', qrPath: 'source/qr.png', outputDir: 'output/pattern-preview', seed: 1 })
+await preparePoster({ inputPath: 'source/poster.png', content: 'https://example.com/', outputDir: 'output/preview', dryRun: true })
+await generatePoster({ inputPath: 'source/poster.png', content: 'https://example.com/', outputDir: 'output/qwen-pattern', apiKey: process.env.QWEN_API_KEY })
+await generatePatternPreview({ inputPath: 'source/poster.png', content: 'https://example.com/', outputDir: 'output/pattern-preview', seed: 1 })
 await generatePatternCut({ inputPath: 'output/pattern-preview/pattern.png', maskPath: 'output/qwen-fresh/edit-mask.png', outputDir: 'output/pattern-cut' })
-await assemblePoster({ inputPath: 'source/poster.png', qrPath: 'source/qr.png', outputDir: 'output/assemble', seed: 1 })
+await assemblePoster({ inputPath: 'source/poster.png', content: 'https://example.com/', outputDir: 'output/assemble', seed: 1 })
 ```
 
-The library uses explicit credentials or environment variables; it does not load `.env`. `compositePoster()` remains available for direct local compositing, and `resolveQrSource()` exposes the QR profile check with its code-grid fallback.
+The library uses explicit credentials or environment variables; it does not load `.env`. Programmatic callers may continue to pass `qrPath` (and optionally `expectedText`) instead of `content` for backward compatibility, but the two sources are mutually exclusive. `compositePoster()` remains available for direct local compositing, and `resolveQrSource()` exposes the legacy QR profile check with its code-grid fallback.
 
 ## Development
 
@@ -159,6 +159,6 @@ pnpm typecheck
 pnpm build
 ```
 
-Tests use mocked API responses and local images, with no paid calls. Inputs remain PNG-only. The existing QR uses two quiet-zone modules and integer module scaling, and the QR suite covers the strict profile, the code-grid crop of `source/qr.png` rebuilding byte-for-byte onto `test/fixtures/qr.png`, and rejection of a crop that misses the grid; pattern preview reimplements the toolkit's rounded cell geometry as SVG, and its test suite compares that rendering against `test/fixtures/qr.png` pixel for pixel, including the phase-locked crop and the per-module include mask. Pattern cut traces the mask outline into a filleted SVG path and asserts that pixels inside the cut stay bit-exact, that a hole stays a hole, and that the same inputs reproduce identical artifact hashes. Assembly asserts the schema-7 report, the measured 4,778 safe / 451 dropped / 3,261 drawn / 1,316 rim / 1,945 texture module counts, that the written cut layer is uniform per module with no partial cell, that every drawn module survives into the poster untouched at the default margin, that dropped modules and everything outside the region stay byte-exact while drawn modules match a freshly rendered texture, the 1,517-module plate hole with its four corner modules as bit-exact texture, `--cut-radius 0` painting the 1,521-module square window, the pixel-tight `--qr-margin 0.2` mode with its 73 trimmed cells and its warning, a local-decoder pass at full size, 50% and JPEG-80 at the default margin and at full size and JPEG-80 only in the 0.2 mode, the rejected `--cut-smooth`, the rejected `--qr-margin 0` and `--qr-margin` outside assembly, the rejected texture-free layout, seed reproducibility, and that the trimmed and square QR inputs give the same poster bytes. The CLI cases skip themselves on sandboxes that refuse to start child processes. Web hosting and closed-outline region detection remain future work.
+Tests use mocked API responses and local images, with no paid calls. Poster and mask inputs remain PNG-only. The QR suite covers generated ASCII, URL, and Unicode content, invalid one-line inputs, the legacy strict profile and code-grid crop fallback, and source exclusivity. Pattern preview reimplements the toolkit's rounded cell geometry as SVG, while assembly checks its schema-7 geometry, pixel preservation, QR plate, decoding evidence, option validation, and seed reproducibility. The CLI cases cover content generation for dry-run, preview, and assembly and skip themselves on sandboxes that refuse to start child processes. Web hosting and closed-outline region detection remain future work.
 
 API documentation: [Qwen image editing](https://www.alibabacloud.com/help/en/model-studio/qwen-image-edit-api).

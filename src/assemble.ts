@@ -375,7 +375,7 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
         height: poster.height,
       },
       qr: {
-        path: normalizedPath(options.qrPath),
+        path: qrSource.path === '<generated>' ? qrSource.path : normalizedPath(qrSource.path),
         sha256: qrSource.sha256,
         width: qrSource.width,
         height: qrSource.height,

@@ -129,15 +129,21 @@ export interface QrBoxInput {
   size: number
 }
 
-export interface PreparePosterOptions {
+export interface PosterInputOptions {
   inputPath: string
-  qrPath: string
   outputDir: string
-  dryRun: true
-  expectedText?: string
   maskPath?: string
   qrBox?: QrBoxInput
   force?: boolean
+}
+
+/** Generate a QR from content, or retain the legacy QR PNG input for programmatic callers. */
+export type QrInputOptions =
+  | { content: string, qrPath?: never, expectedText?: never }
+  | { content?: never, qrPath: string, expectedText?: string }
+
+export type PreparePosterOptions = PosterInputOptions & QrInputOptions & {
+  dryRun: true
 }
 
 export interface PrepareResult {
@@ -153,7 +159,7 @@ export interface CompositePosterInputs {
   placement: QrPlacement
 }
 
-export interface GeneratePosterOptions extends Omit<PreparePosterOptions, 'dryRun'> {
+export type GeneratePosterOptions = PosterInputOptions & QrInputOptions & {
   apiKey?: string
   baseUrl?: string
   model?: string
@@ -184,18 +190,11 @@ export interface GenerateResult {
   outputDir: string
 }
 
-export interface PatternPreviewOptions {
-  inputPath: string
-  qrPath: string
-  outputDir: string
+export type PatternPreviewOptions = PosterInputOptions & QrInputOptions & {
   /** Module pitch in poster pixels; defaults to the pitch the pipeline places on the poster. */
   modulePixels?: number
   /** Seed for the random text line; defaults to a fresh random seed per run. */
   seed?: number
-  maskPath?: string
-  qrBox?: QrBoxInput
-  expectedText?: string
-  force?: boolean
 }
 
 export interface PatternReport {
@@ -296,13 +295,7 @@ export interface PatternCutResult {
   outputDir: string
 }
 
-export interface AssemblePosterOptions {
-  inputPath: string
-  qrPath: string
-  outputDir: string
-  expectedText?: string
-  maskPath?: string
-  qrBox?: QrBoxInput
+export type AssemblePosterOptions = PosterInputOptions & QrInputOptions & {
   /** Seed for the pattern random text line and the marker refill; defaults to a fresh seed per run. */
   seed?: number
   /**
@@ -319,7 +312,6 @@ export interface AssemblePosterOptions {
   radius?: number
   /** Not used by assembly: the cut is module-aligned rather than traced. Rejected when supplied. */
   smoothTolerance?: number
-  force?: boolean
 }
 
 export interface AssembleReport {

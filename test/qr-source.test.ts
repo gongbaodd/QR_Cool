@@ -5,7 +5,7 @@ import sharp from 'sharp'
 import { afterEach, describe, expect, it } from 'vitest'
 import { loadPng } from '../src/image.js'
 import { resolveLayout } from '../src/layout.js'
-import { inspectAntfuQr, resolveQrSource } from '../src/qr.js'
+import { decodeQrRaw, generateQrFromContent, inspectAntfuQr, resolveQrSource } from '../src/qr.js'
 
 const EXPECTED_TEXT = 'https://www.instagram.com/grandpasbeehaven/'
 
@@ -21,6 +21,24 @@ async function temporaryDirectory(): Promise<string> {
 }
 
 describe('QR source resolution', () => {
+  it.each([
+    'hello world',
+    'https://example.com/',
+    '中文内容 test',
+  ])('generates and decodes one-line content: %s', async (content) => {
+    const generated = await generateQrFromContent(content)
+    expect(generated.image.path).toBe('<generated>')
+    expect(generated.image.width).toBe((21 + 4 * (generated.version - 1) + 4) * 20)
+    expect(decodeQrRaw(generated.image.data, generated.image.width, generated.image.height)).toBe(content)
+  })
+
+  it.each(['', '   ', 'first\nsecond', 'first\rsecond', 'x'.repeat(5_000)])(
+    'rejects invalid generated content',
+    async (content) => {
+      await expect(generateQrFromContent(content)).rejects.toMatchObject({ exitCode: 2 })
+    },
+  )
+
   it('leaves a conforming square input untouched', async () => {
     const source = await loadPng(resolve('test/fixtures/qr.png'), 'QR input')
     const resolved = await resolveQrSource(source, 5)
@@ -74,6 +92,24 @@ describe('QR source resolution', () => {
     expect(layout.qrMetadata.sourceTrim).toEqual({ left: 8, top: 5, right: 5, bottom: 3, modulePixels: 20 })
     expect(layout.qrSource.width).toBe(753)
     expect(layout.placement.modulePixels).toBe(5)
+  })
+
+  it('accepts generated content and rejects ambiguous programmatic QR sources', async () => {
+    const layout = await resolveLayout({
+      inputPath: resolve('source/poster.png'),
+      content: EXPECTED_TEXT,
+    })
+    expect(layout.qrSource.path).toBe('<generated>')
+    expect(layout.decoded.text).toBe(EXPECTED_TEXT)
+    expect(layout.qrMetadata.sourceModulePixels).toBe(20)
+
+    await expect(resolveLayout({ inputPath: resolve('source/poster.png') } as never))
+      .rejects.toMatchObject({ code: 'INVALID_INPUT', exitCode: 2 })
+    await expect(resolveLayout({
+      inputPath: resolve('source/poster.png'),
+      content: EXPECTED_TEXT,
+      qrPath: resolve('source/qr.png'),
+    } as never)).rejects.toMatchObject({ code: 'INVALID_INPUT', exitCode: 2 })
   })
 
   it('rejects a crop whose grid cannot be recovered', async () => {

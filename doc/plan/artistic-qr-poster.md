@@ -13,10 +13,10 @@
 ## Run
 
 ```bash
-pnpm qr-poster -- --generate --input source/poster.png --qr test/fixtures/qr.png --out-dir output/qwen-fresh
+pnpm qr-poster -- --generate --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/qwen-fresh
 ```
 
-The QR input must be square and pass the existing module and decoding checks. The repository’s `source/qr.png` is 753×748 and was rejected by that check at the time, so the samples use the square 820×820 `test/fixtures/qr.png`; the later assembly work accepts the crop as well (see “QR inputs that are tight crops”). `--dry-run` prepares the layout without a network call. `--generated-image <path>` reuses a saved result offline. API setup and other options are in README.md.
+The CLI generates its QR from the required single-line `--content` value. It uses `uqr` at ECC M with automatic mask selection, renders the existing rounded style at 20px/module with a two-module margin, and verifies that generated source before placement. `--dry-run` prepares the layout without a network call. `--generated-image <path>` reuses a saved result offline. API setup and other options are in README.md.
 
 ## Checks
 
@@ -38,7 +38,7 @@ Previous trials enlarged the crop or repeated it as tiles. The reference now con
 
 ## Fresh-fill trial (2026-09-15)
 
-Run: `pnpm qr-poster -- --generate --input source/poster.png --qr test/fixtures/qr.png --out-dir output/qwen-fresh`. One paid generation was made (request `0e18aab6-11b8-9208-b428-ff7ac6cd49da`). No retry was attempted and the mandated prompt sentence was not reworded.
+Historical run used the then-supported QR fixture input. The equivalent current command is `pnpm qr-poster -- --generate --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/qwen-fresh`. One paid generation was made (request `0e18aab6-11b8-9208-b428-ff7ac6cd49da`). No retry was attempted and the mandated prompt sentence was not reworded.
 
 Reference, checked: `reference-canvas.png` is 688×576 with exactly one unscaled 65×65 crop at the origin and pure white elsewhere, and `pattern-reference.png` is that same crop pixel for pixel. There are no tiles and no enlargement.
 
@@ -69,8 +69,8 @@ What was implemented (`src/pattern.ts`, `--pattern-preview`):
 Run:
 
 ```bash
-pnpm qr-poster -- --pattern-preview --input source/poster.png --qr test/fixtures/qr.png --out-dir output/pattern-preview --seed 1
-pnpm qr-poster -- --pattern-preview --input source/poster.png --qr test/fixtures/qr.png --out-dir output/pattern-preview-chunky --module-pixels 20
+pnpm qr-poster -- --pattern-preview --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/pattern-preview --seed 1
+pnpm qr-poster -- --pattern-preview --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/pattern-preview-chunky --module-pixels 20
 ```
 
 Checks in `test/pattern-preview.test.ts`: version/pitch selection including the unreachable-pitch error, pixel fidelity against the reference QR, isolated-versus-connected cell shapes, seeded marker refill with timing cells retained and no white holes in the marker areas, seeded text reproducibility, a decode round trip with markers kept, and a poster-sized deterministic preview that refuses to overwrite without `--force`.
@@ -79,7 +79,7 @@ Checks in `test/pattern-preview.test.ts`: version/pitch selection including the 
 
 The preview texture is deliberately undecodable and poster-sized, so it needs a shape before it can be used. `--pattern-cut` cuts it with a mask and does the cutting in SVG, which is what lets the cut edge be round instead of a pixel staircase.
 
-Inputs are two same-size PNGs: the pattern to cut and a mask. The mask follows the edit-mask convention — a pixel is inside the cut shape when it is transparent or dark — so `output/qwen-fresh/edit-mask.png` (opaque white outside the editable area, transparent inside) and `region-mask.png` (white on black) both work unchanged. `--qr` is not required in this mode; the existing `--mask` flag keeps its white-is-region meaning and is untouched.
+Inputs are two same-size PNGs: the pattern to cut and a mask. The mask follows the edit-mask convention — a pixel is inside the cut shape when it is transparent or dark — so `output/qwen-fresh/edit-mask.png` (opaque white outside the editable area, transparent inside) and `region-mask.png` (white on black) both work unchanged. `--content` is not accepted in this mode; the existing `--mask` flag keeps its white-is-region meaning and is untouched.
 
 Pipeline (`src/pattern-cut.ts`, `--pattern-cut`):
 
@@ -107,11 +107,11 @@ Checks in `test/pattern-cut.test.ts`: a rectangle becoming one ring of four arcs
 
 ## Assembly (2026-09-15)
 
-With the texture and the cut both working offline, the poster itself can be finished without Qwen. `--assemble` is one run from the poster plus the QR to a verified `poster.png`.
+With the texture and the cut both working offline, the poster itself can be finished without Qwen. `--assemble` is one run from the poster plus one line of content to a verified `poster.png`.
 
 Order of work (`src/assemble.ts`, `--assemble`):
 
-1. `resolveLayout()` (new `src/layout.ts`, shared with `--dry-run` and `--pattern-preview`) loads the poster and QR, builds the region mask, decodes the QR, checks `--text`, resolves the QR source, inspects its profile, places it, and normalizes it. Sharing this keeps assembly from writing dry-run artifacts first, and keeps the three modes from drifting apart.
+1. `resolveLayout()` (shared with `--dry-run` and `--pattern-preview`) loads the poster, generates and decodes the QR content, builds the region mask, inspects the QR profile, places it, and normalizes it. Sharing this keeps assembly from writing dry-run artifacts first and keeps the modes from drifting apart. Legacy library calls may still provide `qrPath` with optional `expectedText`, but the CLI exposes only `--content`.
 2. `buildPosterPattern()` returns the marker-free matrix and the crop window at the placed pitch; the mode deliberately has no `--module-pixels`, because the texture pitch must equal the QR pitch or the seam between them shows. The crop is phase-locked to the placement (`offset + phase` a whole number of modules) so the matrix cells and the QR share one lattice. The fillet then drawn over a pixel-traced outline, the 20px border, and the rounded plate are all superseded by the module-level cut — see "Module-level cut for assembly" below.
 3. The painted region is sampled on that lattice: a module is safe when its whole pixel block is on the canvas and every pixel of it is inside the mask. The drawn set is the safe modules minus the plate hole, the outer four rings of it are forced dark as the rim, and the composite writes whole modules only, so partly covered modules keep the original artwork.
 4. The normalized QR keeps **one** quiet-zone module: the 39-module plate (185px code grid plus a 5px margin) is copied verbatim from the normalized image's 5,5 corner to 254,206, its four corner modules excepted. `--qr-margin` can make that band a fraction of a module instead, which is painted at pixel precision — see "A fractional QR margin" below. The poster is then verified with geometry only — `sourceQr`, `normalizedQr`, `outsideRegionPixels`, `qrPixels`, `qrPlateCorners`, `moduleCut`, `alphaPreserved` — while `poster`, `posterHalfScale`, and `posterJpeg80` are recorded in `verification.skippedChecks`.
@@ -119,7 +119,7 @@ Order of work (`src/assemble.ts`, `--assemble`):
 Run:
 
 ```bash
-pnpm qr-poster -- --assemble --input source/poster.png --qr source/qr.png --out-dir output/assemble --seed 1 --force
+pnpm qr-poster -- --assemble --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/assemble --seed 1 --force
 ```
 
 Measured: region 125,497px (auto), QR version 5 at 5px/module in box 249,201,205 drawn on the 195×195 plate at 254,206 (1 quiet-zone module kept, crop 5/5/195), pattern version 30 at seed 1 cropped at 11/69 with a residual alignment phase of 0/0, a 137×113 lattice with 4,778 safe modules, 451 dropped partial modules (6,047 region pixels) and 3,261 drawn modules of which 1,316 are rim and 1,945 texture, all seven checks passing. Artifacts are `poster.png`, `pattern-cut.png`, `pattern-cut.svg`, `region-mask.png`, `qr.png`, and a schema-7 `report.json`. Pixel counts: zero transparent pixels (the earlier three-command route left 552 fully transparent and 1,006 partial-alpha pixels), zero alpha differences against the source poster, zero changed pixels outside the region or outside drawn modules, zero trimmed drawn cells at the default margin, and zero plate-window mismatches.
@@ -150,7 +150,7 @@ One module of white around a 5px code reads as a wide, pasted border, so `--qr-m
 
 Measured on the bundled fixtures at the default: 195px window, 1,517-module hole, 100 corner texture pixels, 3,261 drawn modules (1,945 texture + 1,316 rim), no trimmed cell, and local decoding at all three scales. `--qr-margin 0.2` gives 187px, a 1,369-module hole, 4 corner pixels, 3,409 drawn modules of which 73 are trimmed, and decoding at full size and JPEG-80 only; `--qr-margin 0.4` (2px) trims 2px per cell but keeps all three scales. `test/assemble.test.ts` asserts the default, the whole-cell guarantee and the 0.2 case, and `test/module-cut.test.ts` covers the off-lattice window.
 
-### QR inputs that are tight crops
+### Legacy library QR inputs that are tight crops
 
 `source/qr.png` is the same code as `test/fixtures/qr.png` cropped to the code grid — 740px at 20px/module with an uneven 8/5/5/3px margin — so it never matched the square, two-module quiet-zone profile. Instead of rejecting it, the profile check now falls back to recovering the code grid (`src/qr.ts`, `resolveQrSource`):
 
@@ -158,11 +158,11 @@ Measured on the bundled fixtures at the default: 195px window, 1,517-module hole
 - The origin is refined over ±2px by minimizing the mean per-module luma variance through integral images. The decoded version wins when a grid of that size fits, because the version comes from the decoded content.
 - The grid is copied 1:1 onto a fresh two-module white margin at its native scale, and `quietZoneSource: "added"` with the trimmed margins is recorded in the report. The rebuilt 820×820 image equals `test/fixtures/qr.png` pixel for pixel, and both inputs produce byte-identical posters.
 
-The strict profile still comes first, so conforming inputs behave exactly as before and their reports gain no fields. A crop that cannot be fitted to any grid (for example 745×741 taken at a non-grid offset) is rejected with `QR_INVALID`, and a wrong grid is caught downstream by the decode checks.
+This path remains available to programmatic callers through `qrPath`; the CLI now requires `--content`. The strict profile still comes first, so conforming library inputs behave exactly as before and their reports gain no fields. A crop that cannot be fitted to any grid (for example 745×741 taken at a non-grid offset) is rejected with `QR_INVALID`, and a wrong grid is caught downstream by the decode checks.
 
 ### Checks added
 
-`test/qr-source.test.ts` covers the untouched conforming input, the trimmed `source/qr.png` rebuild with its recorded margins, a square code crop with no margin at all, the metadata surfaced through the shared layout, and the rejected non-grid crop. `test/module-cut.test.ts` covers the lattice phase, the safe-area rule (partial, off-canvas and zero-safe cases), rim thickness on a synthetic block and on a two-module feature, the plate window on and off the lattice with and without its corners, the module path, and binary coverage rasterization. `test/assemble.test.ts` runs the real fixtures and asserts the schema-7 report with the measured module counts, a cut layer that is uniform per module, dropped modules and region-outside pixels byte-exact, drawn modules matching a freshly rendered texture, every drawn cell surviving into the poster untouched at the default margin, the 1,517-module plate hole with its corner modules as bit-exact texture, the 1,521-module square window at `--cut-radius 0`, the pixel-tight `--qr-margin 0.2` mode with its 73 trimmed cells, its `pixel-window` path and its warning, a local-decoder pass at full size, 50% and JPEG-80 at the default margin and at full size and JPEG-80 only in the 0.2 mode, the rejected `--cut-smooth` and the rejected texture-free layout, seed reproducibility, artifact protection, and that `source/qr.png` and `test/fixtures/qr.png` give the same poster hash. `test/pattern-cut.test.ts` additionally covers `renderCutCoverage`, `cleanMaskSelection` (pinhole filled, speck dropped, zero radius is a copy, deterministic), the border band's inside-only coverage, and the SVG border stroke. `test/pattern-preview.test.ts` covers `renderPosterPattern({ alignTo })`: phase-locked crop, in-canvas window, unchanged centered crop and bytes without it, the version headroom on a tight canvas, and the per-module include mask. `test/cli.test.ts` covers the mode flags, the echoed `--cut-radius`, the accepted `--qr-margin` and its rejection outside assembly and at zero, the rejected `--cut-smooth`, the plate and rim figures in the report, and the options that stay exclusive to other modes.
+`test/qr-source.test.ts` covers generated ASCII, URL, and Unicode content, invalid and ambiguous sources, the untouched conforming legacy input, the trimmed `source/qr.png` rebuild, and the rejected non-grid crop. `test/module-cut.test.ts` covers the lattice phase and module geometry. `test/assemble.test.ts` asserts the schema-7 report, whole-cell guarantees, plate behavior, decoding evidence, seed reproducibility, and legacy source equivalence. `test/cli.test.ts` covers required content, removed flags, generated dry-run/preview/assembly paths, and mode-specific option rejection.
 
 ## Rounded QR plate (2026-09-15) — assembly superseded by the module-level cut
 
