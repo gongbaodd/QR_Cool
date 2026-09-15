@@ -12,6 +12,7 @@ import {
   createPatternText,
   generatePatternPreview,
   renderRoundedPattern,
+  renderPosterPattern,
   selectPatternVersion,
   stripMarkerModules,
 } from '../src/pattern.js'
@@ -45,6 +46,42 @@ describe('pattern version selection', () => {
     expect(error).toBeInstanceOf(QrPosterError)
     expect((error as QrPosterError).code).toBe('QR_LAYOUT_INVALID')
     expect((error as QrPosterError).message).toMatch(/cannot cover/)
+  })
+})
+
+describe('poster pattern lattice alignment', () => {
+  it('phase-locks the window to the placed QR lattice', async () => {
+    const aligned = await renderPosterPattern({
+      width: 688,
+      height: 566,
+      modulePixels: 5,
+      seed: 1,
+      alignTo: { x: 249, y: 201 },
+    })
+    expect(aligned.crop).toEqual({ left: 9, top: 71 })
+    expect(aligned.crop.left % 5).toBe(249 % 5)
+    expect(aligned.crop.top % 5).toBe(201 % 5)
+    expect(aligned.crop.left).toBeGreaterThanOrEqual(0)
+    expect(aligned.crop.left + 688).toBeLessThanOrEqual(aligned.codeSize)
+    expect(aligned.crop.top + 566).toBeLessThanOrEqual(aligned.codeSize)
+
+    // Without a lattice to follow the window stays centered, exactly as the preview renders it.
+    const centered = await renderPosterPattern({ width: 688, height: 566, modulePixels: 5, seed: 1 })
+    expect(centered.crop).toEqual({ left: 10, top: 70 })
+    expect(centered.png.equals(aligned.png)).toBe(false)
+    expect(centered.seed).toBe(aligned.seed)
+    expect(centered.text).toBe(aligned.text)
+  })
+
+  it('falls back to the centered window when the lattice phase cannot fit', async () => {
+    const pattern = await renderPosterPattern({
+      width: 705,
+      height: 705,
+      modulePixels: 5,
+      seed: 1,
+      alignTo: { x: 249, y: 201 },
+    })
+    expect(pattern.crop).toEqual({ left: 0, top: 0 })
   })
 })
 

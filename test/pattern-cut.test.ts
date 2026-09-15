@@ -5,8 +5,12 @@ import sharp from 'sharp'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   buildCutPath,
+  buildCutSvg,
   buildShapeSelection,
+  cleanMaskSelection,
   generatePatternCut,
+  renderCutBorderCoverage,
+  renderCutCoverage,
 } from '../src/pattern-cut.js'
 import { loadPng } from '../src/image.js'
 import { generatePatternPreview } from '../src/pattern.js'
@@ -97,6 +101,24 @@ describe('outline tracing and filleting', () => {
     expect(path.d.endsWith('Z')).toBe(true)
   })
 
+  it('rasterizes the path to coverage with a resolved filleted edge', async () => {
+    const path = buildCutPath(selection(200, 200, (x, y) => x >= 40 && x < 120 && y >= 40 && y < 90), 200, 200)
+    const coverage = await renderCutCoverage(path.d, 200, 200)
+
+    expect(coverage.length).toBe(200 * 200)
+    expect(coverage[65 * 200 + 80]).toBe(255)
+    expect(coverage[10 * 200 + 10]).toBe(0)
+    // The fillet replaces the sharp corner with an antialiased arc: the corner pixel itself is
+    // dropped, pixels well inside the arc are solid, and the arc leaves partial values between.
+    const corner: number[] = []
+    for (let y = 38; y < 48; y++)
+      for (let x = 38; x < 48; x++)
+        corner.push(coverage[y * 200 + x]!)
+    expect(coverage[40 * 200 + 40]).toBe(0)
+    expect(corner).toContain(255)
+    expect(corner.some(value => value > 0 && value < 255)).toBe(true)
+  })
+
   it('keeps a rectangular hole as a second even-odd subpath', () => {
     const isInside = (x: number, y: number): boolean => {
       const outer = x >= 40 && x < 160 && y >= 40 && y < 140
@@ -151,6 +173,57 @@ describe('outline tracing and filleting', () => {
     const transparent = buildShapeSelection(await loadPng(transparentMask, 'mask'))
     const dark = buildShapeSelection(await loadPng(darkMask, 'mask'))
     expect(transparent).toEqual(dark)
+  })
+})
+
+describe('mask cleanup and border band', () => {
+  const isInside = (x: number, y: number): boolean => x >= 10 && x < 30 && y >= 10 && y < 30
+
+  it('fills pinholes, drops specks, and stays deterministic', () => {
+    const raw = selection(40, 40, isInside)
+    raw[20 * 40 + 20] = 0
+    raw[5 * 40 + 5] = 1
+
+    const cleaned = cleanMaskSelection(raw, 40, 40, 2)
+    expect(cleaned[20 * 40 + 20]).toBe(1)
+    expect(cleaned[5 * 40 + 5]).toBe(0)
+    expect(cleaned[15 * 40 + 15]).toBe(1)
+    expect(cleaned[40 + 6]).toBe(0)
+    expect(cleanMaskSelection(raw, 40, 40, 2)).toEqual(cleaned)
+
+    // A zero radius is a copy, so callers can turn the cleanup off.
+    const untouched = cleanMaskSelection(raw, 40, 40, 0)
+    expect(Array.from(untouched)).toEqual(Array.from(raw))
+    expect(() => cleanMaskSelection(raw, 41, 40, 2)).toThrowError(/does not match its dimensions/)
+  })
+
+  it('rasterizes a five-pixel band along the inside of the cut edge', async () => {
+    const path = buildCutPath(selection(200, 200, (x, y) => x >= 40 && x < 160 && y >= 40 && y < 160), 200, 200, {
+      radius: 0,
+      smoothTolerance: 0,
+    })
+    const border = await renderCutBorderCoverage(path.d, 200, 200, 5)
+
+    expect(border[100 * 200 + 100]).toBe(0)
+    // The right edge sits on the pixel boundary at x=160, so the band covers x=155..159.
+    expect(border[100 * 200 + 157]).toBe(255)
+    expect(border[100 * 200 + 154]).toBe(0)
+    expect(border[100 * 200 + 160]).toBe(0)
+    expect(border[100 * 200]).toBe(0)
+
+    const rounded = await renderCutBorderCoverage(buildCutPath(selection(200, 200, isInside), 200, 200).d, 200, 200, 5)
+    expect(Math.max(...rounded)).toBe(255)
+    expect([...rounded].some(value => value > 0 && value < 255)).toBe(true)
+    expect((await renderCutBorderCoverage(path.d, 200, 200, 0)).some(value => value !== 0)).toBe(false)
+  })
+
+  it('embeds the border stroke in the cut SVG only when asked', () => {
+    const pattern = Buffer.from('image')
+    const path = buildCutPath(selection(200, 200, isInside), 200, 200).d
+    expect(buildCutSvg(path, 200, 200, pattern)).not.toMatch(/stroke=/)
+    const withBorder = buildCutSvg(path, 200, 200, pattern, { borderWidth: 5 })
+    expect(withBorder).toMatch(/stroke="#000000" stroke-width="10"/)
+    expect(withBorder).toMatch(/clip-path="url\(#pattern-cut\)"/)
   })
 })
 

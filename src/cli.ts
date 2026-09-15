@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import process from 'node:process'
 import { Command, CommanderError } from 'commander'
+import { assemblePoster } from './assemble.js'
 import { QrPosterError } from './errors.js'
 import { generatePoster } from './generate.js'
 import { generatePatternCut } from './pattern-cut.js'
@@ -11,6 +12,7 @@ import type { QrBoxInput } from './types.js'
 interface CliOptions {
   dryRun?: boolean
   generate?: boolean
+  assemble?: boolean
   patternPreview?: boolean
   patternCut?: boolean
   generatedImage?: string
@@ -36,18 +38,19 @@ const program = new Command()
   .version('0.1.0')
   .option('--dry-run', 'prepare previews without network calls')
   .option('--generate', 'generate artwork using Qwen (paid API call)')
+  .option('--assemble', 'assemble the offline pattern texture and the exact QR onto the poster')
   .option('--generated-image <path>', 'recompose saved artwork offline')
   .option('--pattern-preview', 'write a poster-sized marker-free QR pattern texture')
   .option('--pattern-cut', 'cut a pattern PNG with a mask and write a rounded SVG plus PNG')
   .option('--model <name>', 'Qwen image model (default: qwen-image-2.0)')
   .option('--prompt <text>', 'QR pattern style instruction')
   .option('--module-pixels <n>', 'pattern module pitch in pixels (default: the placed QR pitch)')
-  .option('--seed <n>', 'seed for the pattern random text line')
+  .option('--seed <n>', 'seed for the pattern random text line (--pattern-preview, --assemble)')
   .option('--cut-mask <path>', 'cut shape mask PNG: transparent or dark pixels are kept')
-  .option('--cut-radius <px>', 'corner fillet radius for --pattern-cut (default: 5)')
-  .option('--cut-smooth <px>', 'outline simplification tolerance for --pattern-cut (default: 3)')
+  .option('--cut-radius <px>', 'corner fillet radius for --pattern-cut (default: 5) and --assemble (default: two modules)')
+  .option('--cut-smooth <px>', 'outline simplification tolerance for --pattern-cut (default: 3) and --assemble (default: one module)')
   .requiredOption('--input <path>', 'painted poster PNG, or the pattern PNG for --pattern-cut')
-  .option('--qr <path>', 'qrcode.antfu.me-compatible QR PNG (not used by --pattern-cut)')
+  .option('--qr <path>', 'qrcode.antfu.me-compatible QR PNG, or its code-grid crop (not used by --pattern-cut)')
   .requiredOption('--out-dir <path>', 'directory for artifacts')
   .option('--text <value>', 'expected QR content; mismatch is an error')
   .option('--mask <path>', 'optional white-on-black/transparent region mask PNG')
@@ -66,6 +69,7 @@ async function main(): Promise<void> {
     const modes = [
       options.dryRun,
       options.generate,
+      options.assemble,
       options.patternPreview,
       options.patternCut,
       options.generatedImage !== undefined,
@@ -73,16 +77,19 @@ async function main(): Promise<void> {
     if (modes.filter(Boolean).length !== 1) {
       throw new QrPosterError(
         'INVALID_INPUT',
-        'Specify exactly one of --dry-run, --generate, --pattern-preview, --pattern-cut, or --generated-image.',
+        'Specify exactly one of --dry-run, --generate, --assemble, --pattern-preview, --pattern-cut, or --generated-image.',
       )
     }
     if (!options.generate && (options.model !== undefined || options.prompt !== undefined))
       throw new QrPosterError('INVALID_INPUT', '--model and --prompt require generation mode.')
-    if (!options.patternPreview && (options.modulePixels !== undefined || options.seed !== undefined))
-      throw new QrPosterError('INVALID_INPUT', '--module-pixels and --seed require --pattern-preview.')
-    const cutOptions = [options.cutMask, options.cutRadius, options.cutSmooth]
-    if (!options.patternCut && cutOptions.some(value => value !== undefined))
-      throw new QrPosterError('INVALID_INPUT', '--cut-mask, --cut-radius, and --cut-smooth require --pattern-cut.')
+    if (!options.patternPreview && options.modulePixels !== undefined)
+      throw new QrPosterError('INVALID_INPUT', '--module-pixels requires --pattern-preview.')
+    if (!options.patternPreview && !options.assemble && options.seed !== undefined)
+      throw new QrPosterError('INVALID_INPUT', '--seed requires --pattern-preview or --assemble.')
+    if (!options.patternCut && options.cutMask !== undefined)
+      throw new QrPosterError('INVALID_INPUT', '--cut-mask requires --pattern-cut.')
+    if (!options.patternCut && !options.assemble && (options.cutRadius !== undefined || options.cutSmooth !== undefined))
+      throw new QrPosterError('INVALID_INPUT', '--cut-radius and --cut-smooth require --pattern-cut or --assemble.')
     if (options.generate) {
       try { process.loadEnvFile() }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new QrPosterError('INVALID_INPUT', 'Could not load .env.') }
@@ -115,6 +122,30 @@ async function main(): Promise<void> {
       return
     }
     const common = { ...base, qrPath: requireQr(options.qr) }
+    if (options.assemble) {
+      const result = await assemblePoster({
+        ...common,
+        ...(options.seed !== undefined ? { seed: parsePositiveInteger('--seed', options.seed) } : {}),
+        ...(options.cutRadius !== undefined ? { radius: parsePositiveNumber('--cut-radius', options.cutRadius) } : {}),
+        ...(options.cutSmooth !== undefined ? { smoothTolerance: parsePositiveNumber('--cut-smooth', options.cutSmooth) } : {}),
+      })
+      const { report } = result
+      process.stdout.write([
+        `Assembled poster written to ${result.outputDir}`,
+        `Region: ${report.region.area} pixels (${report.region.source})`,
+        `QR: version ${report.qr.version}, ${report.placement.modulePixels}px/module, box ${report.placement.x},${report.placement.y},${report.placement.size}`,
+        `QR overlay: ${report.qr.overlay.crop.size}px window at ${report.qr.overlay.x},${report.qr.overlay.y} `
+        + `(${report.qr.overlay.crop.size - report.qr.overlay.quietZoneModules * 2 * report.placement.modulePixels}px code grid`
+        + ` + ${report.qr.overlay.quietZoneModules}-module margin)`,
+        `Pattern: version ${report.pattern.version}, ${report.pattern.modulePixels}px/module, seed ${report.pattern.seed}, aligned to the QR lattice`,
+        `Cut: ${report.shape.loopsKept} loop(s), ${report.shape.verticesSimplified} vertices, ${report.cut.radius}px fillet, ${report.cut.cleanRadius}px cleanup, ${report.cut.border.width}px border`,
+        `Verification: ${report.qualified ? 'passed (geometry only, poster decode skipped)' : 'failed'}`,
+        '',
+      ].join('\n'))
+      if (!report.qualified)
+        process.exitCode = 4
+      return
+    }
     if (options.patternPreview) {
       const result = await generatePatternPreview({
         ...common,

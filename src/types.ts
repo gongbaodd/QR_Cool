@@ -40,6 +40,18 @@ export interface QrMetadata extends ImageDimensions {
   totalModules: number
   sourceModulePixels: number
   quietZoneLightRatio: number
+  /** `added` when the input was a bare code grid and the two-module margin was rebuilt locally. */
+  quietZoneSource?: 'added'
+  /** Trimmed-away margin of a code-grid input, in source pixels. */
+  sourceTrim?: QrSourceTrim
+}
+
+export interface QrSourceTrim {
+  left: number
+  top: number
+  right: number
+  bottom: number
+  modulePixels: number
 }
 
 export interface QrPlacement {
@@ -53,7 +65,7 @@ export interface QrPlacement {
 }
 
 export interface VerificationCheck {
-  name: 'sourceQr' | 'normalizedQr' | 'beforeAi' | 'halfScale' | 'jpeg80' | 'poster' | 'posterHalfScale' | 'posterJpeg80' | 'outsideRegionPixels' | 'qrPixels'
+  name: 'sourceQr' | 'normalizedQr' | 'beforeAi' | 'halfScale' | 'jpeg80' | 'poster' | 'posterHalfScale' | 'posterJpeg80' | 'outsideRegionPixels' | 'qrPixels' | 'alphaPreserved'
   passed: boolean
   decodedText?: string
   decoder?: 'zxing' | 'jsqr'
@@ -65,6 +77,8 @@ export interface VerificationResult {
   expectedText: string
   checks: VerificationCheck[]
   qualified: boolean
+  /** Checks that a mode deliberately does not run, so a qualified report stays honest. */
+  skippedChecks?: VerificationCheck['name'][]
 }
 
 export interface ReportV1 {
@@ -266,5 +280,86 @@ export interface PatternCutReport {
 
 export interface PatternCutResult {
   report: PatternCutReport
+  outputDir: string
+}
+
+export interface AssemblePosterOptions {
+  inputPath: string
+  qrPath: string
+  outputDir: string
+  expectedText?: string
+  maskPath?: string
+  qrBox?: QrBoxInput
+  /** Seed for the pattern random text line; defaults to a fresh random seed per run. */
+  seed?: number
+  /** Corner fillet radius for the cut edge in pixels; defaults to two module pitches (10px here). */
+  radius?: number
+  /** Douglas-Peucker tolerance for the cut outline in pixels; defaults to one module pitch (5px here). */
+  smoothTolerance?: number
+  force?: boolean
+}
+
+export interface AssembleReport {
+  schemaVersion: 5
+  mode: 'assemble'
+  status: 'generated' | 'verification_failed'
+  qualified: boolean
+  createdAt: string
+  durationMs: number
+  inputs: ReportV1['inputs']
+  region: ReportV1['region']
+  qr: ReportV1['qr'] & {
+    /** The pixels actually composited: the code grid plus a one-module light margin. */
+    overlay: {
+      quietZoneModules: 1
+      crop: { left: number, top: number, size: number }
+      x: number
+      y: number
+    }
+  }
+  placement: QrPlacement
+  pattern: PatternReport['pattern'] & {
+    /** The texture window is phase-locked to the placed QR, so both share one module lattice. */
+    alignment: {
+      alignedToQr: boolean
+      phase: { x: number, y: number }
+    }
+  }
+  cut: {
+    radius: number
+    smoothTolerance: number
+    /** Disc radius of the mask cleanup applied before tracing, in pixels. */
+    cleanRadius: number
+    /** Pure-black band drawn along the inside of the cut edge. */
+    border: {
+      width: number
+      color: '#000000'
+      side: 'inside'
+    }
+    /** The cut shape is the detected or supplied painted region itself. */
+    keep: 'region-mask'
+    minLoopArea: number
+    /** The cut edge is blended into the original pixels by its coverage; nothing outside the region changes. */
+    edgeBlend: 'coverage-over-original'
+  }
+  shape: PatternCutReport['shape']
+  artifacts: {
+    poster: string
+    posterSha256: string
+    regionMask: string
+    qr: string
+    qrSha256: string
+    patternCutPng: string
+    patternCutPngSha256: string
+    patternCutSvg: string
+    patternCutSvgSha256: string
+  }
+  verification: VerificationResult
+  phoneScan: 'untested'
+  warnings: string[]
+}
+
+export interface AssembleResult {
+  report: AssembleReport
   outputDir: string
 }

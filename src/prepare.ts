@@ -3,10 +3,8 @@ import { isAbsolute, join, resolve } from 'node:path'
 import sharp from 'sharp'
 import { renderBeforeAi, renderEditMask, renderLayoutPreview, renderRegionMask } from './artifacts.js'
 import { QrPosterError } from './errors.js'
-import { loadPng } from './image.js'
-import { buildManualRegionMask, detectRegionMask } from './mask.js'
-import { placeQr } from './placement.js'
-import { decodeQrRawDetailed, inspectAntfuQr, normalizeQr, verifyQrVariant } from './qr.js'
+import { resolveLayout } from './layout.js'
+import { verifyQrVariant } from './qr.js'
 import type { PreparePosterOptions, PrepareResult, ReportV1, VerificationCheck } from './types.js'
 
 const ARTIFACT_NAMES = {
@@ -43,24 +41,9 @@ async function preparePosterImpl(options: PreparePosterOptions): Promise<Prepare
   await ensureOutputsAvailable(outputDir, options.force ?? false)
   await mkdir(outputDir, { recursive: true })
 
-  const poster = await loadPng(options.inputPath, 'poster input')
-  const qrSource = await loadPng(options.qrPath, 'QR input')
-  const manualMask = options.maskPath ? await loadPng(options.maskPath, 'region mask') : undefined
-  const regionMask = manualMask
-    ? buildManualRegionMask(manualMask, poster.width, poster.height)
-    : detectRegionMask(poster)
-
-  const decodedSource = decodeQrRawDetailed(qrSource.data, qrSource.width, qrSource.height)
+  const { poster, qrSource, maskInput, regionMask, decoded: decodedSource, qrMetadata, placement, normalizedQr }
+    = await resolveLayout(options)
   const decodedText = decodedSource.text
-  if (options.expectedText !== undefined && decodedText !== options.expectedText) {
-    throw new QrPosterError(
-      'QR_TEXT_MISMATCH',
-      `QR content does not match --text. Decoded ${JSON.stringify(decodedText)}.`,
-    )
-  }
-  const qrMetadata = inspectAntfuQr(qrSource, decodedText, decodedSource.version)
-  const placement = placeQr(regionMask, qrMetadata.totalModules, options.qrBox)
-  const normalizedQr = await normalizeQr(qrSource, placement.size)
 
   const sourceCheck: VerificationCheck = {
     name: 'sourceQr',
@@ -130,8 +113,8 @@ async function preparePosterImpl(options: PreparePosterOptions): Promise<Prepare
         width: qrSource.width,
         height: qrSource.height,
       },
-      ...(manualMask
-        ? { mask: { path: normalizedPath(options.maskPath!), sha256: manualMask.sha256 } }
+      ...(maskInput
+        ? { mask: { path: normalizedPath(options.maskPath!), sha256: maskInput.sha256 } }
         : {}),
     },
     region: {

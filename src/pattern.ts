@@ -5,10 +5,7 @@ import sharp from 'sharp'
 import { QrCodeDataType, encode } from 'uqr'
 import type { QrCodeGenerateResult } from 'uqr'
 import { QrPosterError } from './errors.js'
-import { loadPng } from './image.js'
-import { buildManualRegionMask, detectRegionMask } from './mask.js'
-import { placeQr } from './placement.js'
-import { decodeQrRawDetailed, inspectAntfuQr } from './qr.js'
+import { resolveLayout } from './layout.js'
 import type { PatternPreviewOptions, PatternPreviewResult, PatternReport } from './types.js'
 
 /** qrcode.antfu.me defaults: ecc 'M', 2-module margin, rounded pixel style, auto mask. */
@@ -36,6 +33,35 @@ export interface PatternRenderOptions {
   marginModules?: number
   /** Visible sub-rectangle of the full code canvas, in code pixels. */
   window?: PatternRenderWindow
+}
+
+export interface PosterPatternOptions {
+  /** Poster canvas width in pixels. */
+  width: number
+  /** Poster canvas height in pixels. */
+  height: number
+  /** Module pitch in poster pixels. */
+  modulePixels: number
+  /** Seed for the random text line and the marker refill; defaults to a fresh random seed per run. */
+  seed?: number
+  /**
+   * Poster-space origin of a module lattice to phase-lock the window to, typically the placed QR box.
+   * The texture's module boundaries then land on the same lattice as the QR's, so the field
+   * continues the code's rhythm. Without it the window stays centered as before.
+   */
+  alignTo?: { x: number, y: number }
+}
+
+export interface PosterPattern {
+  png: Buffer
+  seed: number
+  version: number
+  text: string
+  qrModules: number
+  totalModules: number
+  codeSize: number
+  crop: { left: number, top: number }
+  refilledModules: number
 }
 
 /** Smallest QR version whose modules plus quiet zone cover the canvas at this pitch. */
@@ -206,42 +232,19 @@ export async function generatePatternPreview(options: PatternPreviewOptions): Pr
   await ensureOutputsAvailable(outputDir, options.force ?? false)
   await mkdir(outputDir, { recursive: true })
 
-  const poster = await loadPng(options.inputPath, 'poster input')
-  const qrSource = await loadPng(options.qrPath, 'QR input')
-  const manualMask = options.maskPath ? await loadPng(options.maskPath, 'region mask') : undefined
-  const regionMask = manualMask
-    ? buildManualRegionMask(manualMask, poster.width, poster.height)
-    : detectRegionMask(poster)
-
-  const decoded = decodeQrRawDetailed(qrSource.data, qrSource.width, qrSource.height)
-  if (options.expectedText !== undefined && decoded.text !== options.expectedText) {
-    throw new QrPosterError(
-      'QR_TEXT_MISMATCH',
-      `QR content does not match --text. Decoded ${JSON.stringify(decoded.text)}.`,
-    )
-  }
-  const qrMetadata = inspectAntfuQr(qrSource, decoded.text, decoded.version)
-  const placement = placeQr(regionMask, qrMetadata.totalModules, options.qrBox)
+  const { poster, qrSource, maskInput, regionMask, placement } = await resolveLayout(options)
 
   const modulePixels = options.modulePixels ?? placement.modulePixels
   if (!Number.isInteger(modulePixels) || modulePixels < 1)
     throw new QrPosterError('INVALID_INPUT', '--module-pixels must be a positive integer.')
 
-  const version = selectPatternVersion(modulePixels, poster.width, poster.height)
-  const seed = options.seed ?? randomSeed()
-  const text = createPatternText(version, seed)
-  const encoded = encode(text, { ecc: PATTERN_ECC, minVersion: version, maxVersion: version, border: 0 })
-  if (encoded.version !== version)
-    throw new QrPosterError('QR_INVALID', `Encoder produced version ${encoded.version} instead of ${version}.`)
-
-  const matrix = stripMarkerModules(encoded, seed)
-  const totalModules = encoded.size + QUIET_ZONE_MODULES * 2
-  const codeSize = totalModules * modulePixels
-  const crop = centeredCrop(codeSize, poster.width, poster.height, modulePixels)
-  const pattern = await renderRoundedPattern(matrix, modulePixels, {
-    window: { ...crop, width: poster.width, height: poster.height },
+  const rendered = await renderPosterPattern({
+    width: poster.width,
+    height: poster.height,
+    modulePixels,
+    ...(options.seed !== undefined ? { seed: options.seed } : {}),
   })
-  await writeFile(join(outputDir, ARTIFACT_NAMES.pattern), pattern)
+  await writeFile(join(outputDir, ARTIFACT_NAMES.pattern), rendered.png)
 
   const warnings: string[] = []
   if (modulePixels < 6)
@@ -266,7 +269,7 @@ export async function generatePatternPreview(options: PatternPreviewOptions): Pr
         width: qrSource.width,
         height: qrSource.height,
       },
-      ...(manualMask ? { mask: { path: normalizedPath(options.maskPath!), sha256: manualMask.sha256 } } : {}),
+      ...(maskInput ? { mask: { path: normalizedPath(options.maskPath!), sha256: maskInput.sha256 } } : {}),
     },
     region: {
       source: regionMask.source,
@@ -278,29 +281,64 @@ export async function generatePatternPreview(options: PatternPreviewOptions): Pr
     placement,
     pitchSource: options.modulePixels === undefined ? 'placement' : 'override',
     pattern: {
-      seed,
+      seed: rendered.seed,
       alphabet: PATTERN_ALPHABET,
-      textLength: text.length,
-      textSha256: sha256(text),
+      textLength: rendered.text.length,
+      textSha256: sha256(rendered.text),
       ecc: PATTERN_ECC,
-      version,
-      qrModules: encoded.size,
+      version: rendered.version,
+      qrModules: rendered.qrModules,
       quietZoneModules: QUIET_ZONE_MODULES,
-      totalModules,
+      totalModules: rendered.totalModules,
       modulePixels,
       pixelStyle: PATTERN_PIXEL_STYLE,
       removedTypes: [...REMOVED_TYPES],
       markerRefill: PATTERN_MARKER_REFILL,
-      refilledModules: countMarkerModules(encoded),
-      codeSize,
+      refilledModules: rendered.refilledModules,
+      codeSize: rendered.codeSize,
       canvas: { width: poster.width, height: poster.height },
-      crop,
+      crop: rendered.crop,
     },
-    artifacts: { pattern: ARTIFACT_NAMES.pattern, patternSha256: sha256(pattern) },
+    artifacts: { pattern: ARTIFACT_NAMES.pattern, patternSha256: sha256(rendered.png) },
     warnings,
   }
   await writeFile(join(outputDir, ARTIFACT_NAMES.report), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
   return { report, outputDir }
+}
+
+/**
+ * Renders the poster-sized marker-free texture at a fixed module pitch. The version is the smallest
+ * whose modules plus margin cover the canvas, the code is center-cropped at whole-module offsets,
+ * and the same seed reproduces the same bytes.
+ */
+export async function renderPosterPattern(options: PosterPatternOptions): Promise<PosterPattern> {
+  const { width, height, modulePixels } = options
+  if (!Number.isInteger(modulePixels) || modulePixels < 1)
+    throw new QrPosterError('INVALID_INPUT', 'modulePixels must be a positive integer.')
+
+  const version = selectPatternVersion(modulePixels, width, height)
+  const seed = options.seed ?? randomSeed()
+  const text = createPatternText(version, seed)
+  const encoded = encode(text, { ecc: PATTERN_ECC, minVersion: version, maxVersion: version, border: 0 })
+  if (encoded.version !== version)
+    throw new QrPosterError('QR_INVALID', `Encoder produced version ${encoded.version} instead of ${version}.`)
+
+  const matrix = stripMarkerModules(encoded, seed)
+  const totalModules = encoded.size + QUIET_ZONE_MODULES * 2
+  const codeSize = totalModules * modulePixels
+  const crop = centeredCrop(codeSize, width, height, modulePixels, options.alignTo)
+  const png = await renderRoundedPattern(matrix, modulePixels, { window: { ...crop, width, height } })
+  return {
+    png,
+    seed,
+    version,
+    text,
+    qrModules: encoded.size,
+    totalModules,
+    codeSize,
+    crop,
+    refilledModules: countMarkerModules(encoded),
+  }
 }
 
 function totalModulesFor(version: number): number {
@@ -341,15 +379,37 @@ function mulberry32(seed: number): () => number {
   }
 }
 
-function centeredCrop(codeSize: number, width: number, height: number, modulePixels: number): { left: number, top: number } {
-  const offset = (extent: number): number => {
+function centeredCrop(
+  codeSize: number,
+  width: number,
+  height: number,
+  modulePixels: number,
+  alignTo?: { x: number, y: number },
+): { left: number, top: number } {
+  const offset = (extent: number, phase?: number): number => {
     const raw = (codeSize - extent) / 2
-    const aligned = Math.round(raw / modulePixels) * modulePixels
+    let aligned = Math.round(raw / modulePixels) * modulePixels
+    if (phase !== undefined) {
+      // Nearest offset whose module boundaries coincide with the aligned lattice, kept under half a
+      // module away from the centered position.
+      const target = ((phase % modulePixels) + modulePixels) % modulePixels
+      const current = ((aligned % modulePixels) + modulePixels) % modulePixels
+      let delta = ((target - current) % modulePixels + modulePixels) % modulePixels
+      if (delta > modulePixels / 2)
+        delta -= modulePixels
+      aligned += delta
+    }
     if (aligned >= 0 && aligned + extent <= codeSize)
       return aligned
+    const shifted = aligned + modulePixels
+    if (shifted >= 0 && shifted + extent <= codeSize)
+      return shifted
+    const back = aligned - modulePixels
+    if (back >= 0 && back + extent <= codeSize)
+      return back
     return Math.floor(raw / modulePixels) * modulePixels
   }
-  return { left: offset(width), top: offset(height) }
+  return { left: offset(width, alignTo?.x), top: offset(height, alignTo?.y) }
 }
 
 function randomSeed(): number {

@@ -21,6 +21,11 @@ const SVG_CLIP_ID = 'pattern-cut'
 const STRAIGHT_ANGLE_EPSILON = 0.02
 const MIN_LOOP_AREA = 4
 
+/** Loops below the fillet area are dropped as specks; shared by the cut and assembly reports. */
+export function cutMinLoopArea(radius: number): number {
+  return Math.max(radius * radius, MIN_LOOP_AREA)
+}
+
 export interface CutPathStats {
   loopsTraced: number
   loopsKept: number
@@ -73,6 +78,83 @@ export function buildShapeSelection(mask: LoadedPng): Uint8Array {
     selected[index] = alpha < ALPHA_THRESHOLD || brightness < DARK_THRESHOLD ? 1 : 0
   }
   return selected
+}
+
+/**
+ * Disc morphology that turns a raw selection into a cuttable outline: a closing (dilate, erode)
+ * fills pinholes and concave nicks, an opening (erode, dilate) drops specks and convex jags. Both
+ * run at the same radius, so a pixel staircase becomes one continuous edge the fillet can round.
+ */
+export function cleanMaskSelection(
+  selection: Uint8Array,
+  width: number,
+  height: number,
+  radius: number,
+): Uint8Array {
+  if (selection.length !== width * height)
+    throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'The cut selection does not match its dimensions.', 3)
+  if (!Number.isFinite(radius) || radius < 0)
+    throw new QrPosterError('INVALID_INPUT', 'The mask cleaning radius must be zero or a positive number.')
+  const passes = Math.floor(radius)
+  if (passes < 1)
+    return selection.slice()
+
+  const offsets = discOffsets(passes)
+  const dilate = (source: Uint8Array): Uint8Array => {
+    const output = new Uint8Array(source.length)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        for (const [deltaX, deltaY] of offsets) {
+          const sampleX = x + deltaX
+          const sampleY = y + deltaY
+          if (sampleX < 0 || sampleY < 0 || sampleX >= width || sampleY >= height)
+            continue
+          if (source[sampleY * width + sampleX]) {
+            output[y * width + x] = 1
+            break
+          }
+        }
+      }
+    }
+    return output
+  }
+  const erode = (source: Uint8Array): Uint8Array => {
+    const output = new Uint8Array(source.length)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let keep = 1
+        for (const [deltaX, deltaY] of offsets) {
+          const sampleX = x + deltaX
+          const sampleY = y + deltaY
+          const inside = sampleX >= 0 && sampleY >= 0 && sampleX < width && sampleY < height
+            ? source[sampleY * width + sampleX]
+            : 0
+          if (!inside) {
+            keep = 0
+            break
+          }
+        }
+        output[y * width + x] = keep
+      }
+    }
+    return output
+  }
+
+  return dilate(erode(erode(dilate(selection))))
+}
+
+/** Disc offsets ordered by distance, so the morphology breaks out of the scan as early as possible. */
+function discOffsets(radius: number): Array<[number, number]> {
+  const offsets: Array<[number, number, number]> = []
+  for (let deltaY = -radius; deltaY <= radius; deltaY++) {
+    for (let deltaX = -radius; deltaX <= radius; deltaX++) {
+      const distance = deltaX * deltaX + deltaY * deltaY
+      if (distance <= radius * radius + radius)
+        offsets.push([deltaX, deltaY, distance])
+    }
+  }
+  offsets.sort((left, right) => left[2] - right[2])
+  return offsets.map(([deltaX, deltaY]) => [deltaX, deltaY])
 }
 
 /**
@@ -314,7 +396,7 @@ export function buildCutPath(
 ): CutPath {
   const radius = options.radius ?? CUT_RADIUS
   const smoothTolerance = options.smoothTolerance ?? CUT_SMOOTH_TOLERANCE
-  const minLoopArea = Math.max(radius * radius, MIN_LOOP_AREA)
+  const minLoopArea = cutMinLoopArea(radius)
 
   const traced = traceMaskContours(selected, width, height)
   const verticesTraced = traced.reduce((total, loop) => total + loop.length, 0)
@@ -363,42 +445,97 @@ export function buildCutPath(
   }
 }
 
+export interface CutSvgOptions {
+  /** Black band drawn inside the cut edge, in pixels; zero leaves the edge bare. */
+  borderWidth?: number
+}
+
 /** Self-contained SVG: the pattern rides along as a data URI and the cut edge stays vector. */
-export function buildCutSvg(pathData: string, width: number, height: number, pattern: Buffer): string {
+export function buildCutSvg(
+  pathData: string,
+  width: number,
+  height: number,
+  pattern: Buffer,
+  options: CutSvgOptions = {},
+): string {
   const encoded = pattern.toString('base64')
+  const borderWidth = options.borderWidth ?? 0
+  // A centered stroke of twice the width, clipped to the shape, leaves a band of exactly
+  // `borderWidth` pixels along the inside of the edge.
+  const border = borderWidth > 0
+    ? `  <path d="${pathData}" fill="none" stroke="#000000" stroke-width="${format(borderWidth * 2)}"`
+      + ` fill-rule="evenodd" clip-rule="evenodd" clip-path="url(#${SVG_CLIP_ID})"/>\n`
+    : ''
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">\n`
     + `  <defs><clipPath id="${SVG_CLIP_ID}"><path fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></clipPath></defs>\n`
     + `  <image x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none" clip-path="url(#${SVG_CLIP_ID})" href="data:image/png;base64,${encoded}"/>\n`
+    + border
     + '</svg>\n'
 }
 
 /**
- * Rasterizes only the path to an alpha mask and applies it to the untouched source pixels, so the
- * pattern is never resampled: everything inside the cut stays bit-exact and everything outside is
- * fully transparent.
+ * Rasterizes only the cut path and returns its antialiased coverage: 0 outside the cut shape, 255
+ * inside, and the partial values along the edge that make the fillet smooth.
  */
-export async function renderCutPng(pattern: LoadedPng, pathData: string): Promise<Buffer> {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${pattern.width}" height="${pattern.height}"`
-    + ` viewBox="0 0 ${pattern.width} ${pattern.height}">`
+export async function renderCutCoverage(pathData: string, width: number, height: number): Promise<Uint8Array> {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"`
+    + ` viewBox="0 0 ${width} ${height}">`
     + `<path fill="#ffffff" fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></svg>`
+  return rasterizeCoverage(svg, width, height, 'Cut rasterization')
+}
+
+/**
+ * Rasterizes the band hugging the inside of the cut edge: a stroke of twice `width` centered on the
+ * path and clipped to the shape, so coverage is 0 outside, roughly half on the boundary itself, and
+ * 255 one border width inside.
+ */
+export async function renderCutBorderCoverage(
+  pathData: string,
+  width: number,
+  height: number,
+  borderWidth: number,
+): Promise<Uint8Array> {
+  if (!Number.isFinite(borderWidth) || borderWidth < 0)
+    throw new QrPosterError('INVALID_INPUT', 'The cut border width must be zero or a positive number.')
+  if (borderWidth === 0)
+    return new Uint8Array(width * height)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"`
+    + ` viewBox="0 0 ${width} ${height}"><defs><clipPath id="${SVG_CLIP_ID}">`
+    + `<path fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></clipPath></defs>`
+    + `<path fill="none" stroke="#ffffff" stroke-width="${format(borderWidth * 2)}"`
+    + ` fill-rule="evenodd" clip-rule="evenodd" clip-path="url(#${SVG_CLIP_ID})" d="${pathData}"/></svg>`
+  return rasterizeCoverage(svg, width, height, 'Border rasterization')
+}
+
+async function rasterizeCoverage(svg: string, width: number, height: number, label: string): Promise<Uint8Array> {
   const { data, info } = await sharp(Buffer.from(svg)).ensureAlpha().raw()
     .toBuffer({ resolveWithObject: true })
-  if (info.width !== pattern.width || info.height !== pattern.height) {
+  if (info.width !== width || info.height !== height) {
     throw new QrPosterError(
       'IMAGE_PROCESSING_FAILED',
-      `Cut rasterization produced ${info.width}x${info.height} instead of ${pattern.width}x${pattern.height}.`,
+      `${label} produced ${info.width}x${info.height} instead of ${width}x${height}.`,
       3,
     )
   }
+  const coverage = new Uint8Array(width * height)
+  for (let index = 0; index < coverage.length; index++)
+    coverage[index] = data[index * 4 + 3]!
+  return coverage
+}
 
+/**
+ * Applies the cut coverage to the untouched source pixels, so the pattern is never resampled:
+ * everything inside the cut stays bit-exact and everything outside is fully transparent.
+ */
+export async function renderCutPng(pattern: LoadedPng, pathData: string): Promise<Buffer> {
+  const coverage = await renderCutCoverage(pathData, pattern.width, pattern.height)
   const output = new Uint8Array(pattern.width * pattern.height * 4)
   for (let index = 0; index < pattern.width * pattern.height; index++) {
     const offset = index * 4
-    const coverage = data[offset + 3]!
     output[offset] = pattern.data[offset]!
     output[offset + 1] = pattern.data[offset + 1]!
     output[offset + 2] = pattern.data[offset + 2]!
-    output[offset + 3] = Math.round(pattern.data[offset + 3]! * coverage / 255)
+    output[offset + 3] = Math.round(pattern.data[offset + 3]! * coverage[index]! / 255)
   }
   return rgbaToPng(output, pattern.width, pattern.height)
 }
@@ -433,7 +570,7 @@ export async function generatePatternCut(options: PatternCutOptions): Promise<Pa
   await writeFile(join(outputDir, ARTIFACT_NAMES.svg), svg, 'utf8')
   await writeFile(join(outputDir, ARTIFACT_NAMES.png), png)
 
-  const minLoopArea = Math.max(radius * radius, MIN_LOOP_AREA)
+  const minLoopArea = cutMinLoopArea(radius)
   const warnings: string[] = []
   if (cut.stats.specksDropped > 0) {
     warnings.push(`${cut.stats.specksDropped} mask loop(s) smaller than ${minLoopArea}px² were dropped as specks.`)

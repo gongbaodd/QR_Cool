@@ -25,6 +25,11 @@ export async function loadPng(path: string, label: string): Promise<LoadedPng> {
     throw new QrPosterError('INVALID_INPUT', `Could not read ${label}: ${path}`, 2, { cause: error })
   }
 
+  return decodePng(file, path, label)
+}
+
+/** Decodes an in-memory PNG into the same shape {@link loadPng} returns. */
+export async function decodePng(file: Buffer, path: string, label: string): Promise<LoadedPng> {
   try {
     const source = sharp(file, { failOn: 'error' })
     const metadata = await source.metadata()

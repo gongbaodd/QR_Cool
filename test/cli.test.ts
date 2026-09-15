@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import sharp from 'sharp'
@@ -116,4 +116,57 @@ describe.skipIf(!spawnAvailable)('cli pattern cut mode', () => {
     ])
     expect(result.status).toBe(2)
   }, 60_000)
+})
+
+describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
+  it('assembles the poster from the repository sources', async () => {
+    const directory = await temporaryDirectory()
+    const outDir = join(directory, 'out')
+    const result = runCli([
+      '--assemble',
+      '--input', resolve('source/poster.png'),
+      '--qr', resolve('source/qr.png'),
+      '--out-dir', outDir,
+      '--seed', '1',
+      '--cut-radius', '4',
+      '--cut-smooth', '2',
+    ])
+    expect(result.status).toBe(0)
+    expect((await readdir(outDir)).sort()).toEqual([
+      'pattern-cut.png',
+      'pattern-cut.svg',
+      'poster.png',
+      'qr.png',
+      'region-mask.png',
+      'report.json',
+    ])
+    const report = JSON.parse(await readFile(join(outDir, 'report.json'), 'utf8'))
+    expect(report.cut.radius).toBe(4)
+    expect(report.cut.smoothTolerance).toBe(2)
+    expect(report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
+    expect(report.qr.overlay).toEqual({
+      quietZoneModules: 1,
+      crop: { left: 5, top: 5, size: 195 },
+      x: 254,
+      y: 206,
+    })
+    expect(report.cut.border).toEqual({ width: 20, color: '#000000', side: 'inside' })
+  }, 120_000)
+
+  it('rejects options that do not belong to assembly', async () => {
+    const directory = await temporaryDirectory()
+    const { pattern, mask } = await writeFixtures(directory)
+    const shared = ['--assemble', '--input', pattern, '--qr', pattern, '--out-dir', join(directory, 'out')]
+
+    expect(runCli([...shared, '--module-pixels', '20']).status).toBe(2)
+    expect(runCli([...shared, '--cut-mask', mask]).status).toBe(2)
+    expect(runCli(['--pattern-cut', '--assemble', '--input', pattern, '--cut-mask', mask, '--out-dir', join(directory, 'two')]).status).toBe(2)
+  }, 120_000)
+
+  it('still rejects seeds and cut options outside the modes that accept them', async () => {
+    const directory = await temporaryDirectory()
+    const { pattern } = await writeFixtures(directory)
+    expect(runCli(['--dry-run', '--input', pattern, '--qr', pattern, '--seed', '1', '--out-dir', join(directory, 'a')]).status).toBe(2)
+    expect(runCli(['--pattern-cut', '--input', pattern, '--cut-mask', pattern, '--seed', '1', '--out-dir', join(directory, 'b')]).status).toBe(2)
+  }, 120_000)
 })
