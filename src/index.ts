@@ -34,3 +34,21 @@ export {
 } from './pattern.js'
 export type { PatternRenderOptions, PatternRenderWindow } from './pattern.js'
 export type { PatternPreviewOptions, PatternPreviewResult, PatternReport } from './types.js'
+
+export {
+  CUT_KEEP_RULE,
+  CUT_RADIUS,
+  CUT_SMOOTH_TOLERANCE,
+  buildCutPath,
+  buildCutSvg,
+  buildShapeSelection,
+  collapseCollinearPoints,
+  filletLoop,
+  generatePatternCut,
+  polygonArea,
+  renderCutPng,
+  simplifyClosedLoop,
+  traceMaskContours,
+} from './pattern-cut.js'
+export type { CutPath, CutPathOptions, CutPathStats } from './pattern-cut.js'
+export type { PatternCutOptions, PatternCutReport, PatternCutResult } from './types.js'

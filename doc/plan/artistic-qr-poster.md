@@ -74,3 +74,33 @@ pnpm qr-poster -- --pattern-preview --input source/poster.png --qr test/fixtures
 ```
 
 Checks in `test/pattern-preview.test.ts`: version/pitch selection including the unreachable-pitch error, pixel fidelity against the reference QR, isolated-versus-connected cell shapes, seeded marker refill with timing cells retained and no white holes in the marker areas, seeded text reproducibility, a decode round trip with markers kept, and a poster-sized deterministic preview that refuses to overwrite without `--force`.
+
+## Pattern cut (2026-09-15)
+
+The preview texture is deliberately undecodable and poster-sized, so it needs a shape before it can be used. `--pattern-cut` cuts it with a mask and does the cutting in SVG, which is what lets the cut edge be round instead of a pixel staircase.
+
+Inputs are two same-size PNGs: the pattern to cut and a mask. The mask follows the edit-mask convention — a pixel is inside the cut shape when it is transparent or dark — so `output/qwen-fresh/edit-mask.png` (opaque white outside the editable area, transparent inside) and `region-mask.png` (white on black) both work unchanged. `--qr` is not required in this mode; the existing `--mask` flag keeps its white-is-region meaning and is untouched.
+
+Pipeline (`src/pattern-cut.ts`, `--pattern-cut`):
+
+- The selection's boundary is traced as directed half-edges along pixel borders, keeping the selected pixels on the right, so outer boundaries come out with negative shoelace area and holes positive. At a diagonal pinch the walk prefers the sharpest turn, which keeps two diagonally touching regions as separate rings instead of merging them into a figure eight.
+- Straight runs collapse to corners, then each closed ring is simplified with Douglas-Peucker. Closed rings are split at the vertex farthest from the first point before simplifying, because an open-run simplifier collapses a ring whose start and end coincide.
+- Every corner is filleted: the tangent distance is capped at half of each neighbouring edge and the arc radius is recomputed from the capped tangent, so arcs on narrow features cannot overlap. Sweep direction comes from the cross product, which rounds concave corners — such as the inside of the QR-box hole — the same way as convex ones. Near-straight corners pass through unrounded.
+- Rings smaller than the fillet area (radius², at least 4px²) are dropped as specks and counted in the report.
+- `pattern-cut.svg` is self-contained: the pattern is embedded as a base64 data URI inside `<image>` under a `clipPath` holding just the traced path, so the file opens anywhere and the cut edge stays vector.
+- `pattern-cut.png` rasterizes only the path and applies it as the alpha channel of the untouched pattern pixels, so no source pixel is resampled.
+
+Measured on the real pair (`output/pattern-preview-1/pattern.png` cut with `output/qwen-fresh/edit-mask.png`, seed 1, 5px pitch):
+
+- 23 rings traced, 3,870 vertices, 196 vertices after simplification, 2 rings kept, 1 hole, and 21 pixel-jagged specks dropped; the kept rings are the blob (125,556px²) and its 205×205 QR hole (42,025px²), area 83,531px² inside bounds 169,104 379×420.
+- The fillet clamps on features narrower than twice the radius, which the real outlined blob does, so the report warns instead of failing.
+- The PNG is 304,907 fully transparent pixels, 82,527 fully opaque, and 1,974 antialiased edge pixels, with zero mismatches against the source pattern among fully opaque pixels. Rendering the SVG file itself reproduces the same picture at 688×566.
+- Smoothing erases features narrower than about twice its tolerance (a 3px bar cannot survive the default 3px tolerance), which is why the error message points at `--cut-smooth` and `--cut-radius`.
+
+Run:
+
+```bash
+pnpm qr-poster -- --pattern-cut --input output/pattern-preview/pattern.png --cut-mask output/qwen-fresh/edit-mask.png --out-dir output/pattern-cut
+```
+
+Checks in `test/pattern-cut.test.ts`: a rectangle becoming one ring of four arcs, a hole staying a second even-odd subpath, both mask conventions selecting the same pixels, speck dropping, clamped fillets on narrow bars, both mask errors, deterministic SVG and PNG hashes, artifact protection, and a fixture-driven run asserting the loop counts above plus bit-exact interior pixels. `test/cli.test.ts` covers the mode flags through the documented `-- <mode>` path and skips itself where the environment refuses to spawn child processes.

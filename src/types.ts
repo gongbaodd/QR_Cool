@@ -212,3 +212,59 @@ export interface PatternPreviewResult {
   report: PatternReport
   outputDir: string
 }
+
+export interface PatternCutOptions {
+  /** Rendered pattern PNG to cut, poster-sized. */
+  inputPath: string
+  /** Same-size mask PNG: transparent or dark pixels select the cut shape. */
+  maskPath: string
+  outputDir: string
+  /** Corner fillet radius in pixels; defaults to 5. */
+  radius?: number
+  /** Douglas-Peucker tolerance in pixels for the traced outline; defaults to 3. */
+  smoothTolerance?: number
+  force?: boolean
+}
+
+export interface PatternCutReport {
+  schemaVersion: 4
+  mode: 'pattern-cut'
+  status: 'generated'
+  createdAt: string
+  durationMs: number
+  inputs: {
+    pattern: { path: string, sha256: string, width: number, height: number }
+    mask: { path: string, sha256: string, width: number, height: number }
+  }
+  cut: {
+    radius: number
+    smoothTolerance: number
+    /** A mask pixel selects the shape when it is transparent or dark. */
+    keep: 'transparent-or-dark'
+    minLoopArea: number
+  }
+  shape: {
+    loopsTraced: number
+    loopsKept: number
+    specksDropped: number
+    verticesTraced: number
+    verticesSimplified: number
+    holes: number
+    /** Area of the simplified cut polygon before corner rounding. */
+    area: number
+    radiusClamped: boolean
+    bounds: BoundingBox
+  }
+  artifacts: {
+    svg: string
+    svgSha256: string
+    png: string
+    pngSha256: string
+  }
+  warnings: string[]
+}
+
+export interface PatternCutResult {
+  report: PatternCutReport
+  outputDir: string
+}
