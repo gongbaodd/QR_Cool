@@ -23,7 +23,9 @@ export type { GeneratePosterOptions, GenerateResult, ReportV2 } from './types.js
 export {
   PATTERN_ALPHABET,
   PATTERN_ECC,
+  PATTERN_MARKER_REFILL,
   PATTERN_PIXEL_STYLE,
+  countMarkerModules,
   createPatternText,
   generatePatternPreview,
   renderRoundedPattern,

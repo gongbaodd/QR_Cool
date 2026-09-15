@@ -20,7 +20,7 @@ Local TypeScript CLI (`qr-poster`) for artistic QR posters. Four modes: `--dry-r
 ## QR pattern generation
 
 - Encode with `uqr`, the encoder behind qrcode.antfu.me, using the toolkit's defaults only: `ecc: 'M'`, `maskPattern: -1`, `border: 0`, and a locally drawn 2-module margin.
-- "Remove the marker" means dropping `QrCodeDataType.Position` (finder patterns and their separators) and `Alignment`; keep `Timing` and `Function` cells.
+- "Remove the marker" means dropping `QrCodeDataType.Position` (finder patterns and their separators) and `Alignment`; keep `Timing` and `Function` cells. Dropped cells are refilled with seeded random modules, never left light.
 - Rounded pixel style: one inscribed circle per dark module plus corner wedges (corner triangle clipped by an arc of radius `pitch / 2 + 2`) toward dark edge neighbours, with inner-corner fills on light modules. Arc sweeps are `tl=1, tr=0, bl=0, br=1`, validated against `test/fixtures/qr.png` (0.008% deep pixel mismatch; residuals are antialiasing).
 - Pitch defaults to the pitch the placement pipeline uses. The version is the smallest whose modules plus margin cover the canvas, the code is center-cropped at whole-module offsets, and cells are never scaled. At a 5px pitch that is version 30 (705px code, crop 10/70, 1370-character random line); at 20px it is version 4 (62 characters).
 - The random text is seeded lowercase-plus-digits sized to the version's byte capacity so no repeating pad codewords appear; the same seed reproduces identical bytes.

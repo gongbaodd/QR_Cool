@@ -15,10 +15,12 @@ import type { PatternPreviewOptions, PatternPreviewResult, PatternReport } from 
 export const PATTERN_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 export const PATTERN_ECC = 'M' as const
 export const PATTERN_PIXEL_STYLE = 'rounded' as const
+export const PATTERN_MARKER_REFILL = 'seeded-random' as const
 
 const QUIET_ZONE_MODULES = 2
 const MAX_VERSION = 40
 const REMOVED_TYPES = ['Position', 'Alignment'] as const
+const REFILL_SEED_SALT = 0x9E3779B9
 const ARTIFACT_NAMES = { pattern: 'pattern.png', report: 'report.json' } as const
 const WEDGE_RADIUS_PADDING = 2
 
@@ -65,14 +67,38 @@ export function createPatternText(version: number, seed: number): string {
   throw new QrPosterError('QR_INVALID', `Random text could not fill a version ${version} QR code.`)
 }
 
-/** Finder patterns and alignment patterns are dropped so the pattern reads as an even cell field. */
-export function stripMarkerModules(matrix: QrCodeGenerateResult): boolean[][] {
+/**
+ * Finder patterns and alignment patterns are dropped, then refilled with seeded random bits. Leaving
+ * those cells light would punch a 9x9 (finder) or 5x5 (alignment) white hole into the texture; the
+ * refill keeps the field even. The refill stream is derived from the run seed, so a seed reproduces
+ * the whole pattern.
+ */
+export function stripMarkerModules(matrix: QrCodeGenerateResult, seed: number): boolean[][] {
+  const random = mulberry32(markerRefillSeed(seed))
   return matrix.data.map((row, y) => row.map((dark, x) => {
     const type = matrix.types[y]?.[x] ?? QrCodeDataType.Data
     if (type === QrCodeDataType.Position || type === QrCodeDataType.Alignment)
-      return false
+      return random() < 0.5
     return dark
   }))
+}
+
+/** Cells the marker refill replaces: the three 9x9 finder areas plus every 5x5 alignment block. */
+export function countMarkerModules(matrix: QrCodeGenerateResult): number {
+  let count = 0
+  for (let y = 0; y < matrix.size; y++) {
+    for (let x = 0; x < matrix.size; x++) {
+      const type = matrix.types[y]?.[x] ?? QrCodeDataType.Data
+      if (type === QrCodeDataType.Position || type === QrCodeDataType.Alignment)
+        count++
+    }
+  }
+  return count
+}
+
+/** Separate stream from the text line, so refill bits never reuse the text generator's state. */
+function markerRefillSeed(seed: number): number {
+  return (seed ^ REFILL_SEED_SALT) >>> 0
 }
 
 /**
@@ -208,7 +234,7 @@ export async function generatePatternPreview(options: PatternPreviewOptions): Pr
   if (encoded.version !== version)
     throw new QrPosterError('QR_INVALID', `Encoder produced version ${encoded.version} instead of ${version}.`)
 
-  const matrix = stripMarkerModules(encoded)
+  const matrix = stripMarkerModules(encoded, seed)
   const totalModules = encoded.size + QUIET_ZONE_MODULES * 2
   const codeSize = totalModules * modulePixels
   const crop = centeredCrop(codeSize, poster.width, poster.height, modulePixels)
@@ -264,6 +290,8 @@ export async function generatePatternPreview(options: PatternPreviewOptions): Pr
       modulePixels,
       pixelStyle: PATTERN_PIXEL_STYLE,
       removedTypes: [...REMOVED_TYPES],
+      markerRefill: PATTERN_MARKER_REFILL,
+      refilledModules: countMarkerModules(encoded),
       codeSize,
       canvas: { width: poster.width, height: poster.height },
       crop,

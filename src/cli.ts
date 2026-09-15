@@ -90,7 +90,7 @@ async function main(): Promise<void> {
         `Region: ${report.region.area} pixels (${report.region.source})`,
         `Pattern: version ${report.pattern.version}, ${report.pattern.modulePixels}px/module (${report.pitchSource}), seed ${report.pattern.seed}`,
         `Random text: ${report.pattern.textLength} characters`,
-        `Removed modules: ${report.pattern.removedTypes.join(', ')}`,
+        `Removed modules: ${report.pattern.removedTypes.join(', ')} (${report.pattern.refilledModules} cells refilled with ${report.pattern.markerRefill})`,
         '',
       ].join('\n'))
       return

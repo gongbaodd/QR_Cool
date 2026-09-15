@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { QrPosterError } from '../src/errors.js'
 import {
   PATTERN_ALPHABET,
+  PATTERN_MARKER_REFILL,
+  countMarkerModules,
   createPatternText,
   generatePatternPreview,
   renderRoundedPattern,
@@ -119,54 +121,62 @@ describe('rounded pattern geometry', () => {
 })
 
 describe('marker removal', () => {
-  it('drops finder and alignment modules but keeps timing cells', () => {
+  it('refills finder and alignment modules with seeded random cells but keeps timing cells', () => {
     const encoded = encode('https://www.instagram.com/grandpasbeehaven/', { ecc: 'M', border: 0 })
-    const stripped = stripMarkerModules(encoded)
+    const refilled = stripMarkerModules(encoded, 1)
     const isMarker = (x: number, y: number): boolean =>
       encoded.types[y]![x] === QrCodeDataType.Position || encoded.types[y]![x] === QrCodeDataType.Alignment
+    const isTiming = (x: number, y: number): boolean => encoded.types[y]![x] === QrCodeDataType.Timing
 
-    const markerViolations: Array<[number, number]> = []
+    const markerCells: boolean[] = []
+    const timingCells: Array<[boolean, boolean]> = []
     for (let y = 0; y < encoded.size; y++) {
       for (let x = 0; x < encoded.size; x++) {
-        if (isMarker(x, y) && stripped[y]![x])
-          markerViolations.push([x, y])
+        if (isMarker(x, y))
+          markerCells.push(refilled[y]![x]!)
+        else if (isTiming(x, y))
+          timingCells.push([encoded.data[y]![x]!, refilled[y]![x]!])
       }
     }
-    expect(markerViolations).toEqual([])
 
-    const timingDark = (matrix: boolean[][]): number => {
-      let count = 0
-      for (let y = 0; y < matrix.length; y++) {
-        for (let x = 0; x < matrix.length; x++) {
-          if (matrix[y]![x] && encoded.types[y]![x] === QrCodeDataType.Timing)
-            count++
-        }
-      }
-      return count
-    }
-    expect(timingDark(encoded.data)).toBeGreaterThan(0)
-    expect(timingDark(stripped)).toBe(timingDark(encoded.data))
+    // Every dropped marker cell is a fresh random bit, not the original marker pixel and never a white hole.
+    expect(markerCells).toHaveLength(countMarkerModules(encoded))
+    const darkRatio = markerCells.filter(Boolean).length / markerCells.length
+    expect(darkRatio).toBeGreaterThan(0.25)
+    expect(darkRatio).toBeLessThan(0.75)
+
+    // The refill is seeded: same seed reproduces it, a different seed does not.
+    expect(stripMarkerModules(encoded, 1)).toEqual(refilled)
+    expect(stripMarkerModules(encoded, 2)).not.toEqual(refilled)
+
+    expect(timingCells.length).toBeGreaterThan(0)
+    expect(timingCells.some(([encodedDark]) => encodedDark)).toBe(true)
+    expect(timingCells.every(([encodedDark, keptDark]) => encodedDark === keptDark)).toBe(true)
   })
 
-  it('renders a marker-free field', async () => {
+  it('renders a marker-free field with no white marker holes', async () => {
     const encoded = encode('pattern preview', { ecc: 'M', border: 0 })
     const pitch = 10
     const margin = 2
-    const rendered = await renderRoundedPattern(stripMarkerModules(encoded), pitch, { marginModules: margin })
+    const rendered = await renderRoundedPattern(stripMarkerModules(encoded, 9), pitch, { marginModules: margin })
     const { data, info } = await sharp(rendered).greyscale().raw().toBuffer({ resolveWithObject: true })
-    const failures: number[] = []
     for (const [originX, originY] of [[0, 0], [encoded.size - 7, 0], [0, encoded.size - 7]]) {
-      for (let y = 0; y < 7; y++) {
-        for (let x = 0; x < 7; x++) {
-          const row = originY + margin + y
-          const column = originX + margin + x
-          const value = data[(row * pitch * info.width + column * pitch) * info.channels]!
-          if (value <= 200)
-            failures.push(value)
+      let dark = 0
+      let total = 0
+      for (let y = 0; y < 7 * pitch; y++) {
+        for (let x = 0; x < 7 * pitch; x++) {
+          const px = (originX! + margin) * pitch + x
+          const py = (originY! + margin) * pitch + y
+          total++
+          if (data[(py * info.width + px) * info.channels]! < 128)
+            dark++
         }
       }
+      const ratio = dark / total
+      // Forcing marker cells white used to leave this whole area blank; the refill mixes cells.
+      expect(ratio).toBeGreaterThan(0.2)
+      expect(ratio).toBeLessThan(0.8)
     }
-    expect(failures).toEqual([])
   })
 })
 
@@ -214,6 +224,8 @@ describe('pattern preview mode', () => {
     expect(info.crop).toEqual({ left: 10, top: 70 })
     expect(info.textLength).toBe(1370)
     expect(info.removedTypes).toEqual(['Position', 'Alignment'])
+    expect(info.markerRefill).toBe(PATTERN_MARKER_REFILL)
+    expect(info.refilledModules).toBeGreaterThan(3 * 81)
     expect(info.pixelStyle).toBe('rounded')
     expect(result.report.pitchSource).toBe('placement')
     expect(result.report.placement.modulePixels).toBe(5)

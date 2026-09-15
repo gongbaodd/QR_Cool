@@ -194,6 +194,9 @@ export interface PatternReport {
     modulePixels: number
     pixelStyle: 'rounded'
     removedTypes: Array<'Position' | 'Alignment'>
+    /** Dropped marker cells are refilled with seeded random bits, never left light. */
+    markerRefill: 'seeded-random'
+    refilledModules: number
     codeSize: number
     canvas: ImageDimensions
     crop: { left: number, top: number }

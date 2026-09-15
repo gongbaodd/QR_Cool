@@ -50,16 +50,16 @@ Specify exactly one of `--dry-run`, `--generate`, `--pattern-preview`, or `--gen
 | `--qr-box <x,y,size>` | Manual protection box; size must be an integer multiple of the QR module count and fit entirely inside the region. |
 | `--pattern-preview` | Write `pattern.png` and `report.json` only: a poster-sized, marker-free QR cell texture. |
 | `--module-pixels <n>` | Pattern module pitch; defaults to the pitch the pipeline places on the poster. Requires `--pattern-preview`. |
-| `--seed <n>` | Seed for the pattern random text line; defaults to a fresh random seed per run. Requires `--pattern-preview`. |
+| `--seed <n>` | Seed for the pattern random text line and the marker refill; defaults to a fresh random seed per run. Requires `--pattern-preview`. |
 | `--force` | Replace known artifacts in the output directory. |
 
 ## Pattern preview
 
-`--pattern-preview` encodes a random text line with `uqr`, the encoder behind qrcode.antfu.me, using the toolkit's defaults (`ecc: M`, 2-module margin, rounded pixel style, automatic mask). Modules typed `Position` (the three finder patterns with their separators) and `Alignment` are dropped before drawing, so the result is an even field of rounded cells. Timing and format cells are kept. Nothing is composited onto the poster and no API call is made: the output is deliberately not decodable, and the scannable QR still comes from the existing placement pipeline.
+`--pattern-preview` encodes a random text line with `uqr`, the encoder behind qrcode.antfu.me, using the toolkit's defaults (`ecc: M`, 2-module margin, rounded pixel style, automatic mask). Modules typed `Position` (the three finder patterns with their separators) and `Alignment` are dropped and refilled with seeded random cells (1017 of them at version 30), so the result is an even field of rounded cells with no white marker-shaped holes. Timing and format cells are kept. The refill draws from its own random stream derived from the seed, so it never reuses the text line's generator state. Nothing is composited onto the poster and no API call is made: the output is deliberately not decodable, and the scannable QR still comes from the existing placement pipeline.
 
 The pitch defaults to the module size the pipeline places on the poster, so the texture matches it. The smallest QR version whose modules and margin cover the poster canvas is chosen and centered, cropped at whole-module offsets; cells are never scaled. With the bundled poster (688×566) and `test/fixtures/qr.png` (41 total modules, 5px/module) that is version 30: 137 modules, a 705px code and a 10px/70px crop, which needs a 1370-character random line to fill the data capacity without repeating pad codewords. Pass `--module-pixels 20` (the toolkit's default scale) for a chunkier texture, which drops to version 4 and a 62-character line. Below 6px per module the rounded cells are heavily antialiased; the report records a warning.
 
-Reports use schema version 3 and record the seed, alphabet, text length and hash, version, module counts, pitch and its source, removed marker types, code size, canvas, crop offsets, and the pattern hash. The same seed reproduces the same bytes.
+Reports use schema version 3 and record the seed, alphabet, text length and hash, version, module counts, pitch and its source, removed marker types, the refill style and refilled cell count, code size, canvas, crop offsets, and the pattern hash. The same seed reproduces the same bytes.
 
 ## Artifacts and verification
 
