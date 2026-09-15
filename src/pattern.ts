@@ -13,8 +13,10 @@ export const PATTERN_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 export const PATTERN_ECC = 'M' as const
 export const PATTERN_PIXEL_STYLE = 'rounded' as const
 export const PATTERN_MARKER_REFILL = 'seeded-random' as const
+/** Light modules the toolkit draws around the code; the texture's own quiet zone. */
+export const PATTERN_QUIET_ZONE_MODULES = 2 as const
 
-const QUIET_ZONE_MODULES = 2
+const QUIET_ZONE_MODULES = PATTERN_QUIET_ZONE_MODULES
 const MAX_VERSION = 40
 const REMOVED_TYPES = ['Position', 'Alignment'] as const
 const REFILL_SEED_SALT = 0x9E3779B9
@@ -33,6 +35,14 @@ export interface PatternRenderOptions {
   marginModules?: number
   /** Visible sub-rectangle of the full code canvas, in code pixels. */
   window?: PatternRenderWindow
+  /**
+   * Draws only the modules this predicate accepts, addressed in code-module coordinates
+   * (`0 .. totalModules - 1`, margin included). A rejected module renders nothing and counts as
+   * light when wedge neighbours are resolved, so the drawn area stays a union of whole modules and
+   * its edge closes on the silhouette. Without it every module is drawn on one white canvas,
+   * exactly as `--pattern-preview` renders.
+   */
+  include?: (moduleX: number, moduleY: number) => boolean
 }
 
 export interface PosterPatternOptions {
@@ -57,16 +67,31 @@ export interface PosterPattern {
   seed: number
   version: number
   text: string
+  /** Marker-free module matrix, marker cells refilled with seeded random bits. */
+  matrix: boolean[][]
   qrModules: number
   totalModules: number
   codeSize: number
+  marginModules: number
   crop: { left: number, top: number }
   refilledModules: number
 }
 
-/** Smallest QR version whose modules plus quiet zone cover the canvas at this pitch. */
-export function selectPatternVersion(modulePixels: number, width: number, height: number): number {
-  const required = Math.max(width, height)
+/** The generated texture's lattice, its matrix, and how the window sits on it. */
+export type PosterPatternLattice = Omit<PosterPattern, 'png'>
+
+/**
+ * Smallest QR version whose modules plus quiet zone cover the canvas at this pitch. A caller that
+ * needs to phase-lock the window (see `alignTo`) asks for one module of headroom, so the code is
+ * wider than the canvas and the window can still be shifted onto the requested lattice.
+ */
+export function selectPatternVersion(
+  modulePixels: number,
+  width: number,
+  height: number,
+  headroomPixels = 0,
+): number {
+  const required = Math.max(width, height) + headroomPixels
   for (let version = 1; version <= MAX_VERSION; version++) {
     if (totalModulesFor(version) * modulePixels >= required)
       return version
@@ -153,7 +178,17 @@ export async function renderRoundedPattern(
 
   const half = modulePixels / 2
   const radius = half + WEDGE_RADIUS_PADDING
+  const include = options.include
+  const included = (x: number, y: number): boolean => {
+    if (x < 0 || y < 0 || x >= totalModules || y >= totalModules)
+      return false
+    return include === undefined || include(x, y)
+  }
+  // A module outside the drawn set is light for every purpose, so a dark neighbour the cut drops
+  // cannot pull a wedge into the artwork around the silhouette.
   const dark = (x: number, y: number): boolean => {
+    if (!included(x, y))
+      return false
     const column = x - marginModules
     const row = y - marginModules
     if (column < 0 || row < 0 || column >= modules || row >= modules)
@@ -177,6 +212,8 @@ export async function renderRoundedPattern(
 
   for (let y = 0; y < totalModules; y++) {
     for (let x = 0; x < totalModules; x++) {
+      if (!included(x, y))
+        continue
       const ox = x * modulePixels
       const oy = y * modulePixels
       const up = dark(x, y - 1)
@@ -207,14 +244,22 @@ export async function renderRoundedPattern(
     }
   }
 
+  // Without an include mask the whole canvas is one white field, exactly as before. With one, only
+  // the drawn modules carry the texture's white, so the artwork shows through the dropped ones.
+  const background = include === undefined
+    ? `<rect width="${codeSize}" height="${codeSize}" fill="#ffffff"/>`
+    : `<path fill="#ffffff" d="${includedCells(include, totalModules, modulePixels)}"/>`
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${window.width}" height="${window.height}"`
     + ` viewBox="${window.left} ${window.top} ${window.width} ${window.height}">`
-    + `<rect width="${codeSize}" height="${codeSize}" fill="#ffffff"/>`
+    + background
     + `<path fill="#000000" d="${circles.join('')}"/>`
     + `<path fill="#000000" d="${wedges.join('')}"/>`
     + '</svg>'
 
-  const png = await sharp(Buffer.from(svg)).flatten({ background: '#ffffff' }).png().toBuffer()
+  const raster = sharp(Buffer.from(svg))
+  const png = await (include === undefined ? raster.flatten({ background: '#ffffff' }) : raster)
+    .png()
+    .toBuffer()
   const metadata = await sharp(png).metadata()
   if (metadata.width !== window.width || metadata.height !== window.height) {
     throw new QrPosterError(
@@ -311,12 +356,19 @@ export async function generatePatternPreview(options: PatternPreviewOptions): Pr
  * whose modules plus margin cover the canvas, the code is center-cropped at whole-module offsets,
  * and the same seed reproduces the same bytes.
  */
-export async function renderPosterPattern(options: PosterPatternOptions): Promise<PosterPattern> {
+export async function buildPosterPattern(options: PosterPatternOptions): Promise<PosterPatternLattice> {
   const { width, height, modulePixels } = options
   if (!Number.isInteger(modulePixels) || modulePixels < 1)
     throw new QrPosterError('INVALID_INPUT', 'modulePixels must be a positive integer.')
 
-  const version = selectPatternVersion(modulePixels, width, height)
+  // Phase-locking needs one module of freedom in each direction, so an aligned texture asks for a
+  // version wide enough to leave that gap. The centered preview keeps the tightest version.
+  const version = selectPatternVersion(
+    modulePixels,
+    width,
+    height,
+    options.alignTo === undefined ? 0 : modulePixels,
+  )
   const seed = options.seed ?? randomSeed()
   const text = createPatternText(version, seed)
   const encoded = encode(text, { ecc: PATTERN_ECC, minVersion: version, maxVersion: version, border: 0 })
@@ -327,18 +379,44 @@ export async function renderPosterPattern(options: PosterPatternOptions): Promis
   const totalModules = encoded.size + QUIET_ZONE_MODULES * 2
   const codeSize = totalModules * modulePixels
   const crop = centeredCrop(codeSize, width, height, modulePixels, options.alignTo)
-  const png = await renderRoundedPattern(matrix, modulePixels, { window: { ...crop, width, height } })
   return {
-    png,
     seed,
     version,
     text,
+    matrix,
     qrModules: encoded.size,
     totalModules,
     codeSize,
+    marginModules: QUIET_ZONE_MODULES,
     crop,
     refilledModules: countMarkerModules(encoded),
   }
+}
+
+/** Renders the poster pattern, or just its lattice, in one call. */
+export async function renderPosterPattern(options: PosterPatternOptions): Promise<PosterPattern> {
+  const lattice = await buildPosterPattern(options)
+  const png = await renderRoundedPattern(lattice.matrix, options.modulePixels, {
+    window: { ...lattice.crop, width: options.width, height: options.height },
+  })
+  return { ...lattice, png }
+}
+
+/** White cell rectangles of the modules the include mask accepts, as one path. */
+function includedCells(
+  include: (x: number, y: number) => boolean,
+  totalModules: number,
+  modulePixels: number,
+): string {
+  const parts: string[] = []
+  for (let y = 0; y < totalModules; y++) {
+    for (let x = 0; x < totalModules; x++) {
+      if (!include(x, y))
+        continue
+      parts.push(`M${x * modulePixels},${y * modulePixels}h${modulePixels}v${modulePixels}h-${modulePixels}Z`)
+    }
+  }
+  return parts.join('')
 }
 
 function totalModulesFor(version: number): number {
@@ -390,26 +468,64 @@ function centeredCrop(
     const raw = (codeSize - extent) / 2
     let aligned = Math.round(raw / modulePixels) * modulePixels
     if (phase !== undefined) {
-      // Nearest offset whose module boundaries coincide with the aligned lattice, kept under half a
-      // module away from the centered position.
-      const target = ((phase % modulePixels) + modulePixels) % modulePixels
+      // A module boundary sits at `k * modulePixels - offset`, so the window is phase-locked when
+      // `offset + phase` is a whole number of modules: the boundaries then land on the lattice that
+      // starts at `phase`. Prefer the nearest such offset to the centered one, under half a module
+      // away, and fall back to the closest fitting one when that nudged window runs off the canvas.
+      const target = ((-phase % modulePixels) + modulePixels) % modulePixels
       const current = ((aligned % modulePixels) + modulePixels) % modulePixels
       let delta = ((target - current) % modulePixels + modulePixels) % modulePixels
       if (delta > modulePixels / 2)
         delta -= modulePixels
       aligned += delta
+      if (!fits(aligned, extent, codeSize))
+        return fittingOffset(raw, extent, codeSize, modulePixels, target)
     }
-    if (aligned >= 0 && aligned + extent <= codeSize)
+    if (fits(aligned, extent, codeSize))
       return aligned
-    const shifted = aligned + modulePixels
-    if (shifted >= 0 && shifted + extent <= codeSize)
-      return shifted
-    const back = aligned - modulePixels
-    if (back >= 0 && back + extent <= codeSize)
-      return back
-    return Math.floor(raw / modulePixels) * modulePixels
+    return fittingOffset(raw, extent, codeSize, modulePixels)
   }
   return { left: offset(width, alignTo?.x), top: offset(height, alignTo?.y) }
+}
+
+function fits(offset: number, extent: number, codeSize: number): boolean {
+  return offset >= 0 && offset + extent <= codeSize
+}
+
+/**
+ * Closest offset to the centered position that fits the canvas. With a phase the search walks every
+ * integer offset that puts a module boundary on the requested lattice — the crop itself does not
+ * have to be a whole number of modules, only its phase does — and falls back to a whole-module
+ * offset when the canvas is too tight for any of them.
+ */
+function fittingOffset(
+  raw: number,
+  extent: number,
+  codeSize: number,
+  modulePixels: number,
+  phase?: number,
+): number {
+  const limit = codeSize - extent
+  const base = Math.floor(raw / modulePixels) * modulePixels
+  if (limit < 0)
+    return base
+  if (phase !== undefined) {
+    let best = -1
+    for (let candidate = phase; candidate <= limit; candidate += modulePixels) {
+      if (best === -1 || Math.abs(candidate - raw) < Math.abs(best - raw))
+        best = candidate
+    }
+    if (best !== -1)
+      return best
+  }
+  let best = base
+  for (const candidate of [base, base + modulePixels, base - modulePixels]) {
+    if (!fits(candidate, extent, codeSize))
+      continue
+    if (Math.abs(candidate - raw) < Math.abs(best - raw))
+      best = candidate
+  }
+  return best
 }
 
 function randomSeed(): number {

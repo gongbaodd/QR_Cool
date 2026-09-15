@@ -27,6 +27,8 @@ export {
   PATTERN_ECC,
   PATTERN_MARKER_REFILL,
   PATTERN_PIXEL_STYLE,
+  PATTERN_QUIET_ZONE_MODULES,
+  buildPosterPattern,
   countMarkerModules,
   createPatternText,
   generatePatternPreview,
@@ -35,7 +37,13 @@ export {
   selectPatternVersion,
   stripMarkerModules,
 } from './pattern.js'
-export type { PatternRenderOptions, PatternRenderWindow, PosterPattern, PosterPatternOptions } from './pattern.js'
+export type {
+  PatternRenderOptions,
+  PatternRenderWindow,
+  PosterPattern,
+  PosterPatternLattice,
+  PosterPatternOptions,
+} from './pattern.js'
 export type { PatternPreviewOptions, PatternPreviewResult, PatternReport } from './types.js'
 
 export {
@@ -62,3 +70,15 @@ export type { PatternCutOptions, PatternCutReport, PatternCutResult } from './ty
 
 export { assemblePoster } from './assemble.js'
 export type { AssemblePosterOptions, AssembleReport, AssembleResult } from './types.js'
+
+export {
+  buildModuleLattice,
+  buildModulePath,
+  computePlateModules,
+  computeRimModules,
+  computeSafeArea,
+  moduleBlock,
+  moduleCellIndex,
+  renderModuleCoverage,
+} from './module-cut.js'
+export type { ModuleLattice, ModuleWindow, PlateModules, SafeArea } from './module-cut.js'

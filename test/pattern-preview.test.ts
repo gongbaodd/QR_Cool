@@ -58,9 +58,11 @@ describe('poster pattern lattice alignment', () => {
       seed: 1,
       alignTo: { x: 249, y: 201 },
     })
-    expect(aligned.crop).toEqual({ left: 9, top: 71 })
-    expect(aligned.crop.left % 5).toBe(249 % 5)
-    expect(aligned.crop.top % 5).toBe(201 % 5)
+    // A module boundary sits at `k * pitch - offset`, so the window is phase-locked when
+    // `offset + phase` is a whole number of modules: 11 + 249 and 69 + 201 are both divisible by 5.
+    expect(aligned.crop).toEqual({ left: 11, top: 69 })
+    expect((aligned.crop.left + 249) % 5).toBe(0)
+    expect((aligned.crop.top + 201) % 5).toBe(0)
     expect(aligned.crop.left).toBeGreaterThanOrEqual(0)
     expect(aligned.crop.left + 688).toBeLessThanOrEqual(aligned.codeSize)
     expect(aligned.crop.top + 566).toBeLessThanOrEqual(aligned.codeSize)
@@ -73,19 +75,51 @@ describe('poster pattern lattice alignment', () => {
     expect(centered.text).toBe(aligned.text)
   })
 
-  it('falls back to the centered window when the lattice phase cannot fit', async () => {
+  it('asks the generator for headroom so a tight canvas still phase-locks', async () => {
     const pattern = await renderPosterPattern({
-      width: 705,
-      height: 705,
+      width: 700,
+      height: 700,
       modulePixels: 5,
       seed: 1,
       alignTo: { x: 249, y: 201 },
     })
-    expect(pattern.crop).toEqual({ left: 0, top: 0 })
+    // Version 30 covers 700px exactly at a 5px pitch. Alignment asks for one module of headroom, so
+    // the window is still phase-locked instead of collapsing onto the only offset that fits.
+    expect(pattern.codeSize).toBeGreaterThanOrEqual(700 + 5)
+    expect((pattern.crop.left + 249) % 5).toBe(0)
+    expect((pattern.crop.top + 201) % 5).toBe(0)
+    expect(pattern.crop.left + 700).toBeLessThanOrEqual(pattern.codeSize)
+    expect(pattern.crop.top + 700).toBeLessThanOrEqual(pattern.codeSize)
   })
 })
 
 describe('rounded pattern geometry', () => {
+  it('draws only the included modules when given an include mask', async () => {
+    const matrix = Array.from({ length: 4 }, (_, row) =>
+      Array.from({ length: 4 }, (_, column) => (row + column) % 2 === 0))
+    const png = await renderRoundedPattern(matrix, 5, {
+      marginModules: 0,
+      include: (x, y) => (x === 1 && y === 1) || (x === 2 && y === 2),
+    })
+    const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    expect(info.width).toBe(20)
+    expect(info.height).toBe(20)
+
+    // A dark module keeps its cell, a light module keeps its cell white, and every dropped module
+    // is fully transparent even where a dark neighbour would have drawn a wedge.
+    let opaque = 0
+    for (let index = 0; index < info.width * info.height; index++) {
+      if (data[index * 4 + 3] === 255)
+        opaque++
+    }
+    expect(opaque).toBe(2 * 25)
+    const cellAlpha = (x: number, y: number): number => data[(y * 5 + 2) * info.width * 4 + (x * 5 + 2) * 4 + 3]!
+    expect(cellAlpha(1, 1)).toBe(255)
+    expect(cellAlpha(2, 2)).toBe(255)
+    expect(cellAlpha(0, 0)).toBe(0)
+    expect(cellAlpha(3, 3)).toBe(0)
+  })
+
   it('reproduces the reference qrcode.antfu.me rendering', async () => {
     const pitch = 20
     const quietZone = 2

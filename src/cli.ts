@@ -23,6 +23,7 @@ interface CliOptions {
   cutMask?: string
   cutRadius?: string
   cutSmooth?: string
+  qrMargin?: string
   input: string
   qr?: string
   outDir: string
@@ -47,8 +48,9 @@ const program = new Command()
   .option('--module-pixels <n>', 'pattern module pitch in pixels (default: the placed QR pitch)')
   .option('--seed <n>', 'seed for the pattern random text line (--pattern-preview, --assemble)')
   .option('--cut-mask <path>', 'cut shape mask PNG: transparent or dark pixels are kept')
-  .option('--cut-radius <px>', 'corner fillet radius for --pattern-cut (default: 5) and --assemble (default: two modules)')
-  .option('--cut-smooth <px>', 'outline simplification tolerance for --pattern-cut (default: 3) and --assemble (default: one module)')
+  .option('--cut-radius <px>', 'fillet radius for --pattern-cut (default: 5); for --assemble, 0 keeps the plate window square and any positive value rounds its corners (default: two modules)')
+  .option('--cut-smooth <px>', 'outline simplification tolerance for --pattern-cut (default: 3); not used by --assemble')
+  .option('--qr-margin <modules>', 'light margin around the code for --assemble, in modules (default: 1; whole modules keep the cut module-level, a fraction is pixel-tight and trims the cells along the plate edge)')
   .requiredOption('--input <path>', 'painted poster PNG, or the pattern PNG for --pattern-cut')
   .option('--qr <path>', 'qrcode.antfu.me-compatible QR PNG, or its code-grid crop (not used by --pattern-cut)')
   .requiredOption('--out-dir <path>', 'directory for artifacts')
@@ -90,6 +92,15 @@ async function main(): Promise<void> {
       throw new QrPosterError('INVALID_INPUT', '--cut-mask requires --pattern-cut.')
     if (!options.patternCut && !options.assemble && (options.cutRadius !== undefined || options.cutSmooth !== undefined))
       throw new QrPosterError('INVALID_INPUT', '--cut-radius and --cut-smooth require --pattern-cut or --assemble.')
+    if (!options.assemble && options.qrMargin !== undefined)
+      throw new QrPosterError('INVALID_INPUT', '--qr-margin requires --assemble.')
+    if (options.assemble && options.cutSmooth !== undefined) {
+      throw new QrPosterError(
+        'INVALID_INPUT',
+        '--cut-smooth is not used by --assemble: the assembled cut draws whole modules, so there is no '
+        + 'traced outline to simplify. Use --pattern-cut for a filleted cut.',
+      )
+    }
     if (options.generate) {
       try { process.loadEnvFile() }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new QrPosterError('INVALID_INPUT', 'Could not load .env.') }
@@ -128,19 +139,21 @@ async function main(): Promise<void> {
         ...(options.seed !== undefined ? { seed: parsePositiveInteger('--seed', options.seed) } : {}),
         ...(options.cutRadius !== undefined ? { radius: parsePositiveNumber('--cut-radius', options.cutRadius) } : {}),
         ...(options.cutSmooth !== undefined ? { smoothTolerance: parsePositiveNumber('--cut-smooth', options.cutSmooth) } : {}),
+        ...(options.qrMargin !== undefined ? { qrMargin: parsePositiveNumber('--qr-margin', options.qrMargin) } : {}),
       })
       const { report } = result
       process.stdout.write([
         `Assembled poster written to ${result.outputDir}`,
         `Region: ${report.region.area} pixels (${report.region.source})`,
         `QR: version ${report.qr.version}, ${report.placement.modulePixels}px/module, box ${report.placement.x},${report.placement.y},${report.placement.size}`,
-        `QR overlay: ${report.qr.overlay.crop.size}px window at ${report.qr.overlay.x},${report.qr.overlay.y} `
-        + `(${report.qr.overlay.crop.size - report.qr.overlay.quietZoneModules * 2 * report.placement.modulePixels}px code grid`
-        + ` + ${report.qr.overlay.quietZoneModules}-module margin)`,
-        `QR plate: rounded ${report.qrPlate.box.width}px window, ${report.qrPlate.radius}px corners, `
-        + `${report.qrPlate.cornerTexturePixels} texture pixel(s) where the rounding meets the pattern`,
+        `QR plate: ${report.qrPlate.box.width}px window, ${report.qrPlate.holeModules} module hole, `
+        + `${report.qrPlate.marginPixels}px (${report.qrPlate.marginModules} module) margin, `
+        + `${report.qrPlate.cornerModules} corner module(s) handed to the texture`
+        + ` (${report.qrPlate.cornerTexturePixels} px)`,
         `Pattern: version ${report.pattern.version}, ${report.pattern.modulePixels}px/module, seed ${report.pattern.seed}, aligned to the QR lattice`,
-        `Cut: ${report.shape.loopsKept} loop(s), ${report.shape.holes} hole(s), ${report.shape.verticesSimplified} vertices, ${report.cut.radius}px fillet, ${report.cut.cleanRadius}px cleanup, ${report.cut.border.width}px border`,
+        `Cut: ${report.cut.modulePixels}px modules on lattice ${report.cut.lattice.x},${report.cut.lattice.y}, `
+        + `${report.cut.drawnModules} module(s) drawn (${report.shape.textureModules} texture + ${report.shape.rimModules} rim), `
+        + `${report.cut.droppedPartialModules} dropped`,
         `Verification: ${report.qualified ? 'passed (geometry only, poster decode skipped)' : 'failed'}`,
         '',
       ].join('\n'))

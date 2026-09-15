@@ -77,6 +77,7 @@ export interface VerificationCheck {
     | 'outsideRegionPixels'
     | 'qrPixels'
     | 'qrPlateCorners'
+    | 'moduleCut'
     | 'alphaPreserved'
   passed: boolean
   decodedText?: string
@@ -302,17 +303,27 @@ export interface AssemblePosterOptions {
   expectedText?: string
   maskPath?: string
   qrBox?: QrBoxInput
-  /** Seed for the pattern random text line; defaults to a fresh random seed per run. */
+  /** Seed for the pattern random text line and the marker refill; defaults to a fresh seed per run. */
   seed?: number
-  /** Corner fillet radius for the cut edge in pixels; defaults to two module pitches (10px here). */
+  /**
+   * Light quiet-zone margin kept around the code grid, in modules; defaults to 0.2. It may be a
+   * fraction because the plate window is painted at pixel precision, and it is floored at one pixel
+   * so a margin never rounds away.
+   */
+  qrMargin?: number
+  /**
+   * Plate corner treatment: zero writes the square module window back, and any positive value hands
+   * each plate corner module to the texture. Defaults to two module pitches (10px here), which
+   * rounds the plate. The region silhouette is always whole modules, so there is no fillet to size.
+   */
   radius?: number
-  /** Douglas-Peucker tolerance for the cut outline in pixels; defaults to one module pitch (5px here). */
+  /** Not used by assembly: the cut is module-aligned rather than traced. Rejected when supplied. */
   smoothTolerance?: number
   force?: boolean
 }
 
 export interface AssembleReport {
-  schemaVersion: 6
+  schemaVersion: 7
   mode: 'assemble'
   status: 'generated' | 'verification_failed'
   qualified: boolean
@@ -321,9 +332,10 @@ export interface AssembleReport {
   inputs: ReportV1['inputs']
   region: ReportV1['region']
   qr: ReportV1['qr'] & {
-    /** The pixels actually composited: the code grid plus a one-module light margin. */
+    /** The pixels actually composited: the code grid plus the light margin. */
     overlay: {
-      quietZoneModules: 1
+      /** Light margin kept around the code grid, in modules; a fraction is allowed. */
+      quietZoneModules: number
       crop: { left: number, top: number, size: number }
       x: number
       y: number
@@ -331,41 +343,68 @@ export interface AssembleReport {
   }
   placement: QrPlacement
   pattern: PatternReport['pattern'] & {
-    /** The texture window is phase-locked to the placed QR, so both share one module lattice. */
+    /**
+     * The texture window is phase-locked to the placed QR, so both share one module lattice.
+     * `phase` is the residual offset of the texture's module boundaries from the QR lattice:
+     * `0,0` means they coincide.
+     */
     alignment: {
       alignedToQr: boolean
       phase: { x: number, y: number }
     }
   }
   cut: {
+    /** Poster-space module pitch the cut is quantized to; equals the placed QR pitch. */
+    modulePixels: number
+    /** Poster-space origin of the module lattice, in `[0, modulePixels)`. */
+    lattice: { x: number, y: number }
+    /** Requested `--cut-radius`; zero leaves the plate square, a positive value rounds it. */
     radius: number
-    smoothTolerance: number
-    /** Disc radius of the mask cleanup applied before tracing, in pixels. */
-    cleanRadius: number
-    /** Pure-black band drawn along the inside of the cut edge. */
-    border: {
-      width: number
-      color: '#000000'
-      side: 'inside'
-    }
+    /** Modules whose whole pixel block is inside the painted region. */
+    safeModules: number
+    /** Modules the region covers only in part; the cut leaves them as the original artwork. */
+    droppedPartialModules: number
+    /** Region pixels inside those dropped modules. */
+    droppedPartialPixels: number
+    /** Modules the cut draws: safe modules minus the QR plate hole. */
+    drawnModules: number
+    /** Outer rings of drawn modules forced dark, so the rim is whole modules too. */
+    rim: { modules: number, style: 'cell' }
+    /** Corner modules of the plate handed back to the texture, 0 or 4. */
+    plateCornerModules: number
     /** The cut shape is the detected or supplied painted region itself. */
     keep: 'region-mask'
-    minLoopArea: number
-    /** The cut edge is blended into the original pixels by its coverage; nothing outside the region changes. */
-    edgeBlend: 'coverage-over-original'
+    /** Whole modules replace the original pixels; dropped modules keep them bit-exact. */
+    edgeBlend: 'cell-aligned-over-original'
   }
-  /** The rounded white plate the texture is cut around and the QR is drawn in. */
+  /** The white plate the texture is cut around and the QR is drawn in; both are whole modules. */
   qrPlate: {
-    /** Light margin modules kept around the code grid inside the plate. */
-    marginModules: 1
-    /** Corner radius of the plate in pixels; follows the effective `--cut-radius`. */
-    radius: number
-    path: 'rounded-rect'
+    /** Requested light margin around the code grid, in modules; a fraction is allowed. */
+    marginModules: number
+    /** The margin actually painted, in pixels: the requested margin rounded up to at least one. */
+    marginPixels: number
+    /** Corner modules handed back to the texture, 0 when `--cut-radius` is zero. */
+    cornerModules: 0 | 1
+    /** `module-window` when a whole-module margin keeps the plate on the lattice, else pixel-tight. */
+    path: 'module-window' | 'pixel-window'
     box: BoundingBox
-    /** Window pixels the rounding leaves as texture instead of the QR's own light margin. */
+    /** Modules the hole covers, corners already handed back. */
+    holeModules: number
+    /** Window pixels the corner modules leave as texture instead of the QR's own light margin. */
     cornerTexturePixels: number
   }
-  shape: PatternCutReport['shape']
+  shape: {
+    /** Canvas-pixel bounds of the drawn modules. */
+    bounds: BoundingBox
+    /** Pixels the drawn modules cover: texture plus rim. */
+    area: number
+    /** Modules the cut draws. */
+    modules: number
+    /** Drawn modules forced dark as the rim. */
+    rimModules: number
+    /** Drawn modules carrying the texture. */
+    textureModules: number
+  }
   artifacts: {
     poster: string
     posterSha256: string

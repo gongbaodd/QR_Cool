@@ -130,7 +130,6 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
       '--out-dir', outDir,
       '--seed', '1',
       '--cut-radius', '4',
-      '--cut-smooth', '2',
     ])
     expect(result.status).toBe(0)
     expect((await readdir(outDir)).sort()).toEqual([
@@ -142,8 +141,11 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
       'report.json',
     ])
     const report = JSON.parse(await readFile(join(outDir, 'report.json'), 'utf8'))
+    expect(report.schemaVersion).toBe(7)
     expect(report.cut.radius).toBe(4)
-    expect(report.cut.smoothTolerance).toBe(2)
+    expect(report.cut.modulePixels).toBe(5)
+    expect(report.cut.lattice).toEqual({ x: 4, y: 1 })
+    expect(report.cut.rim).toEqual({ modules: 4, style: 'cell' })
     expect(report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
     expect(report.qr.overlay).toEqual({
       quietZoneModules: 1,
@@ -151,17 +153,48 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
       x: 254,
       y: 206,
     })
-    // The plate follows --cut-radius, so the 4px fillet above rounds its corners by four pixels.
+    // Any positive --cut-radius hands the plate's four corner modules back to the texture.
     expect(report.qrPlate).toEqual({
       marginModules: 1,
-      radius: 4,
-      path: 'rounded-rect',
+      marginPixels: 5,
+      cornerModules: 1,
+      path: 'module-window',
       box: { x: 254, y: 206, width: 195, height: 195 },
-      cornerTexturePixels: 4,
+      holeModules: 1517,
+      cornerTexturePixels: 100,
     })
-    expect(report.shape.holes).toBe(1)
-    expect(report.cut.border).toEqual({ width: 20, color: '#000000', side: 'inside' })
-    expect(result.stdout).toMatch(/QR plate: rounded 195px window, 4px corners, 4 texture pixel\(s\)/)
+    expect(result.stdout).toMatch(/QR plate: 195px window, 1517 module hole, 5px \(1 module\) margin, 1 corner module\(s\)/)
+    expect(result.stdout).toMatch(/Cut: 5px modules on lattice 4,1, 3261 module\(s\) drawn/)
+  }, 120_000)
+
+  it('accepts an explicit --qr-margin and rejects it outside assembly', async () => {
+    const directory = await temporaryDirectory()
+    const outDir = join(directory, 'out')
+    const result = runCli([
+      '--assemble',
+      '--input', resolve('source/poster.png'),
+      '--qr', resolve('source/qr.png'),
+      '--out-dir', outDir,
+      '--seed', '1',
+      '--qr-margin', '0.4',
+    ])
+    expect(result.status).toBe(0)
+    const report = JSON.parse(await readFile(join(outDir, 'report.json'), 'utf8'))
+    expect(report.qrPlate.marginModules).toBe(0.4)
+    expect(report.qrPlate.marginPixels).toBe(2)
+    // A fractional margin paints the plate at pixel precision, which the report says out loud.
+    expect(report.qrPlate.path).toBe('pixel-window')
+    expect(report.qrPlate.holeModules).toBe(1369)
+    expect(report.qrPlate.cornerTexturePixels).toBe(16)
+    expect(result.stdout).toMatch(/2px \(0\.4 module\) margin/)
+    expect(runCli([
+      '--assemble',
+      '--input', resolve('source/poster.png'),
+      '--qr', resolve('source/qr.png'),
+      '--qr-margin', '0',
+      '--out-dir', join(directory, 'zero'),
+    ]).status).toBe(2)
+    expect(runCli(['--dry-run', '--input', resolve('source/poster.png'), '--qr', resolve('source/qr.png'), '--qr-margin', '0.4', '--out-dir', join(directory, 'two')]).status).toBe(2)
   }, 120_000)
 
   it('rejects options that do not belong to assembly', async () => {
@@ -171,6 +204,8 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
 
     expect(runCli([...shared, '--module-pixels', '20']).status).toBe(2)
     expect(runCli([...shared, '--cut-mask', mask]).status).toBe(2)
+    // The assembled cut is module-aligned, so there is no traced outline to simplify.
+    expect(runCli([...shared, '--cut-smooth', '2']).status).toBe(2)
     expect(runCli(['--pattern-cut', '--assemble', '--input', pattern, '--cut-mask', mask, '--out-dir', join(directory, 'two')]).status).toBe(2)
   }, 120_000)
 

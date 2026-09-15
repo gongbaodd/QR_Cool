@@ -3,20 +3,16 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import sharp from 'sharp'
 import { afterEach, describe, expect, it } from 'vitest'
-import { assemblePoster, buildQrPlatePath, roundedRectArea } from '../src/assemble.js'
-import { renderPosterPattern } from '../src/pattern.js'
-import {
-  buildCutPath,
-  cleanMaskSelection,
-  renderCutBorderCoverage,
-  renderCutCoverage,
-} from '../src/pattern-cut.js'
+import { assemblePoster } from '../src/assemble.js'
+import { buildModuleLattice, buildModulePath, computeRimModules, moduleCellIndex } from '../src/module-cut.js'
+import { buildPosterPattern, renderRoundedPattern } from '../src/pattern.js'
 import { decodeQrBuffer } from '../src/qr.js'
 
 const POSTER = resolve('source/poster.png')
 const FIXTURE_QR = resolve('test/fixtures/qr.png')
 const TRIMMED_QR = resolve('source/qr.png')
 const ARTIFACTS = ['pattern-cut.png', 'pattern-cut.svg', 'poster.png', 'qr.png', 'region-mask.png', 'report.json']
+const RIM_MODULES = 4
 
 const temporaryDirectories: string[] = []
 afterEach(async () => {
@@ -29,17 +25,45 @@ async function temporaryDirectory(): Promise<string> {
   return path
 }
 
-describe('assemble mode', () => {
-  it('assembles texture, filleted cut and exact QR without a network call', async () => {
-    const outputDir = await temporaryDirectory()
-    const result = await assemblePoster({
-      inputPath: POSTER,
-      qrPath: TRIMMED_QR,
-      outputDir,
-      seed: 1,
-    })
+interface RawImage {
+  data: Uint8Array
+  width: number
+  height: number
+}
 
-    expect(result.report.schemaVersion).toBe(6)
+async function raw(path: string): Promise<RawImage> {
+  const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  return { data: new Uint8Array(data.buffer, data.byteOffset, data.byteLength), width: info.width, height: info.height }
+}
+
+/** Module grid of a mask, safe when every pixel of the module is inside it. */
+function safeModules(mask: RawImage, lattice: ReturnType<typeof buildModuleLattice>): Uint8Array {
+  const grid = new Uint8Array(lattice.columns * lattice.rows)
+  for (let row = 0; row < lattice.rows; row++) {
+    for (let column = 0; column < lattice.columns; column++) {
+      let safe = 1
+      for (let offsetY = 0; offsetY < lattice.modulePixels && safe; offsetY++) {
+        for (let offsetX = 0; offsetX < lattice.modulePixels; offsetX++) {
+          const x = lattice.x + column * lattice.modulePixels + offsetX
+          const y = lattice.y + row * lattice.modulePixels + offsetY
+          if (x >= mask.width || y >= mask.height || !mask.data[(y * mask.width + x) * 4]) {
+            safe = 0
+            break
+          }
+        }
+      }
+      grid[row * lattice.columns + column] = safe
+    }
+  }
+  return grid
+}
+
+describe('assemble mode', () => {
+  it('cuts the texture in whole modules sampled from the region mask', async () => {
+    const outputDir = await temporaryDirectory()
+    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
+
+    expect(result.report.schemaVersion).toBe(7)
     expect(result.report.mode).toBe('assemble')
     expect(result.report.status).toBe('generated')
     expect(result.report.qualified).toBe(true)
@@ -53,315 +77,470 @@ describe('assemble mode', () => {
     expect(result.report.qr.sourceModulePixels).toBe(20)
     expect(result.report.placement).toMatchObject({ x: 249, y: 201, size: 205, modulePixels: 5 })
 
+    // The texture window is phase-locked to the QR lattice: the residual offset is zero, so the
+    // matrix cells, the drawn modules and the QR are all on one grid.
     expect(result.report.pattern.version).toBe(30)
     expect(result.report.pattern.modulePixels).toBe(5)
     expect(result.report.pattern.seed).toBe(1)
-    // The window is nudged under one module so the texture lattice lands on the placed QR's.
-    expect(result.report.pattern.crop).toEqual({ left: 9, top: 71 })
-    expect(result.report.pattern.alignment).toEqual({ alignedToQr: true, phase: { x: 4, y: 1 } })
+    expect(result.report.pattern.crop).toEqual({ left: 11, top: 69 })
+    expect(result.report.pattern.alignment).toEqual({ alignedToQr: true, phase: { x: 0, y: 0 } })
+
+    // The safe area is the modules the region covers in full; the partial ones keep the artwork.
     expect(result.report.cut).toEqual({
+      modulePixels: 5,
+      lattice: { x: 4, y: 1 },
       radius: 10,
-      smoothTolerance: 5,
-      cleanRadius: 5,
-      border: { width: 20, color: '#000000', side: 'inside' },
+      safeModules: 4_778,
+      droppedPartialModules: 451,
+      droppedPartialPixels: 6_047,
+      drawnModules: 3_261,
+      rim: { modules: 4, style: 'cell' },
+      plateCornerModules: 4,
       keep: 'region-mask',
-      minLoopArea: 100,
-      edgeBlend: 'coverage-over-original',
+      edgeBlend: 'cell-aligned-over-original',
     })
-    // The QR keeps one quiet-zone module: the 39-module plate is the code grid plus 5px.
+    // The plate keeps one whole light module, so its window sits on the lattice and the cut's hole
+    // is whole modules: the 39x39 window minus its four corner modules, which stay texture.
+    expect(result.report.qrPlate).toEqual({
+      marginModules: 1,
+      marginPixels: 5,
+      cornerModules: 1,
+      path: 'module-window',
+      box: { x: 254, y: 206, width: 195, height: 195 },
+      holeModules: 1_517,
+      cornerTexturePixels: 100,
+    })
     expect(result.report.qr.overlay).toEqual({
       quietZoneModules: 1,
       crop: { left: 5, top: 5, size: 195 },
       x: 254,
       y: 206,
     })
-    // The plate is the same window, rounded by the two-module fillet, and it is the only hole in
-    // the cut path: its corners hand 56 window pixels back to the texture.
-    expect(result.report.qrPlate).toEqual({
-      marginModules: 1,
-      radius: 10,
-      path: 'rounded-rect',
-      box: { x: 254, y: 206, width: 195, height: 195 },
-      cornerTexturePixels: 56,
-    })
-    expect(result.report.shape.loopsKept).toBe(1)
-    expect(result.report.shape.holes).toBe(1)
-    expect(result.report.shape.bounds).toEqual({ x: 169, y: 104, width: 379, height: 419 })
-    // Cleaning plus a two-module fillet turns the traced staircase into a rounded outline.
-    expect(result.report.shape.verticesTraced).toBeGreaterThan(1000)
-    expect(result.report.shape.verticesSimplified).toBeLessThanOrEqual(60)
-    // The net cut area is the region minus the plate: cleaning adds about 1.5% along the outline
-    // and the rounded plate takes its window back out.
-    expect(result.report.shape.area).toBeGreaterThan(87_000)
-    expect(result.report.shape.area).toBeLessThan(92_000)
-    const plateArea = roundedRectArea(195, 10)
-    expect(Math.abs(result.report.region.area - plateArea - result.report.shape.area) / result.report.region.area).toBeLessThan(0.02)
+    expect(result.report.shape.modules).toBe(3_261)
+    expect(result.report.shape.rimModules).toBe(1_316)
+    expect(result.report.shape.textureModules).toBe(1_945)
+    expect(result.report.shape.area).toBe(3_261 * 25)
+    expect(result.report.shape.bounds).toEqual({ x: 169, y: 106, width: 375, height: 410 })
+
     expect(result.report.verification.checks.map(check => check.name)).toEqual([
       'sourceQr',
       'normalizedQr',
       'outsideRegionPixels',
       'qrPixels',
       'qrPlateCorners',
+      'moduleCut',
       'alphaPreserved',
     ])
     expect(result.report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
-    expect(result.report.warnings.join(' ')).toMatch(/quiet zone was trimmed to 1 module/)
-    expect(result.report.warnings.join(' ')).toMatch(/rounding keeps only 56 of the window's corner pixels as texture/)
     expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
-  }, 60_000)
+    expect(result.report.warnings.join(' ')).toMatch(/The QR quiet zone is 5px \(1 module\)/)
+    // A whole-module margin is module-level everywhere, so nothing warns about a trimmed cell.
+    expect(result.report.warnings.join(' ')).not.toMatch(/trims/)
+    expect(result.report.warnings.join(' ')).toMatch(/451 module\(s\) crossed the painted region's edge/)
+  }, 120_000)
 
-  it('keeps every pixel outside the region, the exact QR, and the source alpha channel', async () => {
+  it('draws whole modules only, so dropped modules keep the original artwork', async () => {
     const outputDir = await temporaryDirectory()
     const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
     const { width, height } = result.report.inputs.poster
-    const { x, y, size } = result.report.placement
-    const overlay = result.report.qr.overlay
-    const plate = result.report.qrPlate
-    const overlayX = overlay.x
-    const overlayY = overlay.y
-    const overlaySize = overlay.crop.size
-    const marginInset = overlay.quietZoneModules * result.report.placement.modulePixels
-    const codeX = overlayX + marginInset
-    const codeY = overlayY + marginInset
-    const codeSize = overlaySize - marginInset * 2
-    const plateCoverage = await renderCutCoverage(
-      buildQrPlatePath(plate.box.x, plate.box.y, plate.box.width, plate.radius),
-      width,
-      height,
-    )
+    const placement = result.report.placement
+    const pitch = placement.modulePixels
+    const lattice = buildModuleLattice(width, height, pitch, placement)
 
-    const source = await sharp(POSTER).ensureAlpha().raw().toBuffer()
-    const assembled = await sharp(join(outputDir, 'poster.png')).ensureAlpha().raw().toBuffer()
-    const mask = await sharp(join(outputDir, 'region-mask.png')).extractChannel(0).raw().toBuffer()
-    const qr = await sharp(join(outputDir, 'qr.png')).flatten({ background: '#ffffff' }).ensureAlpha().raw().toBuffer()
-    const pattern = await sharp((await renderPosterPattern({
-      width,
-      height,
-      modulePixels: result.report.placement.modulePixels,
-      seed: 1,
-      alignTo: { x, y },
-    })).png).ensureAlpha().raw().toBuffer()
+    const source = await raw(POSTER)
+    const assembled = await raw(join(outputDir, 'poster.png'))
+    const cut = await raw(join(outputDir, 'pattern-cut.png'))
+    const mask = await raw(join(outputDir, 'region-mask.png'))
 
+    // The written cut layer is the module grid: every module is either fully opaque or fully clear.
+    const drawn = new Uint8Array(lattice.columns * lattice.rows)
+    let partialModules = 0
+    for (let cell = 0; cell < drawn.length; cell++) {
+      const row = Math.floor(cell / lattice.columns)
+      const column = cell - row * lattice.columns
+      let opaque = 0
+      for (let offsetY = 0; offsetY < pitch; offsetY++) {
+        for (let offsetX = 0; offsetX < pitch; offsetX++) {
+          const index = ((lattice.y + row * pitch + offsetY) * width) + lattice.x + column * pitch + offsetX
+          if (cut.data[index * 4 + 3] === 255)
+            opaque++
+        }
+      }
+      if (opaque > 0 && opaque < pitch * pitch)
+        partialModules++
+      drawn[cell] = opaque === pitch * pitch ? 1 : 0
+    }
+    expect(partialModules).toBe(0)
+    expect(drawn.reduce<number>((total, value) => total + value, 0)).toBe(result.report.cut.drawnModules)
+
+    const safe = safeModules(mask, lattice)
     let outsideChanged = 0
-    let qrMismatch = 0
+    let changedOutsideModules = 0
+    let changedInDroppedModules = 0
     let alphaChanged = 0
     let transparent = 0
-    let replacedInsideRegion = 0
-    let marginDark = 0
-    let marginPixels = 0
-    let cornerMismatch = 0
-    let cornerPixels = 0
-    let cutMarginDark = 0
-    let cutMarginPixels = 0
+    let replaced = 0
+    let drawnOutsideRegion = 0
     for (let row = 0; row < height; row++) {
       for (let column = 0; column < width; column++) {
         const index = row * width + column
         const offset = index * 4
-        const insideQr = column >= overlayX && column < overlayX + overlaySize
-          && row >= overlayY && row < overlayY + overlaySize
-        // Only the fully opaque plate carries the copied QR: its rounded corners must stay texture.
-        const insidePlate = plateCoverage[index] === 255
-        const insideBox = column >= x && column < x + size && row >= y && row < y + size
+        const cell = moduleCellIndex(lattice, column, row)
+        const isDrawn = cell >= 0 && drawn[cell] === 1
+        const inHole = cell >= 0 && result.report.qrPlate.box.x <= column
+          && column < result.report.qrPlate.box.x + result.report.qrPlate.box.width
+          && result.report.qrPlate.box.y <= row
+          && row < result.report.qrPlate.box.y + result.report.qrPlate.box.height
+        let changed = false
         for (let channel = 0; channel < 4; channel++) {
-          if (!mask[index] && assembled[offset + channel] !== source[offset + channel])
+          if (assembled.data[offset + channel] !== source.data[offset + channel])
+            changed = true
+          if (!mask.data[offset] && assembled.data[offset + channel] !== source.data[offset + channel])
             outsideChanged++
-          if (insidePlate && assembled[offset + channel] !== qr[((row - y) * size + column - x) * 4 + channel])
-            qrMismatch++
-          if (insideQr && plateCoverage[index] === 0 && assembled[offset + channel] !== pattern[offset + channel])
-            cornerMismatch++
         }
-        // The one-module light margin around the code grid, and the box ring outside the plate
-        // where the dropped quiet-zone module used to be, which is texture now.
-        const insideCode = column >= codeX && column < codeX + codeSize
-          && row >= codeY && row < codeY + codeSize
-        if (insidePlate && !insideCode) {
-          marginPixels++
-          if (assembled[offset] < 248)
-            marginDark++
-        }
-        if (insideQr && plateCoverage[index] === 0)
-          cornerPixels++
-        if (insideBox && !insideQr && mask[index]) {
-          cutMarginPixels++
-          if (assembled[offset] < 128)
-            cutMarginDark++
-        }
-        if (assembled[offset + 3] !== source[offset + 3])
+        if (changed && !isDrawn && !inHole)
+          changedOutsideModules++
+        if (changed && cell >= 0 && !drawn[cell] && !inHole)
+          changedInDroppedModules++
+        if (isDrawn && !safe[cell!])
+          drawnOutsideRegion++
+        if (assembled.data[offset + 3] !== source.data[offset + 3])
           alphaChanged++
-        if (assembled[offset + 3] === 0)
+        if (assembled.data[offset + 3] === 0)
           transparent++
-        if (mask[index] && !insideQr && assembled[offset] !== source[offset])
-          replacedInsideRegion++
+        if (mask.data[offset] && isDrawn && assembled.data[offset] !== source.data[offset])
+          replaced++
       }
     }
     expect(outsideChanged).toBe(0)
-    expect(qrMismatch).toBe(0)
-    expect(cornerMismatch).toBe(0)
+    expect(changedOutsideModules).toBe(0)
+    expect(changedInDroppedModules).toBe(0)
+    expect(drawnOutsideRegion).toBe(0)
     expect(alphaChanged).toBe(0)
     expect(transparent).toBe(0)
-    // The texture really did replace the painted blob rather than leaving it black.
-    expect(replacedInsideRegion).toBeGreaterThan(40_000)
-    // The one-module ring inside the plate is the QR's own light margin, not texture: 3,800 window
-    // pixels less the 56 the rounding hands back to the texture and the 68 antialiased pixels along
-    // the four corner arcs, which are neither fully plate nor fully texture.
-    expect(marginPixels).toBe(3_676)
-    expect(marginDark).toBe(0)
-    // The rounded corners are the only window pixels the plate gives back to the texture.
-    expect(cornerPixels).toBe(56)
-    // The ring of the placement box outside the plate is the quiet-zone module that was dropped,
-    // so the texture runs there instead of a wide white square.
-    expect(cutMarginPixels).toBeGreaterThan(3_000)
-    expect(cutMarginDark / cutMarginPixels).toBeGreaterThan(0.25)
-  }, 60_000)
-
-  it('draws the black border inside the rounded cut edge', async () => {
-    const outputDir = await temporaryDirectory()
-    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
-    const { width, height } = result.report.inputs.poster
-    const mask = await sharp(join(outputDir, 'region-mask.png')).extractChannel(0).raw().toBuffer()
-    const selection = cleanMaskSelection(
-      Uint8Array.from(mask, value => (value ? 1 : 0)),
-      width,
-      height,
-      result.report.cut.cleanRadius,
-    )
-    const cut = buildCutPath(selection, width, height, {
-      radius: result.report.cut.radius,
-      smoothTolerance: result.report.cut.smoothTolerance,
-    })
-    const border = await renderCutBorderCoverage(cut.d, width, height, result.report.cut.border.width)
-    const assembled = await sharp(join(outputDir, 'poster.png')).removeAlpha().raw().toBuffer()
-    const source = await sharp(POSTER).removeAlpha().raw().toBuffer()
-
-    let solid = 0
-    let notBlack = 0
-    let paintedOutside = 0
-    for (let index = 0; index < border.length; index++) {
-      if (border[index] === 255) {
-        solid++
-        if (mask[index]
-          && (assembled[index * 3]! > 32 || assembled[index * 3 + 1]! > 32 || assembled[index * 3 + 2]! > 32))
-          notBlack++
-      }
-      // The band may reach past the mask where the rounded cut does, but the composite never
-      // paints it there: those pixels keep the original artwork.
-      if (border[index]! > 0 && !mask[index]) {
-        for (let channel = 0; channel < 3; channel++) {
-          if (assembled[index * 3 + channel] !== source[index * 3 + channel])
-            paintedOutside++
-        }
-      }
-    }
-    // The band is a real four-module (20px) ring, every pixel of it inside the painted region is
-    // black, and none of it is painted outside that region, so the outside-region guarantee holds.
-    expect(solid).toBeGreaterThan(20_000)
-    expect(notBlack).toBe(0)
-    expect(paintedOutside).toBe(0)
-
-    // Clipping the band to the region trims the outermost pixel or two where the rounded cut runs
-    // just outside the detected mask, so the border reads as a continuous rim on the mask edge.
-    let boundary = 0
-    let boundaryDark = 0
-    for (let y = 1; y < height - 1; y++) {
-      for (let x = 1; x < width - 1; x++) {
-        const index = y * width + x
-        if (!mask[index])
-          continue
-        const onBoundary = !mask[index - 1] || !mask[index + 1] || !mask[index - width] || !mask[index + width]
-        if (!onBoundary)
-          continue
-        boundary++
-        if (assembled[index * 3]! < 40)
-          boundaryDark++
-      }
-    }
-    expect(boundary).toBeGreaterThan(1_500)
-    expect(boundaryDark / boundary).toBeGreaterThan(0.7)
+    // The texture really did replace the painted blob inside the drawn modules.
+    expect(replaced).toBeGreaterThan(40_000)
   }, 120_000)
 
-  it('composites the same cut texture the pattern-cut mode would produce', async () => {
+  it('composites the same whole modules the generator and the matrix describe', async () => {
     const outputDir = await temporaryDirectory()
     const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
     const { width, height } = result.report.inputs.poster
-    const mask = await sharp(join(outputDir, 'region-mask.png')).extractChannel(0).raw().toBuffer()
-    const selected = Uint8Array.from(mask, value => (value ? 1 : 0))
-    // Rebuild the composited geometry, then sample only where neither the antialiased cut edge nor
-    // the black border paints and the rounded plate leaves the texture, so the comparison covers
-    // the texture itself.
-    const cutEdge = buildCutPath(
-      cleanMaskSelection(selected, width, height, result.report.cut.cleanRadius),
-      width,
-      height,
-      { radius: result.report.cut.radius, smoothTolerance: result.report.cut.smoothTolerance },
-    )
-    const plate = result.report.qrPlate
-    const platePath = buildQrPlatePath(plate.box.x, plate.box.y, plate.box.width, plate.radius)
-    const coverage = await renderCutCoverage(cutEdge.d + platePath, width, height)
-    const plateCoverage = await renderCutCoverage(platePath, width, height)
-    const borderCoverage = await renderCutBorderCoverage(
-      cutEdge.d,
-      width,
-      height,
-      result.report.cut.border.width,
-    )
+    const placement = result.report.placement
+    const pitch = placement.modulePixels
+    const lattice = buildModuleLattice(width, height, pitch, placement)
+    const mask = await raw(join(outputDir, 'region-mask.png'))
+    const cut = await raw(join(outputDir, 'pattern-cut.png'))
+    const poster = await raw(join(outputDir, 'poster.png'))
+    const safe = safeModules(mask, lattice)
+    const rim = computeRimModules(safe, lattice, RIM_MODULES)
+    const drawn = new Uint8Array(safe.length)
+    for (let cell = 0; cell < drawn.length; cell++)
+      drawn[cell] = cut.data[(((Math.floor(cell / lattice.columns) * pitch + lattice.y) * width)
+        + lattice.x + (cell % lattice.columns) * pitch) * 4 + 3] === 255 ? 1 : 0
 
-    const pattern = await renderPosterPattern({
+    // Rebuild the texture the report describes: the generator's matrix, rim cells forced dark, and
+    // only the drawn modules emitted.
+    const pattern = await buildPosterPattern({
       width,
       height,
-      modulePixels: 5,
-      seed: 1,
-      alignTo: { x: result.report.placement.x, y: result.report.placement.y },
+      modulePixels: pitch,
+      seed: result.report.pattern.seed,
+      alignTo: { x: placement.x, y: placement.y },
     })
     expect(pattern.crop).toEqual(result.report.pattern.crop)
-    const source = await sharp(pattern.png).removeAlpha().raw().toBuffer()
-    const cut = await sharp(join(outputDir, 'pattern-cut.png')).ensureAlpha().raw().toBuffer()
+    const moduleOffsetX = (pattern.crop.left + (placement.x % pitch)) / pitch
+    const moduleOffsetY = (pattern.crop.top + (placement.y % pitch)) / pitch
+    const effective = pattern.matrix.map(row => row.slice())
+    for (let row = 0; row < lattice.rows; row++) {
+      for (let column = 0; column < lattice.columns; column++) {
+        const cell = row * lattice.columns + column
+        if (!drawn[cell] || !rim[cell])
+          continue
+        const matrixRow = row + moduleOffsetY - pattern.marginModules
+        const matrixColumn = column + moduleOffsetX - pattern.marginModules
+        if (matrixRow >= 0 && matrixColumn >= 0 && matrixRow < effective.length && matrixColumn < effective.length)
+          effective[matrixRow]![matrixColumn] = true
+      }
+    }
+    const rendered = await sharp(await renderRoundedPattern(effective, pitch, {
+      marginModules: pattern.marginModules,
+      window: { ...pattern.crop, width, height },
+      include: (moduleX, moduleY) => {
+        const column = moduleX - moduleOffsetX
+        const row = moduleY - moduleOffsetY
+        return column >= 0 && row >= 0 && column < lattice.columns && row < lattice.rows
+          && drawn[row * lattice.columns + column] === 1
+      },
+    })).ensureAlpha().raw().toBuffer()
 
     let sampled = 0
-    let mismatches = 0
-    for (let index = 0; index < selected.length; index++) {
-      if (coverage[index] !== 255 || borderCoverage[index] !== 0)
+    let cutMismatch = 0
+    let rimPixels = 0
+    let rimDark = 0
+    for (let cell = 0; cell < drawn.length; cell++) {
+      if (!drawn[cell])
         continue
-      const offset = index * 4
-      sampled++
-      if (cut[offset + 3] !== 255) {
-        mismatches++
-        continue
-      }
-      for (let channel = 0; channel < 3; channel++) {
-        if (cut[offset + channel] !== source[index * 3 + channel])
-          mismatches++
+      const row = Math.floor(cell / lattice.columns)
+      const column = cell - row * lattice.columns
+      for (let offsetY = 0; offsetY < pitch; offsetY++) {
+        for (let offsetX = 0; offsetX < pitch; offsetX++) {
+          const x = lattice.x + column * pitch + offsetX
+          const y = lattice.y + row * pitch + offsetY
+          const offset = (y * width + x) * 4
+          sampled++
+          for (let channel = 0; channel < 3; channel++) {
+            if (cut.data[offset + channel] !== rendered[offset + channel])
+              cutMismatch++
+          }
+          if (rim[cell]) {
+            rimPixels++
+            if (poster.data[offset]! < 32 && poster.data[offset + 1]! < 32 && poster.data[offset + 2]! < 32)
+              rimDark++
+          }
+        }
       }
     }
-    expect(sampled).toBeGreaterThan(10_000)
-    expect(mismatches).toBe(0)
+    expect(sampled).toBe(3_261 * 25)
+    expect(cutMismatch).toBe(0)
+    // The rim is whole dark modules, so the outline reads as one band of the texture's own cells.
+    expect(rimDark / rimPixels).toBeGreaterThan(0.97)
+  }, 120_000)
 
-    // The plate is a hole in the written cut layer: transparent inside the plate, texture in the
-    // corners the rounding gives back.
-    let plateOpaque = 0
-    let cornerTransparent = 0
+  it('copies the QR into the plate window and hands the corner modules to the texture', async () => {
+    const outputDir = await temporaryDirectory()
+    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
+    const { width } = result.report.inputs.poster
+    const plate = result.report.qrPlate
+    const overlay = result.report.qr.overlay
+    const pitch = result.report.placement.modulePixels
+    const lattice = buildModuleLattice(width, result.report.inputs.poster.height, pitch, result.report.placement)
+    const poster = await raw(join(outputDir, 'poster.png'))
+    const qr = await raw(join(outputDir, 'qr.png'))
+    const cut = await raw(join(outputDir, 'pattern-cut.png'))
+
+    let qrPixels = 0
+    let qrMismatch = 0
+    let cornerPixels = 0
+    let cornerMismatch = 0
+    let drawnInsideWindow = 0
+    // The handed-back corner modules are the ones holding the window's corner pixels.
+    const cornerCells = new Set<number>()
+    if (plate.cornerModules > 0) {
+      for (const [x, y] of [
+        [plate.box.x, plate.box.y],
+        [plate.box.x + plate.box.width - 1, plate.box.y],
+        [plate.box.x, plate.box.y + plate.box.height - 1],
+        [plate.box.x + plate.box.width - 1, plate.box.y + plate.box.height - 1],
+      ])
+        cornerCells.add(moduleCellIndex(lattice, x!, y!))
+    }
     for (let row = plate.box.y; row < plate.box.y + plate.box.height; row++) {
       for (let column = plate.box.x; column < plate.box.x + plate.box.width; column++) {
-        const index = row * width + column
-        if (plateCoverage[index] === 255) {
-          if (cut[index * 4 + 3] !== 0)
-            plateOpaque++
+        const offset = (row * width + column) * 4
+        const cell = moduleCellIndex(lattice, column, row)
+        const corner = cornerCells.has(cell)
+        if (corner) {
+          cornerPixels++
+          // The corner module's in-window pixels are texture the cut wrote, not the QR's margin.
+          if (cut.data[offset + 3] !== 255)
+            cornerMismatch++
+          for (let channel = 0; channel < 3; channel++) {
+            if (poster.data[offset + channel] !== cut.data[offset + channel])
+              cornerMismatch++
+          }
+          continue
         }
-        else if (plateCoverage[index] === 0 && cut[index * 4 + 3] !== 255) {
-          cornerTransparent++
+        qrPixels++
+        const source = ((row - plate.box.y + overlay.crop.left) * result.report.placement.size
+          + column - plate.box.x + overlay.crop.top) * 4
+        for (let channel = 0; channel < 4; channel++) {
+          if (poster.data[offset + channel] !== qr.data[source + channel])
+            qrMismatch++
         }
       }
     }
-    expect(cornerTransparent).toBe(0)
-    expect(plateOpaque).toBe(0)
+    // The corner modules are the only window pixels that are not the QR's own margin.
+    expect(qrPixels + cornerPixels).toBe(plate.box.width * plate.box.height)
+    expect(qrMismatch).toBe(0)
+    expect(cornerPixels).toBe(plate.cornerTexturePixels)
+    expect(cornerMismatch).toBe(0)
 
-    // Nothing outside the painted region survives into the written cut layer.
-    let coveredOutside = 0
-    for (let index = 0; index < selected.length; index++) {
-      if (!selected[index] && cut[index * 4 + 3] !== 0)
-        coveredOutside++
+    // The window is lattice-aligned at a whole-module margin: its 39x39 modules are the cut's hole
+    // plus the corner modules handed back, and only those corners carry texture.
+    let insideModules = 0
+    for (let row = 0; row < lattice.rows; row++) {
+      for (let column = 0; column < lattice.columns; column++) {
+        const x = lattice.x + column * pitch
+        const y = lattice.y + row * pitch
+        if (x < plate.box.x || y < plate.box.y
+          || x + pitch > plate.box.x + plate.box.width || y + pitch > plate.box.y + plate.box.height)
+          continue
+        insideModules++
+        if (cut.data[(y * width + x) * 4 + 3] === 255)
+          drawnInsideWindow++
+      }
     }
-    expect(coveredOutside).toBe(0)
-  }, 60_000)
+    expect(insideModules).toBe(plate.holeModules + result.report.cut.plateCornerModules)
+    expect(drawnInsideWindow).toBe(result.report.cut.plateCornerModules)
+  }, 120_000)
+
+  it('writes the square window back when the plate radius is zero', async () => {
+    const outputDir = await temporaryDirectory()
+    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1, radius: 0 })
+    expect(result.report.qrPlate).toEqual({
+      marginModules: 1,
+      marginPixels: 5,
+      cornerModules: 0,
+      path: 'module-window',
+      box: { x: 254, y: 206, width: 195, height: 195 },
+      holeModules: 1_521,
+      cornerTexturePixels: 0,
+    })
+    expect(result.report.cut.plateCornerModules).toBe(0)
+    expect(result.report.cut.drawnModules).toBe(4_778 - 1_521)
+    expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
+    expect(result.report.warnings.join(' ')).toMatch(/plate's 0 corner module\(s\) are handed back/)
+
+    // With no corner handback the plain 39x39-module window carries the QR's own margin.
+    const { width } = result.report.inputs.poster
+    const poster = await raw(join(outputDir, 'poster.png'))
+    const qr = await raw(join(outputDir, 'qr.png'))
+    const box = result.report.qrPlate.box
+    let mismatch = 0
+    for (let row = box.y; row < box.y + box.height; row++) {
+      for (let column = box.x; column < box.x + box.width; column++) {
+        const source = ((row - box.y + 5) * result.report.placement.size + column - box.x + 5) * 4
+        for (let channel = 0; channel < 4; channel++) {
+          if (poster.data[(row * width + column) * 4 + channel] !== qr.data[source + channel])
+            mismatch++
+        }
+      }
+    }
+    expect(mismatch).toBe(0)
+  }, 120_000)
+
+  it('keeps every drawn cell whole when the margin is a whole module', async () => {
+    const outputDir = await temporaryDirectory()
+    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
+    const { width, height } = result.report.inputs.poster
+    const pitch = result.report.placement.modulePixels
+    const lattice = buildModuleLattice(width, height, pitch, result.report.placement)
+    const cut = await raw(join(outputDir, 'pattern-cut.png'))
+    const poster = await raw(join(outputDir, 'poster.png'))
+
+    // The module-level guarantee: the plate never paints over a drawn cell, so every drawn module in
+    // the poster is bit-exact with the cut layer that carries it.
+    let drawnCells = 0
+    let trimmedCells = 0
+    for (let row = 0; row < lattice.rows; row++) {
+      for (let column = 0; column < lattice.columns; column++) {
+        const x = lattice.x + column * pitch
+        const y = lattice.y + row * pitch
+        if (x + pitch > width || y + pitch > height)
+          continue
+        if (cut.data[(y * width + x) * 4 + 3] !== 255)
+          continue
+        drawnCells++
+        for (let offsetY = 0; offsetY < pitch; offsetY++) {
+          for (let offsetX = 0; offsetX < pitch; offsetX++) {
+            const offset = ((y + offsetY) * width + x + offsetX) * 4
+            for (let channel = 0; channel < 3; channel++) {
+              if (poster.data[offset + channel] !== cut.data[offset + channel]) {
+                trimmedCells++
+                offsetX = pitch
+                offsetY = pitch
+                break
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(drawnCells).toBe(result.report.cut.drawnModules)
+    expect(trimmedCells).toBe(0)
+  }, 120_000)
+
+  it('paints a fractional margin at pixel precision and says what it costs', async () => {
+    const outputDir = await temporaryDirectory()
+    const result = await assemblePoster({
+      inputPath: POSTER,
+      qrPath: TRIMMED_QR,
+      outputDir,
+      seed: 1,
+      qrMargin: 0.2,
+    })
+    // The tight look: a 1px band around the code, which needs a pixel-precise plate window and
+    // therefore trims the cells along the plate edge. The report warns about both halves of that.
+    expect(result.report.qrPlate).toEqual({
+      marginModules: 0.2,
+      marginPixels: 1,
+      cornerModules: 1,
+      path: 'pixel-window',
+      box: { x: 258, y: 210, width: 187, height: 187 },
+      holeModules: 1_369,
+      cornerTexturePixels: 4,
+    })
+    expect(result.report.cut.drawnModules).toBe(3_409)
+    expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
+    expect(result.report.warnings.join(' ')).toMatch(/trims 1px off every texture cell along its edge/)
+
+    // Only the cells bordering the plate lose their inner pixel; everything else stays whole.
+    const { width, height } = result.report.inputs.poster
+    const pitch = result.report.placement.modulePixels
+    const lattice = buildModuleLattice(width, height, pitch, result.report.placement)
+    const cut = await raw(join(outputDir, 'pattern-cut.png'))
+    const poster = await raw(join(outputDir, 'poster.png'))
+    let drawnCells = 0
+    let trimmedCells = 0
+    for (let row = 0; row < lattice.rows; row++) {
+      for (let column = 0; column < lattice.columns; column++) {
+        const x = lattice.x + column * pitch
+        const y = lattice.y + row * pitch
+        if (x + pitch > width || y + pitch > height)
+          continue
+        if (cut.data[(y * width + x) * 4 + 3] !== 255)
+          continue
+        drawnCells++
+        let trimmed = false
+        for (let offsetY = 0; offsetY < pitch && !trimmed; offsetY++) {
+          for (let offsetX = 0; offsetX < pitch; offsetX++) {
+            const offset = ((y + offsetY) * width + x + offsetX) * 4
+            for (let channel = 0; channel < 3; channel++) {
+              if (poster.data[offset + channel] !== cut.data[offset + channel]) {
+                trimmed = true
+                break
+              }
+            }
+            if (trimmed)
+              break
+          }
+        }
+        if (trimmed)
+          trimmedCells++
+      }
+    }
+    expect(drawnCells).toBe(3_409)
+    // The 73 cells that touch the 187px window lose exactly the pixel the plate paints.
+    expect(trimmedCells).toBe(73)
+  }, 120_000)
+
+  it('keeps the module cut decodable at three scales', async () => {
+    const outputDir = await temporaryDirectory()
+    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
+    // Local-decoder evidence only: the plate trims the quiet zone to one module and its corner
+    // modules go to the texture, so the run still reports the poster decode checks as skipped and
+    // phoneScan as untested. This asserts the module cut did not cost the three scales.
+    const poster = await sharp(join(outputDir, 'poster.png')).png().toBuffer()
+    const { width } = result.report.inputs.poster
+    await expect(decodeQrBuffer(poster)).resolves.toBe(result.report.qr.decodedText)
+    await expect(decodeQrBuffer(await sharp(poster).resize({ width: width / 2 }).png().toBuffer()))
+      .resolves.toBe(result.report.qr.decodedText)
+    await expect(decodeQrBuffer(await sharp(poster).jpeg({ quality: 80 }).png().toBuffer()))
+      .resolves.toBe(result.report.qr.decodedText)
+    expect(result.report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
+    expect(result.report.phoneScan).toBe('untested')
+  }, 120_000)
 
   it('is reproducible for a seed, varies by seed, and protects existing artifacts', async () => {
     const outputDir = await temporaryDirectory()
@@ -374,41 +553,6 @@ describe('assemble mode', () => {
     const reseeded = await assemblePoster({ ...base, seed: 8, force: true })
     expect(reseeded.report.artifacts.posterSha256).not.toBe(first.report.artifacts.posterSha256)
   }, 120_000)
-
-  it('writes the square window back when the plate radius is zero', async () => {
-    const outputDir = await temporaryDirectory()
-    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1, radius: 0 })
-    // A zero fillet clamps the plate to a plain rectangle, so no window pixel is handed back to
-    // the texture and the straight cut the rounding replaced is reproduced.
-    expect(result.report.qrPlate).toMatchObject({
-      marginModules: 1,
-      radius: 0,
-      path: 'rounded-rect',
-      box: { x: 254, y: 206, width: 195, height: 195 },
-      cornerTexturePixels: 0,
-    })
-    expect(result.report.shape.holes).toBe(1)
-    expect(result.report.shape.area).toBeGreaterThan(89_000)
-    expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
-    expect(result.report.warnings.join(' ')).toMatch(/rounding keeps only 0 of the window's corner pixels as texture/)
-  }, 60_000)
-
-  it('keeps the rounded plate decodable at three scales', async () => {
-    const outputDir = await temporaryDirectory()
-    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
-    // Local-decoder evidence only: the plate trims the quiet zone to one module and rounds its
-    // corners, so the run still reports the poster decode checks as skipped and phoneScan as
-    // untested. This asserts the rounding did not cost the three scales the square window kept.
-    const poster = await sharp(join(outputDir, 'poster.png')).png().toBuffer()
-    const { width } = result.report.inputs.poster
-    await expect(decodeQrBuffer(poster)).resolves.toBe(result.report.qr.decodedText)
-    await expect(decodeQrBuffer(await sharp(poster).resize({ width: width / 2 }).png().toBuffer()))
-      .resolves.toBe(result.report.qr.decodedText)
-    await expect(decodeQrBuffer(await sharp(poster).jpeg({ quality: 80 }).png().toBuffer()))
-      .resolves.toBe(result.report.qr.decodedText)
-    expect(result.report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
-    expect(result.report.phoneScan).toBe('untested')
-  }, 60_000)
 
   it('matches the square fixture QR and rejects unusable cut options', async () => {
     const trimmedDir = await temporaryDirectory()
@@ -424,11 +568,68 @@ describe('assemble mode', () => {
       outputDir: await temporaryDirectory(),
       radius: -1,
     })).rejects.toMatchObject({ code: 'INVALID_INPUT', exitCode: 2 })
+    // The cut is module-aligned, so there is no traced outline for --cut-smooth to simplify.
     await expect(assemblePoster({
       inputPath: POSTER,
       qrPath: TRIMMED_QR,
       outputDir: await temporaryDirectory(),
-      smoothTolerance: Number.NaN,
+      smoothTolerance: 3,
     })).rejects.toMatchObject({ code: 'INVALID_INPUT', exitCode: 2 })
-  }, 60_000)
+  }, 120_000)
+
+  it('writes the module path into the cut SVG', async () => {
+    const outputDir = await temporaryDirectory()
+    const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1 })
+    const { width, height } = result.report.inputs.poster
+    const svg = await import('node:fs/promises').then(fs => fs.readFile(join(outputDir, 'pattern-cut.svg'), 'utf8'))
+    expect(svg).toContain('<clipPath id="pattern-cut">')
+    expect(svg).toContain('data:image/png;base64,')
+    expect(svg).not.toContain('stroke="url')
+    // The clip is the same module union the composite used: rebuild it and compare.
+    const cut = await raw(join(outputDir, 'pattern-cut.png'))
+    const lattice = buildModuleLattice(width, height, 5, result.report.placement)
+    const drawn = new Uint8Array(lattice.columns * lattice.rows)
+    for (let row = 0; row < lattice.rows; row++) {
+      for (let column = 0; column < lattice.columns; column++) {
+        const x = lattice.x + column * 5
+        const y = lattice.y + row * 5
+        drawn[row * lattice.columns + column] = cut.data[(y * width + x) * 4 + 3] === 255 ? 1 : 0
+      }
+    }
+    const path = buildModulePath(drawn, lattice)
+    expect(svg).toContain(`d="${path}"`)
+  }, 120_000)
+
+  it('refuses a region with no texture module left after the rim and the plate', async () => {
+    const directory = await temporaryDirectory()
+    // A square painted region exactly wide enough for the QR and its two art-padding modules: the
+    // placement fits, but the four-module rim and the plate leave nothing to texture, so the run
+    // reports the layout instead of drawing a black slab.
+    const size = 200
+    const region = 180
+    const mask = Buffer.alloc(size * size * 4)
+    const poster = Buffer.alloc(size * size * 4)
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const offset = (y * size + x) * 4
+        poster[offset] = poster[offset + 1] = poster[offset + 2] = 255
+        poster[offset + 3] = 255
+        const inside = x >= 10 && x < 10 + region && y >= 10 && y < 10 + region
+        mask[offset] = mask[offset + 1] = mask[offset + 2] = inside ? 255 : 0
+        mask[offset + 3] = 255
+      }
+    }
+    const posterPath = join(directory, 'poster.png')
+    const maskPath = join(directory, 'region-mask.png')
+    await sharp(poster, { raw: { width: size, height: size, channels: 4 } }).png().toFile(posterPath)
+    await sharp(mask, { raw: { width: size, height: size, channels: 4 } }).png().toFile(maskPath)
+
+    await expect(assemblePoster({
+      inputPath: posterPath,
+      qrPath: FIXTURE_QR,
+      maskPath,
+      outputDir: join(directory, 'out'),
+      seed: 1,
+    })).rejects.toMatchObject({ code: 'QR_LAYOUT_INVALID', exitCode: 2 })
+  }, 120_000)
 })
