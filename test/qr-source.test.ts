@@ -91,7 +91,7 @@ describe('QR source resolution', () => {
     expect(layout.qrMetadata.quietZoneSource).toBe('added')
     expect(layout.qrMetadata.sourceTrim).toEqual({ left: 8, top: 5, right: 5, bottom: 3, modulePixels: 20 })
     expect(layout.qrSource.width).toBe(753)
-    expect(layout.placement.modulePixels).toBe(5)
+    expect(layout.placement).toMatchObject({ x: 218, y: 181, size: 246, modulePixels: 6, artPaddingModules: 0 })
   })
 
   it('accepts generated content and rejects ambiguous programmatic QR sources', async () => {

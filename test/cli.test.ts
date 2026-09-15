@@ -191,28 +191,28 @@ describe.skipIf(!spawnAvailable)('cli assemble mode', () => {
     const report = JSON.parse(await readFile(join(outDir, 'report.json'), 'utf8'))
     expect(report.schemaVersion).toBe(7)
     expect(report.cut.radius).toBe(4)
-    expect(report.cut.modulePixels).toBe(6)
-    expect(report.cut.lattice).toEqual({ x: 2, y: 1 })
+    expect(report.cut.modulePixels).toBe(7)
+    expect(report.cut.lattice).toEqual({ x: 2, y: 6 })
     expect(report.cut.rim).toEqual({ modules: 4, style: 'cell' })
     expect(report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
     expect(report.qr.overlay).toEqual({
       quietZoneModules: 1,
-      crop: { left: 6, top: 6, size: 210 },
-      x: 236,
-      y: 199,
+      crop: { left: 7, top: 7, size: 245 },
+      x: 212,
+      y: 181,
     })
     // Any positive --cut-radius hands the plate's four corner modules back to the texture.
     expect(report.qrPlate).toEqual({
       marginModules: 1,
-      marginPixels: 6,
+      marginPixels: 7,
       cornerModules: 1,
       path: 'module-window',
-      box: { x: 236, y: 199, width: 210, height: 210 },
+      box: { x: 212, y: 181, width: 245, height: 245 },
       holeModules: 1221,
-      cornerTexturePixels: 144,
+      cornerTexturePixels: 196,
     })
-    expect(result.stdout).toMatch(/QR plate: 210px window, 1221 module hole, 6px \(1 module\) margin, 1 corner module\(s\)/)
-    expect(result.stdout).toMatch(/Cut: 6px modules on lattice 2,1, 2063 module\(s\) drawn/)
+    expect(result.stdout).toMatch(/QR plate: 245px window, 1221 module hole, 7px \(1 module\) margin, 1 corner module\(s\)/)
+    expect(result.stdout).toMatch(/Cut: 7px modules on lattice 2,6, 1172 module\(s\) drawn/)
   }, 120_000)
 
   it('accepts an explicit --qr-margin and rejects it outside assembly', async () => {

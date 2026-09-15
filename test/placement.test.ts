@@ -4,14 +4,34 @@ import { boxIsInsideMask, placeQr } from '../src/placement.js'
 import type { RegionMask } from '../src/types.js'
 
 describe('QR placement', () => {
-  it('uses integer modules and keeps automatic padding inside M', () => {
+  it('uses the largest integer module pitch that fits inside M', () => {
     const mask = rectangularMask(260, 240, 15, 10, 230, 220)
     const placement = placeQr(mask, 41)
-    expect(placement.size % 41).toBe(0)
-    expect(placement.artPaddingModules).toBe(2)
+    expect(placement).toMatchObject({ size: 205, modulePixels: 5, artPaddingModules: 0 })
     expect(boxIsInsideMask(mask, placement.x, placement.y, placement.size)).toBe(true)
-    const padding = placement.artPaddingModules * placement.modulePixels
-    expect(boxIsInsideMask(mask, placement.x - padding, placement.y - padding, placement.size + padding * 2)).toBe(true)
+    expect(placement.modulePixels).toBe(Math.floor(220 / 41))
+  })
+
+  it('chooses the centroid-nearest maximum square deterministically in an irregular mask', () => {
+    const mask = rectangularMask(200, 100, 5, 8, 84, 84)
+    for (let y = 8; y < 92; y++) {
+      for (let x = 111; x < 195; x++)
+        mask.data[y * mask.width + x] = 255
+    }
+    for (let y = 46; y < 54; y++) {
+      for (let x = 89; x < 111; x++)
+        mask.data[y * mask.width + x] = 255
+    }
+    mask.area = 84 * 84 * 2 + 22 * 8
+    mask.bounds = { x: 5, y: 8, width: 190, height: 84 }
+    mask.centroid = { x: 99.5, y: 49.5 }
+
+    // Both lobes hold one maximum 84px square at equal distance from the centroid. The left one wins
+    // the stable scan-order tie.
+    const placement = placeQr(mask, 21)
+
+    expect(placement).toMatchObject({ x: 5, y: 8, size: 84, modulePixels: 4, artPaddingModules: 0 })
+    expect(boxIsInsideMask(mask, placement.x, placement.y, placement.size)).toBe(true)
   })
 
   it('validates manual module dimensions and mask containment', () => {

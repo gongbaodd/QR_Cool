@@ -337,13 +337,14 @@ describe('pattern cut mode', () => {
       outputDir,
     })
 
-    // The blob plus its QR-box hole, with the jagged mask edge's specks removed.
-    expect(result.report.shape.loopsKept).toBe(2)
-    expect(result.report.shape.holes).toBe(1)
+    // The maximum QR reaches beyond the blob's narrow right-hand notch, so subtracting its box no
+    // longer leaves an enclosed hole: one outer loop remains after the jagged edge's specks drop.
+    expect(result.report.shape.loopsKept).toBe(1)
+    expect(result.report.shape.holes).toBe(0)
     expect(result.report.shape.specksDropped).toBeGreaterThan(0)
     expect(result.report.shape.bounds).toEqual({ x: 169, y: 104, width: 379, height: 420 })
-    expect(result.report.shape.area).toBeGreaterThan(80_000)
-    expect(result.report.shape.area).toBeLessThan(90_000)
+    expect(result.report.shape.area).toBeGreaterThan(60_000)
+    expect(result.report.shape.area).toBeLessThan(70_000)
     expect(result.report.warnings.some(warning => warning.includes('dropped as specks'))).toBe(true)
 
     const source = await sharp(join(patternDir, 'pattern.png')).removeAlpha().raw().toBuffer({ resolveWithObject: true })
@@ -375,7 +376,7 @@ describe('pattern cut mode', () => {
           mismatches++
       }
     }
-    expect(sampled).toBeGreaterThan(40_000)
+    expect(sampled).toBeGreaterThan(30_000)
     expect(mismatches).toBe(0)
   })
 

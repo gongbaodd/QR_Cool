@@ -37,7 +37,7 @@ describe('generation pipeline', () => {
     expect(report.generation.requestId).toBe('test-request')
     expect(report.artifacts.patternReference).toBe('pattern-reference.png')
     const crop = await sharp(join(options.outputDir, 'pattern-reference.png')).raw().toBuffer()
-    const expectedCrop = await sharp(join(options.outputDir, 'qr.png')).extract({ left: 70, top: 70, width: 65, height: 65 }).raw().toBuffer()
+    const expectedCrop = await sharp(join(options.outputDir, 'qr.png')).extract({ left: 84, top: 84, width: 78, height: 78 }).raw().toBuffer()
     expect(crop).toEqual(expectedCrop)
     const body = JSON.parse(fetcher.mock.calls[0]![1].body)
     for (const item of body.input.messages[0].content.filter((_item: unknown, index: number) => index === 0 || index === 2)) {
@@ -46,14 +46,14 @@ describe('generation pipeline', () => {
     }
     expect(await readFile(join(options.outputDir, 'report.json'), 'utf8')).not.toContain('test-secret')
     const aiPoster = Buffer.from(body.input.messages[0].content[2].image.split(',')[1], 'base64')
-    const protectedPixels = await sharp(aiPoster).extract({ left: 249, top: 201, width: 205, height: 205 }).removeAlpha().raw().toBuffer()
+    const protectedPixels = await sharp(aiPoster).extract({ left: 218, top: 181, width: 246, height: 246 }).removeAlpha().raw().toBuffer()
     expect(protectedPixels.every(value => value === 255)).toBe(true)
     const reference = Buffer.from(body.input.messages[0].content[1].image.split(',')[1], 'base64')
     expect(await sharp(reference).metadata()).toMatchObject({ width: 688, height: 576 })
-    const referenceCrop = await sharp(reference).extract({ left: 0, top: 0, width: 65, height: 65 }).removeAlpha().raw().toBuffer()
+    const referenceCrop = await sharp(reference).extract({ left: 0, top: 0, width: 78, height: 78 }).removeAlpha().raw().toBuffer()
     expect(referenceCrop).toEqual(await sharp(join(options.outputDir, 'pattern-reference.png')).removeAlpha().raw().toBuffer())
     const referencePixels = await sharp(reference).removeAlpha().raw().toBuffer()
-    // One unscaled crop: the only non-white block in the reference is the 65x65 sample at the origin.
+    // One unscaled crop: the only non-white block in the reference is the 78x78 sample at the origin.
     let minX = 688, minY = 576, maxX = -1, maxY = -1
     for (let y = 0; y < 576; y++) {
       for (let x = 0; x < 688; x++) {
@@ -66,11 +66,11 @@ describe('generation pipeline', () => {
         maxY = Math.max(maxY, y)
       }
     }
-    expect({ minX, minY, maxX, maxY }).toEqual({ minX: 0, minY: 0, maxX: 64, maxY: 64 })
+    expect({ minX, minY, maxX, maxY }).toEqual({ minX: 0, minY: 0, maxX: 77, maxY: 77 })
     expect(await readFile(join(options.outputDir, 'reference-canvas.png'))).toEqual(reference)
     expect(report.artifacts.referenceCanvas).toBe('reference-canvas.png')
     expect(report.generation.prompt).toBe(body.input.messages[0].content[3].text)
-    expect(report.placement).toMatchObject({ x: 249, y: 201, size: 205 })
+    expect(report.placement).toMatchObject({ x: 218, y: 181, size: 246, modulePixels: 6, artPaddingModules: 0 })
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
   it('retains raw artwork and failure report for wrong dimensions', async () => {

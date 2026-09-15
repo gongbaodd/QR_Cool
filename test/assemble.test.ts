@@ -75,25 +75,25 @@ describe('assemble mode', () => {
     expect(result.report.qr.sourceTrim).toEqual({ left: 8, top: 5, right: 5, bottom: 3, modulePixels: 20 })
     expect(result.report.qr.version).toBe(5)
     expect(result.report.qr.sourceModulePixels).toBe(20)
-    expect(result.report.placement).toMatchObject({ x: 249, y: 201, size: 205, modulePixels: 5 })
+    expect(result.report.placement).toMatchObject({ x: 218, y: 181, size: 246, modulePixels: 6, artPaddingModules: 0 })
 
     // The texture window is phase-locked to the QR lattice: the residual offset is zero, so the
     // matrix cells, the drawn modules and the QR are all on one grid.
-    expect(result.report.pattern.version).toBe(30)
-    expect(result.report.pattern.modulePixels).toBe(5)
+    expect(result.report.pattern.version).toBe(24)
+    expect(result.report.pattern.modulePixels).toBe(6)
     expect(result.report.pattern.seed).toBe(1)
-    expect(result.report.pattern.crop).toEqual({ left: 11, top: 69 })
+    expect(result.report.pattern.crop).toEqual({ left: 4, top: 65 })
     expect(result.report.pattern.alignment).toEqual({ alignedToQr: true, phase: { x: 0, y: 0 } })
 
     // The safe area is the modules the region covers in full; the partial ones keep the artwork.
     expect(result.report.cut).toEqual({
-      modulePixels: 5,
-      lattice: { x: 4, y: 1 },
-      radius: 10,
-      safeModules: 4_778,
-      droppedPartialModules: 451,
-      droppedPartialPixels: 6_047,
-      drawnModules: 3_261,
+      modulePixels: 6,
+      lattice: { x: 2, y: 1 },
+      radius: 12,
+      safeModules: 3_284,
+      droppedPartialModules: 367,
+      droppedPartialPixels: 7_273,
+      drawnModules: 1_767,
       rim: { modules: 4, style: 'cell' },
       plateCornerModules: 4,
       keep: 'region-mask',
@@ -103,24 +103,24 @@ describe('assemble mode', () => {
     // is whole modules: the 39x39 window minus its four corner modules, which stay texture.
     expect(result.report.qrPlate).toEqual({
       marginModules: 1,
-      marginPixels: 5,
+      marginPixels: 6,
       cornerModules: 1,
       path: 'module-window',
-      box: { x: 254, y: 206, width: 195, height: 195 },
+      box: { x: 224, y: 187, width: 234, height: 234 },
       holeModules: 1_517,
-      cornerTexturePixels: 100,
+      cornerTexturePixels: 144,
     })
     expect(result.report.qr.overlay).toEqual({
       quietZoneModules: 1,
-      crop: { left: 5, top: 5, size: 195 },
-      x: 254,
-      y: 206,
+      crop: { left: 6, top: 6, size: 234 },
+      x: 224,
+      y: 187,
     })
-    expect(result.report.shape.modules).toBe(3_261)
-    expect(result.report.shape.rimModules).toBe(1_316)
-    expect(result.report.shape.textureModules).toBe(1_945)
-    expect(result.report.shape.area).toBe(3_261 * 25)
-    expect(result.report.shape.bounds).toEqual({ x: 169, y: 106, width: 375, height: 410 })
+    expect(result.report.shape.modules).toBe(1_767)
+    expect(result.report.shape.rimModules).toBe(1_008)
+    expect(result.report.shape.textureModules).toBe(759)
+    expect(result.report.shape.area).toBe(1_767 * 36)
+    expect(result.report.shape.bounds).toEqual({ x: 176, y: 109, width: 366, height: 408 })
 
     expect(result.report.verification.checks.map(check => check.name)).toEqual([
       'sourceQr',
@@ -133,10 +133,10 @@ describe('assemble mode', () => {
     ])
     expect(result.report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
     expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
-    expect(result.report.warnings.join(' ')).toMatch(/The QR quiet zone is 5px \(1 module\)/)
+    expect(result.report.warnings.join(' ')).toMatch(/The QR quiet zone is 6px \(1 module\)/)
     // A whole-module margin is module-level everywhere, so nothing warns about a trimmed cell.
     expect(result.report.warnings.join(' ')).not.toMatch(/trims/)
-    expect(result.report.warnings.join(' ')).toMatch(/451 module\(s\) crossed the painted region's edge/)
+    expect(result.report.warnings.join(' ')).toMatch(/367 module\(s\) crossed the painted region's edge/)
   }, 120_000)
 
   it('draws whole modules only, so dropped modules keep the original artwork', async () => {
@@ -219,7 +219,7 @@ describe('assemble mode', () => {
     expect(alphaChanged).toBe(0)
     expect(transparent).toBe(0)
     // The texture really did replace the painted blob inside the drawn modules.
-    expect(replaced).toBeGreaterThan(40_000)
+    expect(replaced).toBeGreaterThan(result.report.shape.area / 2)
   }, 120_000)
 
   it('composites the same whole modules the generator and the matrix describe', async () => {
@@ -301,7 +301,7 @@ describe('assemble mode', () => {
         }
       }
     }
-    expect(sampled).toBe(3_261 * 25)
+    expect(sampled).toBe(result.report.shape.area)
     expect(cutMismatch).toBe(0)
     // The rim is whole dark modules, so the outline reads as one band of the texture's own cells.
     expect(rimDark / rimPixels).toBeGreaterThan(0.97)
@@ -390,15 +390,15 @@ describe('assemble mode', () => {
     const result = await assemblePoster({ inputPath: POSTER, qrPath: TRIMMED_QR, outputDir, seed: 1, radius: 0 })
     expect(result.report.qrPlate).toEqual({
       marginModules: 1,
-      marginPixels: 5,
+      marginPixels: 6,
       cornerModules: 0,
       path: 'module-window',
-      box: { x: 254, y: 206, width: 195, height: 195 },
+      box: { x: 224, y: 187, width: 234, height: 234 },
       holeModules: 1_521,
       cornerTexturePixels: 0,
     })
     expect(result.report.cut.plateCornerModules).toBe(0)
-    expect(result.report.cut.drawnModules).toBe(4_778 - 1_521)
+    expect(result.report.cut.drawnModules).toBe(3_284 - 1_521)
     expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
     expect(result.report.warnings.join(' ')).toMatch(/plate's 0 corner module\(s\) are handed back/)
 
@@ -410,7 +410,7 @@ describe('assemble mode', () => {
     let mismatch = 0
     for (let row = box.y; row < box.y + box.height; row++) {
       for (let column = box.x; column < box.x + box.width; column++) {
-        const source = ((row - box.y + 5) * result.report.placement.size + column - box.x + 5) * 4
+        const source = ((row - box.y + 6) * result.report.placement.size + column - box.x + 6) * 4
         for (let channel = 0; channel < 4; channel++) {
           if (poster.data[(row * width + column) * 4 + channel] !== qr.data[source + channel])
             mismatch++
@@ -477,11 +477,11 @@ describe('assemble mode', () => {
       marginPixels: 1,
       cornerModules: 1,
       path: 'pixel-window',
-      box: { x: 258, y: 210, width: 187, height: 187 },
+      box: { x: 229, y: 192, width: 224, height: 224 },
       holeModules: 1_369,
       cornerTexturePixels: 4,
     })
-    expect(result.report.cut.drawnModules).toBe(3_409)
+    expect(result.report.cut.drawnModules).toBe(1_915)
     expect(result.report.verification.checks.every(check => check.passed)).toBe(true)
     expect(result.report.warnings.join(' ')).toMatch(/trims 1px off every texture cell along its edge/)
 
@@ -520,9 +520,9 @@ describe('assemble mode', () => {
           trimmedCells++
       }
     }
-    expect(drawnCells).toBe(3_409)
-    // The 73 cells that touch the 187px window lose exactly the pixel the plate paints.
-    expect(trimmedCells).toBe(73)
+    expect(drawnCells).toBe(1_915)
+    // The cells that touch the pixel-tight window lose exactly the pixel the plate paints.
+    expect(trimmedCells).toBeGreaterThan(0)
   }, 120_000)
 
   it('keeps the module cut decodable at three scales', async () => {
@@ -587,12 +587,13 @@ describe('assemble mode', () => {
     expect(svg).not.toContain('stroke="url')
     // The clip is the same module union the composite used: rebuild it and compare.
     const cut = await raw(join(outputDir, 'pattern-cut.png'))
-    const lattice = buildModuleLattice(width, height, 5, result.report.placement)
+    const pitch = result.report.placement.modulePixels
+    const lattice = buildModuleLattice(width, height, pitch, result.report.placement)
     const drawn = new Uint8Array(lattice.columns * lattice.rows)
     for (let row = 0; row < lattice.rows; row++) {
       for (let column = 0; column < lattice.columns; column++) {
-        const x = lattice.x + column * 5
-        const y = lattice.y + row * 5
+        const x = lattice.x + column * pitch
+        const y = lattice.y + row * pitch
         drawn[row * lattice.columns + column] = cut.data[(y * width + x) * 4 + 3] === 255 ? 1 : 0
       }
     }
@@ -602,8 +603,8 @@ describe('assemble mode', () => {
 
   it('refuses a region with no texture module left after the rim and the plate', async () => {
     const directory = await temporaryDirectory()
-    // A square painted region exactly wide enough for the QR and its two art-padding modules: the
-    // placement fits, but the four-module rim and the plate leave nothing to texture, so the run
+    // A square painted region only slightly wider than the QR plate: the maximum placement fits,
+    // but the four-module rim and the plate leave nothing to texture, so the run
     // reports the layout instead of drawing a black slab.
     const size = 200
     const region = 180

@@ -1,16 +1,14 @@
 import { QrPosterError } from './errors.js'
 import type { QrBoxInput, QrPlacement, RegionMask } from './types.js'
 
-const DEFAULT_ART_PADDING_MODULES = 2
 const MINIMUM_MODULE_PIXELS = 4
 
 export function placeQr(mask: RegionMask, totalModules: number, requested?: QrBoxInput): QrPlacement {
   if (requested)
     return validateManualPlacement(mask, totalModules, requested)
 
-  const extendedModules = totalModules + DEFAULT_ART_PADDING_MODULES * 2
   const largestSquare = findLargestSquareSize(mask.data, mask.width, mask.height)
-  const modulePixels = Math.floor(largestSquare / extendedModules)
+  const modulePixels = Math.floor(largestSquare / totalModules)
   if (modulePixels < MINIMUM_MODULE_PIXELS) {
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
@@ -18,17 +16,16 @@ export function placeQr(mask: RegionMask, totalModules: number, requested?: QrBo
     )
   }
 
-  const extendedSize = extendedModules * modulePixels
-  const extendedTopLeft = findClosestSquare(mask, extendedSize)
-  const inset = DEFAULT_ART_PADDING_MODULES * modulePixels
+  const size = totalModules * modulePixels
+  const topLeft = findClosestSquare(mask, size)
   return {
-    x: extendedTopLeft.x + inset,
-    y: extendedTopLeft.y + inset,
-    size: totalModules * modulePixels,
+    x: topLeft.x,
+    y: topLeft.y,
+    size,
     modulePixels,
     totalModules,
     mode: 'auto',
-    artPaddingModules: DEFAULT_ART_PADDING_MODULES,
+    artPaddingModules: 0,
   }
 }
 

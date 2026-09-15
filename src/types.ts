@@ -61,6 +61,7 @@ export interface QrPlacement {
   modulePixels: number
   totalModules: number
   mode: 'auto' | 'manual'
+  /** Extra decorative modules reserved around the QR; retained for report compatibility. */
   artPaddingModules: number
 }
 
@@ -299,14 +300,15 @@ export type AssemblePosterOptions = PosterInputOptions & QrInputOptions & {
   /** Seed for the pattern random text line and the marker refill; defaults to a fresh seed per run. */
   seed?: number
   /**
-   * Light quiet-zone margin kept around the code grid, in modules; defaults to 0.2. It may be a
+   * Light quiet-zone margin kept around the code grid, in modules; defaults to 1. It may be a
    * fraction because the plate window is painted at pixel precision, and it is floored at one pixel
    * so a margin never rounds away.
    */
   qrMargin?: number
   /**
    * Plate corner treatment: zero writes the square module window back, and any positive value hands
-   * each plate corner module to the texture. Defaults to two module pitches (10px here), which
+   * each plate corner module to the texture. Defaults to two module pitches (12px on the bundled
+   * version-5 fixture), which
    * rounds the plate. The region silhouette is always whole modules, so there is no fillet to size.
    */
   radius?: number
