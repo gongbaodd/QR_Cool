@@ -13,7 +13,7 @@ import {
   renderCutCoverage,
 } from '../src/pattern-cut.js'
 import { loadPng } from '../src/image.js'
-import { generatePatternPreview } from '../src/pattern.js'
+import { generatePatternPreview } from '../src/pattern-preview.js'
 import { preparePoster } from '../src/prepare.js'
 
 const temporaryDirectories: string[] = []

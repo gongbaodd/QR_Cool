@@ -31,7 +31,7 @@ export async function loadPng(path: string, label: string): Promise<LoadedPng> {
 /** Decodes an in-memory PNG into the same shape {@link loadPng} returns. */
 export async function decodePng(file: Buffer, path: string, label: string): Promise<LoadedPng> {
   try {
-    const source = sharp(file, { failOn: 'error' })
+    const source = sharp(file, { failOn: 'error', limitInputPixels: 16_000_000 })
     const metadata = await source.metadata()
     if (metadata.format !== 'png' || !metadata.width || !metadata.height)
       throw new Error('not a decodable PNG')

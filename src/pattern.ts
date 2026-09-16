@@ -5,7 +5,6 @@ import sharp from 'sharp'
 import { QrCodeDataType, encode } from 'uqr'
 import type { QrCodeGenerateResult } from 'uqr'
 import { QrPosterError } from './errors.js'
-import { resolveLayout } from './layout.js'
 import type { PatternPreviewOptions, PatternPreviewResult, PatternReport } from './types.js'
 
 /** qrcode.antfu.me defaults: ecc 'M', 2-module margin, rounded pixel style, auto mask. */
@@ -276,86 +275,6 @@ export async function renderRoundedPattern(
     )
   }
   return png
-}
-
-export async function generatePatternPreview(options: PatternPreviewOptions): Promise<PatternPreviewResult> {
-  const startedAt = Date.now()
-  const outputDir = resolve(options.outputDir)
-  await ensureOutputsAvailable(outputDir, options.force ?? false)
-  await mkdir(outputDir, { recursive: true })
-
-  const { poster, qrSource, maskInput, regionMask, placement } = await resolveLayout(options)
-
-  const modulePixels = options.modulePixels ?? placement.modulePixels
-  if (!Number.isInteger(modulePixels) || modulePixels < 1)
-    throw new QrPosterError('INVALID_INPUT', '--module-pixels must be a positive integer.')
-
-  const rendered = await renderPosterPattern({
-    width: poster.width,
-    height: poster.height,
-    modulePixels,
-    ...(options.seed !== undefined ? { seed: options.seed } : {}),
-  })
-  await writeFile(join(outputDir, ARTIFACT_NAMES.pattern), rendered.png)
-
-  const warnings: string[] = []
-  if (modulePixels < 6)
-    warnings.push(`The pattern uses ${modulePixels}px modules; rounded cells below 6px are heavily antialiased.`)
-
-  const report: PatternReport = {
-    schemaVersion: 3,
-    mode: 'pattern-preview',
-    status: 'generated',
-    createdAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAt,
-    inputs: {
-      poster: {
-        path: normalizedPath(options.inputPath),
-        sha256: poster.sha256,
-        width: poster.width,
-        height: poster.height,
-      },
-      qr: {
-        path: qrSource.path === '<generated>' ? qrSource.path : normalizedPath(qrSource.path),
-        sha256: qrSource.sha256,
-        width: qrSource.width,
-        height: qrSource.height,
-      },
-      ...(maskInput ? { mask: { path: normalizedPath(options.maskPath!), sha256: maskInput.sha256 } } : {}),
-    },
-    region: {
-      source: regionMask.source,
-      area: regionMask.area,
-      bounds: regionMask.bounds,
-      centroid: regionMask.centroid,
-      ...(regionMask.detection ? { detection: regionMask.detection } : {}),
-    },
-    placement,
-    pitchSource: options.modulePixels === undefined ? 'placement' : 'override',
-    pattern: {
-      seed: rendered.seed,
-      alphabet: PATTERN_ALPHABET,
-      textLength: rendered.text.length,
-      textSha256: sha256(rendered.text),
-      ecc: PATTERN_ECC,
-      version: rendered.version,
-      qrModules: rendered.qrModules,
-      quietZoneModules: QUIET_ZONE_MODULES,
-      totalModules: rendered.totalModules,
-      modulePixels,
-      pixelStyle: PATTERN_PIXEL_STYLE,
-      removedTypes: [...REMOVED_TYPES],
-      markerRefill: PATTERN_MARKER_REFILL,
-      refilledModules: rendered.refilledModules,
-      codeSize: rendered.codeSize,
-      canvas: { width: poster.width, height: poster.height },
-      crop: rendered.crop,
-    },
-    artifacts: { pattern: ARTIFACT_NAMES.pattern, patternSha256: sha256(rendered.png) },
-    warnings,
-  }
-  await writeFile(join(outputDir, ARTIFACT_NAMES.report), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
-  return { report, outputDir }
 }
 
 /**

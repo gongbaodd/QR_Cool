@@ -1,3 +1,4 @@
+import { fitsMask } from './lib/editor/schema.js'
 import { QrPosterError } from './errors.js'
 import type { QrBoxInput, QrPlacement, RegionMask } from './types.js'
 
@@ -12,7 +13,7 @@ export function placeQr(mask: RegionMask, totalModules: number, requested?: QrBo
   if (modulePixels < MINIMUM_MODULE_PIXELS) {
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
-      `The painted region cannot fit the QR code at the minimum ${MINIMUM_MODULE_PIXELS}px module size. Supply a larger region or --qr-box.`,
+      `The painted region cannot fit the QR code at the minimum ${MINIMUM_MODULE_PIXELS}px module size. Supply a larger region or QR position.`,
     )
   }
 
@@ -30,28 +31,20 @@ export function placeQr(mask: RegionMask, totalModules: number, requested?: QrBo
 }
 
 export function boxIsInsideMask(mask: RegionMask, x: number, y: number, size: number): boolean {
-  if (x < 0 || y < 0 || size <= 0 || x + size > mask.width || y + size > mask.height)
-    return false
-  for (let row = y; row < y + size; row++) {
-    for (let column = x; column < x + size; column++) {
-      if (!mask.data[row * mask.width + column])
-        return false
-    }
-  }
-  return true
+  return fitsMask(mask.data, mask.width, mask.height, { x, y, size })
 }
 
 function validateManualPlacement(mask: RegionMask, totalModules: number, box: QrBoxInput): QrPlacement {
   const { x, y, size } = box
   if (![x, y, size].every(Number.isInteger) || x < 0 || y < 0 || size <= 0)
-    throw new QrPosterError('QR_LAYOUT_INVALID', '--qr-box must contain non-negative integer x,y coordinates and a positive integer size.')
+    throw new QrPosterError('QR_LAYOUT_INVALID', 'QR position must contain non-negative integer x,y coordinates and a positive integer size.')
   if (size % totalModules !== 0)
     throw new QrPosterError('QR_LAYOUT_INVALID', `Manual QR size ${size} must be divisible by ${totalModules} total modules.`)
   const modulePixels = size / totalModules
   if (modulePixels < MINIMUM_MODULE_PIXELS)
     throw new QrPosterError('QR_LAYOUT_INVALID', `Manual QR module size must be at least ${MINIMUM_MODULE_PIXELS}px.`)
   if (!boxIsInsideMask(mask, x, y, size))
-    throw new QrPosterError('QR_LAYOUT_INVALID', 'The requested --qr-box is not completely inside the painted region.')
+    throw new QrPosterError('QR_LAYOUT_INVALID', 'The requested QR position is not completely inside the painted region.')
   return { x, y, size, modulePixels, totalModules, mode: 'manual', artPaddingModules: 0 }
 }
 
@@ -71,7 +64,7 @@ function findLargestSquareSize(data: Uint8Array, width: number, height: number):
   return maximum
 }
 
-function findClosestSquare(mask: RegionMask, size: number): { x: number; y: number } {
+export function findClosestSquare(mask: RegionMask, size: number): { x: number; y: number } {
   let previous = new Uint32Array(mask.width + 1)
   let best: { x: number; y: number; distance: number } | undefined
   for (let y = 1; y <= mask.height; y++) {

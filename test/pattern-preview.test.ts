@@ -1,3 +1,4 @@
+import { generatePatternPreview } from '../src/pattern-preview.js'
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -10,7 +11,6 @@ import {
   PATTERN_MARKER_REFILL,
   countMarkerModules,
   createPatternText,
-  generatePatternPreview,
   renderRoundedPattern,
   renderPosterPattern,
   selectPatternVersion,

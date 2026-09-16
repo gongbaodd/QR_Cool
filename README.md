@@ -1,166 +1,89 @@
-# QR Cool
+# QR / COOL
 
-Planned next version: [Web QR poster editor](doc/plan/web-qr-poster.md) — upload a poster, enter QR content, move/resize the QR, and assemble in the browser UI. The plan retires the CLI after web parity checks pass.
+A web editor for artistic QR posters. Upload a PNG with a solid black region, enter text or a URL, position the QR, and download a full-resolution assembled poster.
 
-Local TypeScript CLI for artistic QR posters. It accepts one line of content, generates a qrcode.antfu.me-style QR, detects the central painted region, and uses Qwen to fill the remaining region with decorative rounded black QR-style cells on white. Local compositing preserves every pixel outside the region and overlays the generated QR and quiet zone.
+## Run locally
 
-It also ships an offline `--pattern-preview` mode that renders a poster-sized QR cell texture from a random text line, using the same encoder and default rounded style as [antfu/qrcode-toolkit](https://github.com/antfu/qrcode-toolkit), with the finder and alignment markers removed.
+Requires Node.js 22+ and pnpm 10.33.2.
 
-`--pattern-cut` then cuts that texture with a mask. The outline is traced into a vector path with filleted corners, so the cut edge is round rather than a pixel staircase, and the result is written as a self-contained SVG plus a transparent PNG.
-
-`--assemble` finishes the poster offline: it encodes the marker-free module matrix, samples the painted region on the placed QR's own module lattice, keeps only the modules the region covers in full, draws those whole modules over the original pixels with the outer four rings forced dark, and copies the QR code grid into a plate that keeps a one-module light band beside each of the three finder markers — the code's other edges sit flush against the texture, so the margin there is zero. Every drawn edge — silhouette, rim and plate — lands on a module boundary, so no cell is ever sliced. No Qwen call, and no intermediate files to pass between commands. The band is half of what the profile specifies, so the run verifies the QR input and the geometry but does not decode-verify the poster.
-
-## Setup
-
-Node.js 22+ and pnpm are required.
-
-```bash
-pnpm install
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-For live generation, set the following in `.env` (ignored by Git), or export them in your environment. Existing environment values take precedence. Credentials are loaded only for `--generate` and are never included in reports.
+Open http://localhost:3000. For a production server:
 
-```dotenv
-QWEN_API_KEY=your-key
-QWEN_BASE_URL=https://ws-hxrjydip77dx0nxq.cn-beijing.maas.aliyuncs.com/api/v1
+```sh
+pnpm build
+pnpm start
 ```
 
-The base URL above is the configured Beijing workspace default. Override it for another workspace. Keys and endpoints must belong to the same region.
+No credentials or accounts are needed. QR text is never fetched as a URL. Uploaded files exist only in the browser and in memory for the current server request; they are not stored on the server.
 
-## Commands
+## Editing
 
-```bash
-# Offline preview; no API key required
-pnpm qr-poster -- --dry-run --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/preview
+1. Choose a **Poster PNG**. The editor detects the dense black shape and highlights it in green. If needed, upload an optional same-size **region mask PNG**: white selects the region, black excludes it.
+2. Enter one nonblank line of text or a URL. Surrounding spaces are preserved exactly.
+3. Drag the QR, resize a corner, or enter **X**, **Y**, and **Size** in original poster pixels. X/Y include the normalized QR's two-module source margin. Size snaps to whole modules, at least four pixels per module. Arrow keys move one pixel; Shift+arrow moves ten. On touch screens, use the direction buttons or drag. Zoom and scrolling change only the editing view.
+4. **Assemble poster** draws and verifies the full-resolution result. Download **poster.png**, or expand **Artifacts & verification** for the QR PNG, transparent cut PNG, cut SVG, region mask, and schema-8 report.
 
-# One paid Qwen generation
-pnpm qr-poster -- --generate --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/qwen-pattern
+Every input edit invalidates the previous output. Invalid manual placements are flagged and never silently moved. **Reset to automatic placement** finds a valid square with space left for texture. Longer content retains the previous center and module pitch when possible, then revalidates the enlarged QR.
 
-# Reuse downloaded artwork without a network call
-pnpm qr-poster -- --generated-image output/qwen-pattern/ai-raw.png --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/recomposed
+Pattern settings provide a stable seed, **New pattern**, a finder margin of one or two modules, and marker corners that continue the texture or stay light. The corner setting affects the QR plate, not the poster's silhouette.
 
-# Offline marker-free QR cell texture sized to the poster; no API key required
-pnpm qr-poster -- --pattern-preview --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/pattern-preview --seed 1
+**Artistic margins can affect scanning. Test the downloaded poster with your phone.** The result is not scan-certified. The report deliberately skips poster/full-size, half-scale, and JPEG decoding checks; `phoneScan` remains `untested`.
 
-# Offline cut of a rendered texture; no QR input and no API key required
-pnpm qr-poster -- --pattern-cut --input output/pattern-preview/pattern.png --cut-mask output/qwen-fresh/edit-mask.png --out-dir output/pattern-cut
+## Renderer contract
 
-# Offline end-to-end poster: texture, cut, composite and QR overlay in one run
-pnpm qr-poster -- --assemble --input source/poster.png --content 'https://www.instagram.com/grandpasbeehaven/' --out-dir output/assemble --seed 1
-```
+- `uqr`, M error correction, automatic mask selection, two locally drawn source margin modules, existing rounded module geometry.
+- Seeded marker-free decorative matrix, phase-locked to the placed QR's lattice. Finder/separator and alignment cells are randomly refilled; timing and function cells remain.
+- Only whole modules fully covered by the selected region are drawn. The outer four safe-module rings are dark. The plate does not seed that rim.
+- The actual plate is the code grid plus whole-cell finder-only light bands. Its footprint is smaller than the full QR square used for placement constraints.
+- Outside-region pixels, partially covered modules, QR plate pixels, and original alpha are verified. Any mandatory check failure rejects export.
+- Schema-8 reports are preserved. API response metadata is a separate version-1 envelope, with logical input names and no server paths.
 
-`--content` must be one nonblank line. It is encoded locally with `uqr` at ECC M and automatic mask selection, rendered with rounded cells at 20px/module, and surrounded by a two-module light margin before entering the existing placement and verification pipeline. The exact quoted value, including leading or trailing whitespace, is preserved.
+The CLI, paid image generation, QR-image upload, and standalone pattern modes are retired. The browser editor is the supported product interface.
 
-Automatic placement uses the largest integer module pitch whose complete QR square fits inside the painted-region mask, then chooses the fitting square nearest the region centroid. It reserves no additional decorative modules; `--qr-box` remains available when a deliberately smaller QR is preferred. On the bundled poster, the version-4 QR generated by the command examples grows from 222×222 at 6px/module to 259×259 at 7px/module.
+## HTTP endpoints
 
-Specify exactly one of `--dry-run`, `--generate`, `--assemble`, `--pattern-preview`, `--pattern-cut`, or `--generated-image`. `--input` and `--out-dir` are required. `--content` is required by every mode except `--pattern-cut`, where it is rejected.
+`POST /api/prepare` and `POST /api/assemble` use multipart form data:
 
-| Option | Behavior |
-| --- | --- |
-| `--model <name>` | Qwen model; default `qwen-image-2.0`. Account/model availability is checked by the API. |
-| `--prompt <text>` | Pattern instruction; defaults to rounded dots and connected black cells on white, matching the real QR module size and density. |
-| `--content <value>` | Nonblank, single-line content encoded into the generated QR. Required except for `--pattern-cut`. |
-| `--mask <path>` | Same-size PNG: white with nonzero alpha selects the painted region; black or transparent excludes it. |
-| `--qr-box <x,y,size>` | Manual protection box; size must be an integer multiple of the QR module count and fit entirely inside the region. |
-| `--pattern-preview` | Write `pattern.png` and `report.json` only: a poster-sized, marker-free QR cell texture. |
-| `--pattern-cut` | Cut a pattern PNG with a mask and write `pattern-cut.svg` and `pattern-cut.png` only. |
-| `--assemble` | Offline end-to-end poster: phase-locked texture, whole-module safe-area cut with a four-module dark rim, composite, module QR plate holding the code at a one-module band beside each marker, geometry checks, and a schema-8 report. |
-| `--cut-mask <path>` | Same-size mask PNG in the edit-mask convention: transparent or dark pixels select the cut shape. Requires `--pattern-cut`. |
-| `--cut-radius <px>` | Corner fillet radius for `--pattern-cut` (default 5). For `--assemble` it is the plate corner treatment: `0` keeps the diagonal corner block beside each marker light and any positive value hands those three blocks to the texture (default: two module pitches, 12px on the bundled poster). |
-| `--cut-smooth <px>` | Outline simplification tolerance for `--pattern-cut` (default 3). Rejected by `--assemble`, whose cut draws whole modules and has no traced outline. |
-| `--qr-margin <modules>` | Depth of the light band `--assemble` keeps beside each finder marker, in whole modules; defaults to 1 and capped at 2, the profile's quiet zone. The band is a row of whole cells, so `0`, a fraction, and anything above 2 are rejected with exit 2. |
-| `--module-pixels <n>` | Pattern module pitch; defaults to the pitch the pipeline places on the poster. Requires `--pattern-preview`. |
-| `--seed <n>` | Seed for the pattern random text line and the marker refill; defaults to a fresh random seed per run. Requires `--pattern-preview` or `--assemble`. |
-| `--force` | Replace known artifacts in the output directory. |
+- `poster`: PNG file
+- `mask`: optional PNG file
+- `data`: JSON containing `revision`, exact `content`, `settings: { seed, qrMargin, plateCorners }`, and optional `placement: { x, y, size }`. Assembly requires explicit placement. Preparation can also receive `previousTotalModules` to preserve center/pitch across content changes.
 
-## Pattern preview
+Preparation returns dimensions, base64 mask/overlay/QR previews, metadata, canonical placement, and a placement validation message or `null`. Assembly returns canonical placement, base64 artifact buffers, and the verification report. Responses use `Cache-Control: no-store`. Files and QR text are never logged by application code.
 
-`--pattern-preview` encodes a random text line with `uqr`, the encoder behind qrcode.antfu.me, using the toolkit's defaults (`ecc: M`, 2-module margin, rounded pixel style, automatic mask). Modules typed `Position` (the three finder patterns with their separators) and `Alignment` are dropped and refilled with seeded random cells (742 of them at version 24), so the result is an even field of rounded cells with no white marker-shaped holes. Timing and format cells are kept. The refill draws from its own random stream derived from the seed, so it never reuses the text line's generator state. Nothing is composited onto the poster and no API call is made: the output is deliberately not decodable, and the scannable QR still comes from the existing placement pipeline.
+Errors have `{ code, message, field?, revision }`: 400 malformed request, 413 upload byte limit, 422 invalid image/content/mask/layout, 500 rendering/verification failure, or 503 renderer busy with `Retry-After: 2`. Revision can be null when the body has not been parsed. The editor aborts superseded fetches and ignores obsolete revisions; cancellation does not promise to stop server computation.
 
-The pitch defaults to the module size the pipeline places on the poster, so the texture matches it. The smallest QR version whose modules and margin cover the poster canvas is chosen and centered, cropped at whole-module offsets; cells are never scaled. With the bundled poster (688×566) and `test/fixtures/qr.png` (41 total modules, 6px/module) that is version 24: 113 modules, a 702px code and a 6px/66px crop, which needs a 911-character random line to fill the data capacity without repeating pad codewords. Pass `--module-pixels 20` (the toolkit's default scale) for a chunkier texture, which drops to version 4 and a 62-character line. Below 6px per module the rounded cells are heavily antialiased; the report records a warning.
+## Limits and hosting
 
-Reports use schema version 3 and record the seed, alphabet, text length and hash, version, module counts, pitch and its source, removed marker types, the refill style and refilled cell count, code size, canvas, crop offsets, and the pattern hash. The same seed reproduces the same bytes.
+- **10 MiB per PNG, 4 megapixels, one frame.** Dimensions and actual PNG signatures are checked server-side. Masks must match the poster dimensions.
+- Total multipart body is bounded at **20 MiB + 64 KiB before parsing**, including bodies without Content-Length. Upload reads time out after 30 seconds.
+- One active request per Node process, across both endpoints. Additional requests return 503 rather than waiting in an unbounded queue.
+- Use a Node host with Sharp support, **at least 2 GiB RAM per process**, and a request duration of at least 120 seconds. Configure the reverse proxy with the same body limit and duration. Scale by adding independent processes with their own memory allocation. A static export or a 128-MiB Worker cannot run this renderer.
+- `Dockerfile` supplies a Node 24 production build/run configuration. No deployment is performed by the project. Verify the image and resource settings on your deployment host.
 
-## Pattern cut
+### Measurements
 
-`--pattern-cut` takes an already rendered pattern PNG plus a mask and writes the cut texture twice: `pattern-cut.svg`, which is self-contained (the pattern rides along as a data URI under a vector `clipPath`), and `pattern-cut.png`, an RGBA image that is transparent outside the cut. Nothing is composited onto the poster, no QR is overlaid, and no API call is made.
+Local Node 24.13.1, macOS ARM64. `pnpm benchmark` creates a noisy 2000×2000 PNG with a black region, prepares it, assembles it, and materializes the base64 JSON response. A measured run took **823 ms preparation, 1013 ms assembly, 556 MiB peak RSS**, with a **6.88 MiB response**. Results vary by machine, QR version, image entropy, and allocator reuse; this is a local benchmark, not a deployment guarantee.
 
-The mask uses the edit-mask convention: a pixel is inside the cut shape when it is transparent or dark. Both `output/qwen-fresh/edit-mask.png` (opaque white outside, transparent inside) and `region-mask.png` (white on black) therefore work, and the mask must match the pattern size.
+The proposed 16-megapixel limit used about **1.2 GiB RSS** even on a simple image, so the shipped limit is 4 megapixels. Benchmark on the target host before raising limits or concurrency.
 
-The outline is traced along pixel borders, collapsed to corners, simplified with a Douglas-Peucker tolerance (`--cut-smooth`, default 3px), and every corner is filleted with `--cut-radius` (default 5px). The fillet clamps to half of each neighbouring edge so narrow features stay inside the polygon; a feature narrower than roughly twice the smoothing tolerance is erased entirely, so lower `--cut-smooth` when a thin shape disappears. Loops smaller than the fillet area (radius²) are dropped as specks. The path carries `fill-rule="evenodd"`, so enclosed mask holes remain holes. With the maximum 246×246 QR on the bundled mask, the removed box reaches the region's right-hand notch instead of forming an enclosed hole; the result has one kept loop, 197 surviving vertices, and 21 pixel-jagged specks dropped.
+## Verification
 
-Both outputs draw a solid 20px black band inside the traced edge, preserving the complete outline of the letter B instead of letting the QR texture cut through it. Beyond that border, the PNG keeps the original pattern pixels bit-exact; everything outside is fully transparent and the cut edge is antialiased.
-
-Reports use schema version 4 and record the pattern and mask hashes and sizes, the radius, smoothing tolerance, 20px border width, keep rule and speck threshold, the traced and kept loop counts, traced and simplified vertex counts, holes, cut area and bounds, both artifact hashes, and warnings.
-
-## Assembly
-
-`--assemble` is the offline end-to-end mode and the one to use when no Qwen call should be made. It follows one workflow — QR generator, module matrix, painted-region mask, safe-area calculation, draw full modules — and resolves the layout exactly like `--dry-run` (same detection, `--mask` and `--qr-box` overrides), then in a single run:
-
-1. Encodes the marker-free module matrix and renders it at the pitch the pipeline places on the poster, using `--seed` for the text line and marker refill. The crop window is phase-locked to the placement so a module boundary lands on the QR's lattice; the generator asks for one module of headroom, so a canvas the tightest version would fill exactly can still lock. On the bundled poster that is crop 4/65 with a residual phase of 0/0.
-2. Builds the 6px module lattice from placement (218,181), reduced to lattice origin (2,1), and marks a module **safe** only when its whole block is on the canvas and every pixel of it is inside the detected or supplied region. A partly covered module is dropped and keeps the original artwork, so no drawn edge ever crosses a cell: 3,284 modules are safe and 367 are dropped, preserving 7,273 region pixels of artwork.
-3. Marks the **QR plate** on the same lattice: the code grid (222px, 37×37 modules at 230,193) plus, beside each of the three finder markers, the two 7-cell arms that run along its outer edges — 42 light cells at the default one-module depth. Every plate cell leaves the drawn set, so the cut never relies on artwork showing through the plate, and the quiet-zone cells along the rest of the code edge are not in the plate: they are drawn as texture, so the margin there is zero. The diagonal corner block beside each marker is handed back to the texture, so the plate's corners stay texture: a 1,411-module hole.
-4. Forces the outer four rings of drawn modules dark (Chebyshev distance ≤ 4 from the nearest unsafe module; the plate never seeds the rim). Those 1,029 rim modules are the module-level replacement for the old black border, and the remaining 844 drawn modules carry the texture.
-5. Renders only those 1,873 modules — 67,428px — over the original pixels. Dropped modules and everything outside the region keep their bytes, so nothing is punched transparent and the "nothing outside the painted region changes" guarantee holds literally. Rim modules are ordinary dark cells of the texture, so the outline speaks the same language as the field.
-6. Copies the normalized QR into that plate at its placement position: the 222px code grid plus the arms, which carry the QR's own light margin, and the three corner blocks stay texture. `--cut-radius 0` keeps those blocks light instead, which makes the band the full L (45 cells). The plate carries no dark band. The profile specifies a two-module quiet zone and only the markers keep half of it, so the run does not claim a scannable result; see the decode table below.
-
-With the bundled poster and version-5 QR the run reports the region at 125,497px, a maximum 246px QR at 6px/module (box 218,181), a version-24 texture at seed 1 cropped at 4/65 so its lattice matches, a 115×95 lattice with 3,284 safe modules, 367 dropped partial modules, 1,873 drawn modules on it, and a 1,411-module plate hole behind a 42-cell band beside the markers. A layout that leaves no texture module after the rim and the plate is rejected with `QR_LAYOUT_INVALID` (exit 2) instead of drawing a black slab.
-
-Decode evidence, measured on this build by re-running the assembly with each band and decoding the poster at three scales (`ZXing`, falling back to `jsQR`):
-
-| Band | Hole | Full size | 50% | JPEG-80 |
-| --- | --- | --- | --- | --- |
-| **1 module beside the markers (default)** | **1,411 modules** | **decodes** | **decodes** | **decodes** |
-| 1 module, corner blocks kept light (`--cut-radius 0`) | 1,414 modules | decodes | decodes | decodes |
-| 2 modules beside the markers (`--qr-margin 2`) | 1,453 modules | decodes | decodes | decodes |
-| 0 modules, a fraction, or more than 2 | rejected (exit 2) | — | — | — |
-
-The band is kept beside the three finder markers because those are what a decoder locks onto: the arms along each marker's outer edges give it the light margin it needs, while the rest of the code edge sits flush against the texture so the code reads as part of the artwork instead of a pasted square. The band is a row of whole cells, so it is quantized by the pitch and `--qr-margin` only accepts whole modules: a fraction cannot be painted without slicing the neighbouring cell, and `0` would leave the markers without any light margin, which is why both are rejected with exit 2. The run still does not verify the poster and `phoneScan` stays `untested`: a phone sees perspective, blur and glare that this decoder does not. The report adds `qrPlateCorners` to the checks, so the three corner blocks the plate gives back to the texture are verified rather than assumed, and `cornerTexturePixels` records how many pixels they cover (108 at the default one-module band, 432 at two modules, 0 when they stay light).
-
-Artifacts: `poster.png`, `pattern-cut.png` (the composited cut layer: the texture and its dark rim in whole modules, transparent everywhere else and in the plate hole), `pattern-cut.svg` (the same cut, embedded as a data URI under a clip path that is the union of the drawn module rectangles), `region-mask.png`, `qr.png` (the normalized 246px QR, kept as evidence for the quiet-zone rebuild), and `report.json`.
-
-The schema-8 report records the input hashes and sizes, the region block, the QR metadata with `quietZoneSource: "added"` when a margin was rebuilt plus the `overlay` block describing exactly what was composited (the marker band, its depth in modules, the finder footprint the arms span, and the 12/12/222 code-grid crop at 230,193), the placement, the full pattern block (seed, alphabet, text length and hash, version, module counts, pitch, removed marker types, refill count, code size, crop, and the `alignment` phase, which is the residual offset of the texture's boundaries from the QR lattice — 0/0 when they coincide), the `cut` block (module pitch and lattice origin, requested radius, safe modules, dropped partial modules and their pixels, drawn modules, the rim width and style, the plate corner modules handed back, keep rule and edge blend rule), the `qrPlate` block (`band: "markers"`, the requested depth in modules and its pixels, the finder footprint, the 42 light cells, the code grid box, hole modules, hand-back modules, and `cornerTexturePixels`), the `shape` block (bounds and area of the drawn modules plus the module, rim and texture counts), every artifact hash, the verification checks, `phoneScan: "untested"`, and warnings. Checks are `sourceQr`, `normalizedQr`, `outsideRegionPixels`, `qrPixels`, `qrPlateCorners`, `moduleCut` (every changed pixel is inside a drawn module or the plate), and `alphaPreserved`; the three poster decode checks are listed in `verification.skippedChecks` and a warning says so. Verification failures exit 4.
-
-## Artifacts and verification
-
-Dry-run and generation modes save `region-mask.png`, `layout-preview.png`, `qr.png`, `edit-mask.png`, `before-ai.png`, and `report.json`. Generation also saves `ai-raw.png`, `reference-canvas.png`, and `poster.png` when those stages succeed. Pattern preview saves only `pattern.png` and `report.json`.
-
-Pattern cut saves only `pattern-cut.svg`, `pattern-cut.png`, and `report.json`.
-
-Assembly saves only `poster.png`, `pattern-cut.png`, `pattern-cut.svg`, `region-mask.png`, `qr.png`, and `report.json`.
-
-Qwen receives an opaque selection guide, a crop from the center of the placed QR, and the prepared poster last as Base64 images. The crop uses whole cells from the central third and excludes the circular corner markers (smaller QR versions use a narrower crop to avoid markers). It is saved as `pattern-reference.png` and placed once, without scaling, at the top-left of a plain white reference canvas. Qwen is instructed to generate a fresh arrangement with even density, using the sample only for cell shape and size. Copying, stretching, enlarging, or tiling the sample is prohibited. The prompt forbids generated scene artwork and extra finder rings, and specifies the real QR module pitch. Decorative cells encode no additional data. Inputs are padded on the right and bottom to multiples of 16; the output is cropped back before compositing. The QR square is blanked only in the AI input so the model cannot copy its circular markers. The exact QR and its entire white quiet zone are restored locally. Qwen receives natural-language editing instructions, not an OpenAI mask parameter. Only pixels inside the editable region are used in the final poster.
-
-Dry-run reports retain schema version 1. Generation reports use version 2 and record model, full editing prompt, canvas dimensions, request ID and usage when returned, durations, final scan checks, and protected-pixel checks. Phone scanning is recorded as `untested`. Usage is not a measured monetary cost.
-
-Qualification requires decoding the source, normalized QR, prepared preview and final poster, including 50% resize and JPEG quality-80 variants, plus exact protected-pixel checks. Verification failures exit with code 4; API/image errors use 3; invalid arguments use 2. Automated qualification does not assess artistic quality; inspect the output for seams or remaining painted areas.
-
-Before any of that, the CLI-generated QR is decoded and checked as a square image with a two-module quiet zone. Reports retain their schema versions and record its input path as `"<generated>"`; the hash and dimensions describe the in-memory 20px/module PNG. Legacy library calls using `qrPath` still resolve conforming images and tight code-grid crops through the existing profile checks and quiet-zone rebuild.
-
-API requests have a five-minute timeout and no automatic retries. A timeout may still incur a charge. Raw downloaded artwork is retained if geometry, compositing, or verification fails. Offline reuse accepts the padded canvas size or the original image size, and must use the same input/layout for meaningful alignment.
-
-## Library
-
-```ts
-import { assemblePoster, generatePatternCut, generatePatternPreview, generatePoster, preparePoster } from 'qr-cool'
-
-await preparePoster({ inputPath: 'source/poster.png', content: 'https://example.com/', outputDir: 'output/preview', dryRun: true })
-await generatePoster({ inputPath: 'source/poster.png', content: 'https://example.com/', outputDir: 'output/qwen-pattern', apiKey: process.env.QWEN_API_KEY })
-await generatePatternPreview({ inputPath: 'source/poster.png', content: 'https://example.com/', outputDir: 'output/pattern-preview', seed: 1 })
-await generatePatternCut({ inputPath: 'output/pattern-preview/pattern.png', maskPath: 'output/qwen-fresh/edit-mask.png', outputDir: 'output/pattern-cut' })
-await assemblePoster({ inputPath: 'source/poster.png', content: 'https://example.com/', outputDir: 'output/assemble', seed: 1 })
-```
-
-The library uses explicit credentials or environment variables; it does not load `.env`. Programmatic callers may continue to pass `qrPath` (and optionally `expectedText`) instead of `content` for backward compatibility, but the two sources are mutually exclusive. `compositePoster()` remains available for direct local compositing, and `resolveQrSource()` exposes the legacy QR profile check with its code-grid fallback.
-
-## Development
-
-```bash
+```sh
 pnpm test
 pnpm typecheck
 pnpm build
+pnpm exec playwright install chromium firefox webkit
+pnpm test:e2e
+pnpm benchmark
 ```
 
-Tests use mocked API responses and local images, with no paid calls. Poster and mask inputs remain PNG-only. The QR suite covers generated ASCII, URL, and Unicode content, invalid one-line inputs, the legacy strict profile and code-grid crop fallback, and source exclusivity. Pattern preview reimplements the toolkit's rounded cell geometry as SVG, while assembly checks its schema-8 geometry, pixel preservation, the marker band and its corner blocks, decoding evidence, option validation, and seed reproducibility. The CLI cases cover content generation for dry-run, preview, and assembly and skip themselves on sandboxes that refuse to start child processes. Web hosting and closed-outline region detection remain future work.
+Vitest covers engine geometry, decoder fixtures, deterministic artifact hashes captured before refactoring, pixel invariants, buffer services, request limits, concurrent users, and stale reducer responses. Playwright runs production-server journeys in Chromium, Firefox, WebKit, and an iPhone touch viewport, including upload, numeric/keyboard/pointer editing, zoom, assembly, download-byte equality, invalid-placement recovery, and result invalidation.
 
-API documentation: [Qwen image editing](https://www.alibabacloud.com/help/en/model-studio/qwen-image-edit-api).
+The renderer remains in the existing `src/` engine modules; `src/server/` owns the stateless buffer services and HTTP adapters, `src/lib/editor/` holds schemas and reducer state, and `src/components/editor/` owns browser interaction. No request invokes a CLI or writes temporary files.
+
+See [web implementation plan](doc/plan/web-qr-poster.md). The [previous artistic QR plan](doc/plan/artistic-qr-poster.md) is historical design context.

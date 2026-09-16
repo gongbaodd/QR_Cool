@@ -5,7 +5,7 @@ import { assemblePoster } from './assemble.js'
 import { QrPosterError } from './errors.js'
 import { generatePoster } from './generate.js'
 import { generatePatternCut } from './pattern-cut.js'
-import { generatePatternPreview } from './pattern.js'
+import { generatePatternPreview } from './pattern-preview.js'
 import { preparePoster } from './prepare.js'
 import type { QrBoxInput } from './types.js'
 

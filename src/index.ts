@@ -33,7 +33,6 @@ export {
   buildPosterPattern,
   countMarkerModules,
   createPatternText,
-  generatePatternPreview,
   renderRoundedPattern,
   renderPosterPattern,
   selectPatternVersion,
@@ -84,3 +83,5 @@ export {
   renderModuleCoverage,
 } from './module-cut.js'
 export type { ModuleLattice, ModuleWindow, PlateModules, SafeArea } from './module-cut.js'
+
+export { generatePatternPreview } from './pattern-preview.js'

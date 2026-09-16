@@ -6,6 +6,7 @@ import { renderRegionMask } from './artifacts.js'
 import { QrPosterError } from './errors.js'
 import { decodePng, rgbaToPng } from './image.js'
 import { resolveLayout } from './layout.js'
+import type { ResolvedLayout } from './layout.js'
 import {
   buildModuleLattice,
   buildModulePath,
@@ -113,8 +114,14 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
   await ensureOutputsAvailable(outputDir, options.force ?? false)
   await mkdir(outputDir, { recursive: true })
 
-  const { poster, qrSource, maskInput, regionMask, decoded, qrMetadata, placement, normalizedQr }
-    = await resolveLayout(options)
+  const result = await assembleResolved(await resolveLayout(options), options)
+  await Promise.all(Object.entries(result.artifacts).map(([name, bytes]) => writeFile(join(outputDir, name), bytes)))
+  return { report: result.report, outputDir }
+}
+
+export async function assembleResolved(layout: ResolvedLayout, options: { seed?: number; qrMargin?: number; radius?: number }) {
+  const startedAt = Date.now()
+  const { poster, qrSource, maskInput, regionMask, decoded, qrMetadata, placement, normalizedQr } = layout
   const { width, height } = poster
   const pitch = placement.modulePixels
 
@@ -354,14 +361,6 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
   }
 
   const regionMaskPng = await renderRegionMask(regionMask)
-  await Promise.all([
-    writeFile(join(outputDir, ARTIFACT_NAMES.poster), assembled),
-    writeFile(join(outputDir, ARTIFACT_NAMES.regionMask), regionMaskPng),
-    writeFile(join(outputDir, ARTIFACT_NAMES.qr), normalizedQr),
-    writeFile(join(outputDir, ARTIFACT_NAMES.patternCutPng), cutPng),
-    writeFile(join(outputDir, ARTIFACT_NAMES.patternCutSvg), cutSvg, 'utf8'),
-  ])
-
   const report: AssembleReport = {
     schemaVersion: 8,
     mode: 'assemble',
@@ -371,7 +370,7 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
     durationMs: Date.now() - startedAt,
     inputs: {
       poster: {
-        path: normalizedPath(options.inputPath),
+        path: poster.path,
         sha256: poster.sha256,
         width: poster.width,
         height: poster.height,
@@ -382,7 +381,7 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
         width: qrSource.width,
         height: qrSource.height,
       },
-      ...(maskInput ? { mask: { path: normalizedPath(options.maskPath!), sha256: maskInput.sha256 } } : {}),
+      ...(maskInput ? { mask: { path: maskInput.path, sha256: maskInput.sha256 } } : {}),
     },
     region: {
       source: regionMask.source,
@@ -475,8 +474,13 @@ async function assemblePosterImpl(options: AssemblePosterOptions): Promise<Assem
     phoneScan: 'untested',
     warnings,
   }
-  await writeFile(join(outputDir, ARTIFACT_NAMES.report), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
-  return { report, outputDir }
+  const artifacts: Record<string, Buffer> = {
+    'poster.png': assembled, 'region-mask.png': regionMaskPng, 'qr.png': normalizedQr,
+    'pattern-cut.png': cutPng, 'pattern-cut.svg': Buffer.from(cutSvg),
+    'report.json': Buffer.from(`${JSON.stringify(report, null, 2)}\n`),
+  }
+  return { report, artifacts }
+
 }
 
 function sha256(value: string | Buffer): string {
@@ -490,7 +494,7 @@ function sha256(value: string | Buffer): string {
  * carries its own light row and column — so the band is three small Ls rather than a quiet zone
  * around the code.
  */
-function markerBandRects(
+export function markerBandRects(
   codeGrid: BoundingBox,
   qrModules: number,
   pitch: number,

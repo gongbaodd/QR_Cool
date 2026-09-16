@@ -1,8 +1,9 @@
-import zxing from '@zxing/library'
+import * as zxing from '@zxing/library'
 import jsQR from 'jsqr'
 import type { QRCode as JsQrResult } from 'jsqr'
 import sharp from 'sharp'
 import { QrCodeDataType, encode } from 'uqr'
+import { renderRoundedPattern } from './pattern.js'
 import { QrPosterError } from './errors.js'
 import type { LoadedPng } from './image.js'
 import { decodePng, luma, rgbaToPng } from './image.js'
@@ -14,7 +15,7 @@ const {
   HybridBinarizer,
   QRCodeReader,
   RGBLuminanceSource,
-} = zxing
+} = (zxing as unknown as { default?: typeof zxing }).default ?? zxing
 
 const QUIET_ZONE_MODULES = 2 as const
 const INK_LUMA_THRESHOLD = 128
@@ -55,7 +56,6 @@ export async function generateQrFromContent(content: string): Promise<GeneratedQ
 
   // Keep pattern.ts as the single source of truth for the qrcode.antfu.me rounded cell geometry.
   // The dynamic import avoids a static layout -> qr -> pattern -> layout module cycle.
-  const { renderRoundedPattern } = await import('./pattern.js')
   const marginModules = QUIET_ZONE_MODULES
   const rounded = await renderRoundedPattern(encoded.data, GENERATED_QR_MODULE_PIXELS, {
     skipInk: (moduleX, moduleY) => {
@@ -109,25 +109,24 @@ export function decodeQrRaw(data: Uint8Array, width: number, height: number): st
 
 export function decodeQrRawDetailed(data: Uint8Array, width: number, height: number): DecodedQr {
   const pixels = Uint8ClampedArray.from(data)
+  // jsQR also supplies the version, required to normalize tight input crops unambiguously.
+  const decoded = (jsQR as unknown as (
+    data: Uint8ClampedArray, width: number, height: number,
+    options: { inversionAttempts: 'attemptBoth' },
+  ) => JsQrResult | null)(pixels, width, height, { inversionAttempts: 'attemptBoth' })
+  if (decoded) return { text: decoded.data, decoder: 'jsqr', version: decoded.version }
   try {
-    const source = new RGBLuminanceSource(pixels, width, height)
+    // ZXing expects one luminance byte per pixel, not interleaved RGBA.
+    const luminances = new Uint8ClampedArray(width * height)
+    for (let i = 0; i < luminances.length; i++) luminances[i] = luma(pixels[i * 4]!, pixels[i * 4 + 1]!, pixels[i * 4 + 2]!)
+    const source = new RGBLuminanceSource(luminances, width, height)
     const bitmap = new BinaryBitmap(new HybridBinarizer(source))
     const hints = new Map<number, unknown>([
-      [DecodeHintType.TRY_HARDER, true],
-      [DecodeHintType.CHARACTER_SET, 'UTF-8'],
+      [DecodeHintType.TRY_HARDER, true], [DecodeHintType.CHARACTER_SET, 'UTF-8'],
     ])
     return { text: new QRCodeReader().decode(bitmap, hints).getText(), decoder: 'zxing' }
-  }
-  catch (zxingError) {
-    const fallback = (jsQR as unknown as (
-      data: Uint8ClampedArray,
-      width: number,
-      height: number,
-      options: { inversionAttempts: 'attemptBoth' },
-    ) => JsQrResult | null)(pixels, width, height, { inversionAttempts: 'attemptBoth' })
-    if (fallback)
-      return { text: fallback.data, decoder: 'jsqr', version: fallback.version }
-    throw new QrPosterError('QR_INVALID', 'The QR code could not be decoded by ZXing or jsQR.', 2, { cause: zxingError })
+  } catch (cause) {
+    throw new QrPosterError('QR_INVALID', 'The QR code could not be decoded by ZXing or jsQR.', 2, { cause })
   }
 }
 
