@@ -30,6 +30,7 @@ function useBlobUrls(values: Record<string, string>) {
 export default function Editor() {
   const [state, dispatch] = useReducer(reducer, initialState)
   const [step, setStep] = useState(1)
+  const [textConfirmed, setTextConfirmed] = useState(false)
   const [blankWidth, setBlankWidth] = useState(BLANK_POSTER_WIDTH), [blankHeight, setBlankHeight] = useState(BLANK_POSTER_HEIGHT)
   const [poster, setPoster] = useState<File | null>(null), [mask, setMask] = useState<File | null>(null), [posterUrl, setPosterUrl] = useState('')
   const [maskText, setMaskText] = useState(TEXT_MASK_DEFAULT_TEXT), [maskFontId, setMaskFontId] = useState(TEXT_MASK_FONTS[0]!.id), [maskSize, setMaskSize] = useState<number | null>(null), [maskBusy, setMaskBusy] = useState(false)
@@ -61,7 +62,7 @@ export default function Editor() {
   const previews = useBlobUrls(state.prepared ? { 'mask.png': state.prepared.overlay, 'region.png': state.prepared.mask, 'qr.png': state.prepared.qr } : {})
   const artifacts = useBlobUrls(state.result?.artifacts ?? {})
   useEffect(() => { if (!poster) return; const url = URL.createObjectURL(poster); setPosterUrl(url); return () => URL.revokeObjectURL(url) }, [poster])
-  function edit(patch: Parameters<typeof reducer>[1] & { type: 'edit' }) { abort.current?.abort(); dispatch(patch) }
+  function edit(patch: Parameters<typeof reducer>[1] & { type: 'edit' }) { abort.current?.abort(); if (patch.patch.content !== undefined) setTextConfirmed(false); dispatch(patch) }
   async function request(mode: 'prepare' | 'assemble', automatic = false) {
     if (!poster || poster.size > MAX_IMAGE_BYTES || (mask && mask.size > MAX_IMAGE_BYTES) || !contentSchema.safeParse(latest.current.content).success) return
     abort.current?.abort()
@@ -143,15 +144,18 @@ export default function Editor() {
   const steps = ['Input text', 'Select mask', 'Adjust QR', 'Generate']
   const canEnter = (index: number) => {
     if (index <= 1) return true
-    if (index === 2) return contentCheck.success
+    if (index >= 2 && (!textConfirmed || !contentCheck.success)) return false
+    if (index === 2) return true
     if (index === 3) return !!poster
     if (index === 4) return !!state.prepared && !!state.placement
     return !!state.prepared
   }
   function goto(index: number) { if (index >= 1 && index <= 4 && canEnter(index)) setStep(index) }
   function continueFromText() {
+    if (!contentCheck.success) return
     if (suggestedMask && maskText.trim() !== suggestedMask) setMaskText(suggestedMask)
-    goto(2)
+    setTextConfirmed(true)
+    setStep(2)
   }
   useEffect(() => { if (state.showingResult) setStep(4) }, [state.showingResult])
   return <main>
@@ -160,10 +164,13 @@ export default function Editor() {
       const index = i + 1
       return <li key={label} aria-current={step === index ? 'step' : undefined}><button disabled={!canEnter(index)} onClick={() => goto(index)}><span>Step {index}</span> {label}</button></li>
     })}</ol>
-    <div className="workspace"><aside>
+    {step === 1 ? <div className="workspace-centered"><aside>
+      <div className="panel-heading"><span className="eyebrow">POSTER STUDIO · STEP 1 OF 4</span><h1>Make the code<br />part of the art.</h1></div>
+      <section><h2><span>01</span> Input text</h2><label htmlFor="content">Text or URL</label><textarea id="content" rows={2} value={state.content} aria-invalid={!!contentError} aria-describedby={contentError ? 'content-error' : 'content-hint'} onChange={e => edit({ type: 'edit', patch: { content: e.target.value } })} />{contentError ? <p id="content-error" className="error">{contentError}</p> : <p id="content-hint" className="hint">One line. Links are encoded exactly as entered.</p>}{!contentError && (suggestedMask ? <p className="hint">Website detected — step 2 will suggest <strong>{suggestedMask}</strong> as the mask letter.</p> : <p className="hint">Plain text — step 2 starts from a blank full-canvas region.</p>)}<div className="step-nav"><button className="primary" disabled={!contentCheck.success} onClick={continueFromText}>Continue</button></div>
+      </section>
+      {state.error && state.field !== 'content' && <div className="error" role="alert">{state.error}<button onClick={() => void request('prepare')}>Retry preparation</button></div>}
+    </aside></div> : <div className="workspace"><aside>
       <div className="panel-heading"><span className="eyebrow">POSTER STUDIO · STEP {step} OF 4</span><h1>Make the code<br />part of the art.</h1></div>
-      {step === 1 && <section><h2><span>01</span> Input text</h2><label htmlFor="content">Text or URL</label><textarea id="content" rows={2} value={state.content} aria-invalid={!!contentError} aria-describedby={contentError ? 'content-error' : 'content-hint'} onChange={e => edit({ type: 'edit', patch: { content: e.target.value } })} />{contentError ? <p id="content-error" className="error">{contentError}</p> : <p id="content-hint" className="hint">One line. Links are encoded exactly as entered.</p>}{!contentError && (suggestedMask ? <p className="hint">Website detected — step 2 will suggest <strong>{suggestedMask}</strong> as the mask letter.</p> : <p className="hint">Plain text — step 2 starts from a blank full-canvas region.</p>)}<div className="step-nav"><button className="primary" disabled={!contentCheck.success} onClick={continueFromText}>Continue</button></div>
-      </section>}
       {step === 2 && <section><h2><span>02</span> Select mask</h2><div className="coordinates"><label>Width<input aria-label="Blank width" type="number" min={64} max={2000} value={blankWidth} onChange={e => setBlankWidth(Math.round(Number(e.target.value)))} /></label><label>Height<input aria-label="Blank height" type="number" min={64} max={2000} value={blankHeight} onChange={e => setBlankHeight(Math.round(Number(e.target.value)))} /></label></div><p className="hint">White canvas size in pixels, up to 4 megapixels total. The whole canvas becomes the region.</p><button onClick={useBlankCanvas}>Use blank canvas</button><p className="hint">Or upload a poster PNG instead.</p><label className="upload">Poster PNG<input aria-label="Poster PNG" type="file" accept="image/png" onChange={e => { upload(e.target.files?.[0], 'poster'); }} /></label>{poster && <p className="file-meta">{poster.name}{state.prepared && ` · ${state.prepared.width} × ${state.prepared.height} px`}</p>}<p className="hint">Optional same-size PNG mask. White selects the region; black excludes it. Without a mask the dense black shape is detected automatically.</p><label>Region mask PNG<input type="file" accept="image/png" aria-label="Region mask PNG" onChange={e => upload(e.target.files?.[0], 'mask')} /></label>{mask && <p className="file-meta">Mask: {mask.name}</p>}{mask && <button onClick={() => { setMask(null); edit({ type: 'edit', patch: {}, reset: true }) }}>Use automatic detection</button>}
           <p className="hint">Or draw the region from one letter in a display font.</p><canvas ref={maskPreview} width={276} height={76} aria-label="Mask text preview" style={{ width: '100%', borderRadius: 6, background: 'black' }} /><label>Mask letter<input aria-label="Mask text" value={maskText} maxLength={TEXT_MASK_MAX_LENGTH} disabled={!state.prepared} onChange={e => setMaskText(e.target.value.slice(-TEXT_MASK_MAX_LENGTH))} /></label>{suggestedMask ? <p className="hint">Suggested letter <strong>{suggestedMask}</strong> from your link.{maskText.trim() !== suggestedMask && <button className="text-button" disabled={!state.prepared} onClick={() => setMaskText(suggestedMask)}>Use suggested letter</button>}</p> : <p className="hint">Plain text uses a blank region — pick any letter or keep the full canvas.</p>}<div className="font-row" role="radiogroup" aria-label="Mask font">{TEXT_MASK_FONTS.map(entry => { const selected = entry.id === maskFontId; const glyph = effectiveMask || 'A'; return <button key={entry.id} type="button" role="radio" aria-checked={selected} aria-label={`Mask font ${entry.label}`} title={entry.label} disabled={!state.prepared} onClick={() => setMaskFontId(entry.id)} className={selected ? 'font-card selected' : 'font-card'}><span className="font-glyph" style={{ fontFamily: `"${entry.family}"` }}>{glyph}</span><span className="font-name">{entry.label}</span></button> })}</div>{maskFont.note && <p className="hint">{maskFont.label}: {maskFont.note}</p>}<label>Mask text size (px)<input aria-label="Mask text size" type="number" min={8} max={state.prepared ? state.prepared.height : undefined} value={maskSize ?? (state.prepared ? defaultTextMaskSize(state.prepared.width, state.prepared.height) : '')} disabled={!state.prepared} onChange={e => setMaskSize(Math.max(8, Math.round(Number(e.target.value))))} /></label><button disabled={!state.prepared || !effectiveMask || maskBusy || maskTooSmall} onClick={() => void applyTextMask()}>{maskBusy ? 'Drawing mask…' : 'Use letter as mask'}</button>{maskTooSmall && <p className="error" role="alert">{maskAtMax ? 'This letter leaves no room for the QR even at full height. Use a wider letter.' : 'This letter leaves no room for the QR at this size. Enlarge the size or use a wider letter.'}</p>}{!state.prepared && <p className="hint">Use a blank canvas or upload a poster first.</p>}<div className="step-nav"><button onClick={() => goto(1)}>Back</button><button className="primary" disabled={!state.prepared} onClick={() => goto(3)}>Continue</button></div>
       </section>}
@@ -175,9 +182,9 @@ export default function Editor() {
       {state.error && state.field !== 'content' && <div className="error" role="alert">{state.error}<button onClick={() => void request('prepare')}>Retry preparation</button></div>}
       <div className="step-nav"><button onClick={() => { dispatch({ type: 'view', result: false }); goto(3) }}>Back to adjust</button></div></section>}
       {state.error && state.field !== 'content' && step !== 4 && <div className="error" role="alert">{state.error}<button onClick={() => void request('prepare')}>Retry preparation</button></div>}
-    </aside><div className="preview-panel"><div className="preview-heading"><div><span className="eyebrow">{state.showingResult ? 'FINISHED POSTER' : 'LIVE WORKSPACE'}</span><h2>{state.showingResult ? 'Ready for the real world.' : 'A little code. A lot of character.'}</h2></div>{state.prepared && <span className="badge">{state.prepared.width} × {state.prepared.height}</span>}</div>
-      {state.showingResult && state.result ? <div className="result"><img src={artifacts['poster.png']} alt="Assembled artistic QR poster" /><div className="result-actions"><a className="primary" href={artifacts['poster.png']} download="poster.png">Download poster.png</a><button onClick={() => dispatch({ type: 'view', result: false })}>Return to editing</button></div><p className="scan-note">Artistic margins can affect scanning. Test the downloaded poster with your phone.</p><details><summary>Artifacts & verification</summary><div className="downloads">{Object.keys(state.result.artifacts).filter(name => name !== 'poster.png').map(name => <a key={name} href={artifacts[name]} download={name}>{name}</a>)}</div></details></div> : state.prepared && state.placement && posterUrl ? <Canvas mask={previews['region.png'] ?? ''} poster={posterUrl} overlay={previews['mask.png'] ?? ''} qr={previews['qr.png'] ?? ''} width={state.prepared.width} height={state.prepared.height} placement={state.placement} modules={state.prepared.qrMetadata.totalModules} onChange={move} invalid={!!state.error} /> : <div className="empty"><div className="empty-icon">＋</div><h3>Your poster goes here</h3><p>Enter text, pick a letter mask,<br />and place your QR inside it.</p></div>}
+    </aside><div className="preview-panel"><div className="preview-heading"><div><span className="eyebrow">{state.showingResult ? 'FINISHED POSTER' : 'PREVIEW'}</span><h2>{state.showingResult ? 'Ready for the real world.' : 'Place your QR inside the region.'}</h2></div>{state.prepared && <span className="badge">{state.prepared.width} × {state.prepared.height}</span>}</div>
+      {state.showingResult && state.result ? <div className="result"><img src={artifacts['poster.png']} alt="Assembled artistic QR poster" /><div className="result-actions"><a className="primary" href={artifacts['poster.png']} download="poster.png">Download poster.png</a><button onClick={() => dispatch({ type: 'view', result: false })}>Return to editing</button></div><p className="scan-note">Artistic margins can affect scanning. Test the downloaded poster with your phone.</p><details><summary>Artifacts & verification</summary><div className="downloads">{Object.keys(state.result.artifacts).filter(name => name !== 'poster.png').map(name => <a key={name} href={artifacts[name]} download={name}>{name}</a>)}</div></details></div> : state.prepared && state.placement && posterUrl ? <Canvas mask={previews['region.png'] ?? ''} poster={posterUrl} overlay={previews['mask.png'] ?? ''} qr={previews['qr.png'] ?? ''} width={state.prepared.width} height={state.prepared.height} placement={state.placement} modules={state.prepared.qrMetadata.totalModules} onChange={move} invalid={!!state.error} /> : <div className="empty"><div className="empty-icon">＋</div><h3>Your poster goes here</h3><p>Pick a canvas and place your QR.</p></div>}
       <div className="workspace-note"><span>Original dimensions. Precise placement.</span><span>Pixels outside your region stay untouched.</span></div>
-    </div></div>
+    </div></div>}
   </main>
 }
