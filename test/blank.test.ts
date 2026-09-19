@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { QrPosterError } from '../src/errors.js'
-import { decodePng, rgbaToPng } from '../src/image.js'
-import { buildManualRegionMask, detectRegionMask } from '../src/mask.js'
+import { QrPosterError } from '../src/core/errors.js'
+import { decodePng, rgbaToPng } from '../src/core/image.js'
+import { buildManualRegionMask, detectRegionMask } from '../src/core/mask.js'
 import { prepareEditor, assembleFromBuffers } from '../src/server/editor.js'
 import { MAX_IMAGE_BYTES, MAX_PIXELS } from '../src/lib/editor/schema.js'
 import {

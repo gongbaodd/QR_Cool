@@ -1,4 +1,4 @@
-import { fitsMask } from './lib/editor/schema.js'
+import { fitsMask } from '../lib/editor/schema.js'
 import { QrPosterError } from './errors.js'
 import type { QrBoxInput, QrPlacement, RegionMask } from './types.js'
 

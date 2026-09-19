@@ -1,3 +1,6 @@
+import type { LoadedPng } from './image.js'
+import type { DecodedQr } from './qr.js'
+
 export interface ImageDimensions {
   width: number
   height: number
@@ -63,6 +66,21 @@ export interface QrPlacement {
   mode: 'auto' | 'manual'
   /** Extra decorative modules reserved around the QR; retained for report compatibility. */
   artPaddingModules: number
+}
+
+export interface ResolvedLayout {
+  /** The poster exactly as supplied. */
+  poster: LoadedPng
+  /** The QR file exactly as supplied, kept for input reporting. */
+  qrSource: LoadedPng
+  /** The QR image placement uses: the input, or a code grid re-padded with a quiet zone. */
+  qrImage: LoadedPng
+  maskInput?: LoadedPng
+  regionMask: RegionMask
+  decoded: DecodedQr
+  qrMetadata: QrMetadata
+  placement: QrPlacement
+  normalizedQr: Buffer
 }
 
 export interface VerificationCheck {

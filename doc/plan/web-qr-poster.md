@@ -61,7 +61,7 @@ flowchart LR
 - Keep temporary CLI adapters that call these services and write the existing filenames. Do not invoke the CLI as a subprocess from a web request.
 - Preserve schema-8 assembly reports during migration. Put web revision and response metadata in a separate versioned API envelope, not in incompatible changes to the existing report. Web reports use logical input names rather than server paths.
 
-Proposed structure after migration:
+Structure after migration (implemented):
 
 ```text
 src/app/                         # Page, layout, Node route handlers
@@ -147,8 +147,8 @@ The full normalized QR square is the placement constraint; the smaller module pl
 ### 6. Retire the CLI (completed)
 
 - Removed `src/cli.ts`, Commander, the `qr-poster` bin entry, CLI-only scripts/options, and CLI-only tests.
-- Remove the retired Qwen/generation/dry-run orchestration and standalone mode entry points after checking imports. Keep any shared mask, SVG, QR, or geometry helpers still used by web assembly; do not delete `pattern-cut.ts` wholesale while assembly imports `buildCutSvg`.
-- Keep engine tests and fixtures. Replace CLI end-to-end coverage with API/browser coverage before deleting it. Remove unused dependencies only after an import audit; retain Sharp, uqr, and both decoders.
+- Removed the retired Qwen/generation/dry-run orchestration and standalone mode entry points after checking imports. The engine moved to `src/core/`; shared mask, SVG, QR, and geometry helpers still used by web assembly were kept, including `pattern-cut.ts` (trimmed to its trace/fillet/SVG/coverage helpers, which assembly uses via `buildCutSvg`).
+- Kept engine and route tests plus fixtures (`source/poster.png`, used by the buffer tests). CLI end-to-end coverage was replaced with API/browser coverage before deletion. Unused dependencies were removed after an import audit; Sharp, uqr, and both decoders are retained.
 - Make `pnpm dev`, `pnpm build`, and `pnpm start` the web commands; retain `pnpm test` and `pnpm typecheck`, and add `pnpm test:e2e`.
 - Rewrite README and AGENTS.md around the web workflow and mark the previous artistic-QR plan as historical. Remove obsolete CLI/Qwen setup instructions from active documentation, retaining useful design history and verification contracts.
 - Final gate: no active CLI imports or scripts remain; clean-install build, engine tests, API tests, and browser journey pass. The web app is the only supported product interface.

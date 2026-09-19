@@ -429,3 +429,10 @@ function quietZoneLightRatio(data: Uint8Array, width: number, height: number, ma
   }
   return total === 0 ? 0 : light / total
 }
+
+/** Crop whole modules from the central third, away from the corner finder markers. */
+export async function cropQrPattern(qr: Buffer, totalModules: number, modulePixels: number): Promise<Buffer> {
+  const modules = Math.min(Math.floor(totalModules / 3), totalModules - 20)
+  const start = Math.floor((totalModules - modules) / 2) * modulePixels
+  return sharp(qr).extract({ left: start, top: start, width: modules * modulePixels, height: modules * modulePixels }).png().toBuffer()
+}

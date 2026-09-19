@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { requestSchema, MAX_BODY_BYTES } from '../lib/editor/schema.js'
 import { InputError, prepareEditor, assembleFromBuffers } from './editor.js'
-import { QrPosterError } from '../errors.js'
+import { QrPosterError } from '../core/errors.js'
 
 // Shared by both routes in this Node process. No queue and no uploaded assets retained.
 const globalState = globalThis as typeof globalThis & { qrRenderActive?: number }

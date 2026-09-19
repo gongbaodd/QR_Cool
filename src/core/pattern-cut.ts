@@ -1,11 +1,8 @@
-import { createHash } from 'node:crypto'
-import { access, mkdir, writeFile } from 'node:fs/promises'
-import { isAbsolute, join, resolve } from 'node:path'
 import sharp from 'sharp'
 import { QrPosterError } from './errors.js'
-import { loadPng, luma, rgbaToPng } from './image.js'
+import { luma, rgbaToPng } from './image.js'
 import type { LoadedPng } from './image.js'
-import type { BoundingBox, PatternCutOptions, PatternCutReport, PatternCutResult, Point } from './types.js'
+import type { BoundingBox, Point } from './types.js'
 
 /** Default corner fillet radius in poster pixels; matches the placed module pitch. */
 export const CUT_RADIUS = 5
@@ -18,7 +15,6 @@ export const CUT_KEEP_RULE = 'transparent-or-dark' as const
 
 const ALPHA_THRESHOLD = 128
 const DARK_THRESHOLD = 128
-const ARTIFACT_NAMES = { svg: 'pattern-cut.svg', png: 'pattern-cut.png', report: 'report.json' } as const
 const SVG_CLIP_ID = 'pattern-cut'
 const STRAIGHT_ANGLE_EPSILON = 0.02
 const MIN_LOOP_AREA = 4
@@ -548,113 +544,4 @@ export async function renderCutPng(
     output[offset + 3] = Math.round(pattern.data[offset + 3]! * coverage[index]! / 255)
   }
   return rgbaToPng(output, pattern.width, pattern.height)
-}
-
-export async function generatePatternCut(options: PatternCutOptions): Promise<PatternCutResult> {
-  const startedAt = Date.now()
-  const radius = options.radius ?? CUT_RADIUS
-  const smoothTolerance = options.smoothTolerance ?? CUT_SMOOTH_TOLERANCE
-  if (!Number.isFinite(radius) || radius < 0)
-    throw new QrPosterError('INVALID_INPUT', '--cut-radius must be zero or a positive number.')
-  if (!Number.isFinite(smoothTolerance) || smoothTolerance < 0)
-    throw new QrPosterError('INVALID_INPUT', '--cut-smooth must be zero or a positive number.')
-
-  const outputDir = resolve(options.outputDir)
-  await ensureOutputsAvailable(outputDir, options.force ?? false)
-  await mkdir(outputDir, { recursive: true })
-
-  const pattern = await loadPng(options.inputPath, 'pattern input')
-  const mask = await loadPng(options.maskPath, 'cut mask')
-  if (mask.width !== pattern.width || mask.height !== pattern.height) {
-    throw new QrPosterError(
-      'MASK_INVALID',
-      `Cut mask dimensions ${mask.width}x${mask.height} do not match the pattern dimensions ${pattern.width}x${pattern.height}.`,
-    )
-  }
-
-  const selected = buildShapeSelection(mask)
-  const cut = buildCutPath(selected, pattern.width, pattern.height, { radius, smoothTolerance })
-  const svg = buildCutSvg(cut.d, pattern.width, pattern.height, pattern.file, { borderWidth: CUT_BORDER_WIDTH })
-  const png = await renderCutPng(pattern, cut.d, CUT_BORDER_WIDTH)
-
-  await writeFile(join(outputDir, ARTIFACT_NAMES.svg), svg, 'utf8')
-  await writeFile(join(outputDir, ARTIFACT_NAMES.png), png)
-
-  const minLoopArea = cutMinLoopArea(radius)
-  const warnings: string[] = []
-  if (cut.stats.specksDropped > 0) {
-    warnings.push(`${cut.stats.specksDropped} mask loop(s) smaller than ${minLoopArea}px² were dropped as specks.`)
-  }
-  if (cut.stats.radiusClamped)
-    warnings.push(`The ${radius}px fillet was clamped on features narrower than twice the radius.`)
-  if (radius < 1)
-    warnings.push(`The cut radius is ${radius}px; corners are not rounded below 1px.`)
-
-  const report: PatternCutReport = {
-    schemaVersion: 4,
-    mode: 'pattern-cut',
-    status: 'generated',
-    createdAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAt,
-    inputs: {
-      pattern: {
-        path: normalizedPath(options.inputPath),
-        sha256: pattern.sha256,
-        width: pattern.width,
-        height: pattern.height,
-      },
-      mask: {
-        path: normalizedPath(options.maskPath),
-        sha256: mask.sha256,
-        width: mask.width,
-        height: mask.height,
-      },
-    },
-    cut: {
-      radius,
-      smoothTolerance,
-      keep: CUT_KEEP_RULE,
-      minLoopArea,
-      borderWidth: CUT_BORDER_WIDTH,
-    },
-    shape: cut.stats,
-    artifacts: {
-      svg: ARTIFACT_NAMES.svg,
-      svgSha256: sha256(svg),
-      png: ARTIFACT_NAMES.png,
-      pngSha256: sha256(png),
-    },
-    warnings,
-  }
-  await writeFile(join(outputDir, ARTIFACT_NAMES.report), `${JSON.stringify(report, null, 2)}\n`, 'utf8')
-  return { report, outputDir }
-}
-
-function sha256(value: string | Buffer): string {
-  return createHash('sha256').update(value).digest('hex')
-}
-
-function normalizedPath(path: string): string {
-  return isAbsolute(path) ? path : resolve(path)
-}
-
-async function ensureOutputsAvailable(outputDir: string, force: boolean): Promise<void> {
-  if (force)
-    return
-  const collisions: string[] = []
-  for (const name of Object.values(ARTIFACT_NAMES)) {
-    try {
-      await access(join(outputDir, name))
-      collisions.push(name)
-    }
-    catch {
-      // Missing is the expected state.
-    }
-  }
-  if (collisions.length > 0) {
-    throw new QrPosterError(
-      'OUTPUT_EXISTS',
-      `Refusing to overwrite existing output files: ${collisions.join(', ')}. Use --force to replace them.`,
-    )
-  }
 }

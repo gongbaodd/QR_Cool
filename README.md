@@ -84,6 +84,6 @@ pnpm benchmark
 
 Vitest covers engine geometry, decoder fixtures, deterministic artifact hashes captured before refactoring, pixel invariants, buffer services, request limits, concurrent users, and stale reducer responses. Playwright runs production-server journeys in Chromium, Firefox, WebKit, and an iPhone touch viewport, including upload, numeric/keyboard/pointer editing, zoom, assembly, download-byte equality, invalid-placement recovery, and result invalidation.
 
-The renderer remains in the existing `src/` engine modules; `src/server/` owns the stateless buffer services and HTTP adapters, `src/lib/editor/` holds schemas and reducer state, and `src/components/editor/` owns browser interaction. No request invokes a CLI or writes temporary files.
+The renderer lives in the `src/core/` engine modules; `src/server/` owns the stateless buffer services and HTTP adapters, `src/lib/editor/` holds schemas and reducer state, and `src/components/editor/` owns browser interaction. No request invokes a CLI or writes temporary files.
 
 See [web implementation plan](doc/plan/web-qr-poster.md). The [previous artistic QR plan](doc/plan/artistic-qr-poster.md) is historical design context.

@@ -15,7 +15,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 - The painted region is auto-detected from the dense central black shape; an uploaded mask overrides detection.
 - Tests never make paid calls: mock API responses, use local fixtures.
 - No request invokes a CLI or writes temporary files. `output/` and `dist/` are gitignored run products; schema-8 assembly reports are preserved, with web revision and response metadata in a separate version-1 API envelope.
-- The renderer lives in the existing `src/` engine modules; `src/server/` owns the stateless buffer services and HTTP adapters, `src/lib/editor/` holds schemas and reducer state, and `src/components/editor/` owns browser interaction.
+- The renderer lives in the `src/core/` engine modules; `src/server/` owns the stateless buffer services and HTTP adapters, `src/lib/editor/` holds schemas and reducer state, and `src/components/editor/` owns browser interaction.
 
 ## QR pattern generation
 

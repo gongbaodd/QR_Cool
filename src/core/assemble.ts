@@ -1,12 +1,8 @@
 import { createHash } from 'node:crypto'
-import { access, mkdir, writeFile } from 'node:fs/promises'
-import { isAbsolute, join, resolve } from 'node:path'
 import sharp from 'sharp'
 import { renderRegionMask } from './artifacts.js'
 import { QrPosterError } from './errors.js'
 import { decodePng, rgbaToPng } from './image.js'
-import { resolveLayout } from './layout.js'
-import type { ResolvedLayout } from './layout.js'
 import {
   buildModuleLattice,
   buildModulePath,
@@ -28,11 +24,10 @@ import {
 import { buildCutSvg } from './pattern-cut.js'
 import { verifyQrVariant } from './qr.js'
 import type {
-  AssemblePosterOptions,
   AssembleReport,
-  AssembleResult,
   BoundingBox,
   QrPlacement,
+  ResolvedLayout,
   VerificationCheck,
 } from './types.js'
 
@@ -67,57 +62,6 @@ const ARTIFACT_NAMES = {
  * outside the region, pixels in modules the region only partly covers, and the whole alpha channel
  * are preserved, so nothing is ever punched transparent and no drawn edge crosses a module.
  */
-export async function assemblePoster(options: AssemblePosterOptions): Promise<AssembleResult> {
-  try {
-    return await assemblePosterImpl(options)
-  }
-  catch (error) {
-    if (error instanceof QrPosterError)
-      throw error
-    throw new QrPosterError(
-      'IMAGE_PROCESSING_FAILED',
-      error instanceof Error ? error.message : 'Image processing failed.',
-      3,
-      { cause: error },
-    )
-  }
-}
-
-async function assemblePosterImpl(options: AssemblePosterOptions): Promise<AssembleResult> {
-  const startedAt = Date.now()
-  if (options.radius !== undefined && (!Number.isFinite(options.radius) || options.radius < 0))
-    throw new QrPosterError('INVALID_INPUT', '--cut-radius must be zero or a positive number.')
-  if (options.qrMargin !== undefined && (!Number.isFinite(options.qrMargin) || options.qrMargin <= 0)) {
-    throw new QrPosterError(
-      'INVALID_INPUT',
-      '--qr-margin must be a positive number of modules. Zero leaves the code grid flush against the '
-      + 'texture with no light band beside the markers.',
-    )
-  }
-  if (options.qrMargin !== undefined && (!Number.isInteger(options.qrMargin) || options.qrMargin > QUIET_ZONE_MODULES)) {
-    throw new QrPosterError(
-      'INVALID_INPUT',
-      `--qr-margin must be a whole number of modules between 1 and ${QUIET_ZONE_MODULES}: the light `
-      + 'band is a row of whole cells beside each finder marker, and the profile\'s quiet zone is '
-      + `${QUIET_ZONE_MODULES} modules.`,
-    )
-  }
-  if (options.smoothTolerance !== undefined) {
-    throw new QrPosterError(
-      'INVALID_INPUT',
-      '--cut-smooth is not used by --assemble: the assembled cut draws whole modules, so there is no '
-      + 'traced outline to simplify. Use --pattern-cut for a filleted cut.',
-    )
-  }
-
-  const outputDir = resolve(options.outputDir)
-  await ensureOutputsAvailable(outputDir, options.force ?? false)
-  await mkdir(outputDir, { recursive: true })
-
-  const result = await assembleResolved(await resolveLayout(options), options)
-  await Promise.all(Object.entries(result.artifacts).map(([name, bytes]) => writeFile(join(outputDir, name), bytes)))
-  return { report: result.report, outputDir }
-}
 
 export async function assembleResolved(layout: ResolvedLayout, options: { seed?: number; qrMargin?: number; radius?: number }) {
   const startedAt = Date.now()
@@ -376,7 +320,7 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
         height: poster.height,
       },
       qr: {
-        path: qrSource.path === '<generated>' ? qrSource.path : normalizedPath(qrSource.path),
+        path: qrSource.path,
         sha256: qrSource.sha256,
         width: qrSource.width,
         height: qrSource.height,
@@ -529,29 +473,4 @@ function qrSourceOffset(placement: QrPlacement, column: number, row: number): nu
 
 function formatNumber(value: number): string {
   return String(Math.round(value * 100) / 100)
-}
-
-function normalizedPath(path: string): string {
-  return isAbsolute(path) ? path : resolve(path)
-}
-
-async function ensureOutputsAvailable(outputDir: string, force: boolean): Promise<void> {
-  if (force)
-    return
-  const collisions: string[] = []
-  for (const name of Object.values(ARTIFACT_NAMES)) {
-    try {
-      await access(join(outputDir, name))
-      collisions.push(name)
-    }
-    catch {
-      // Missing is the expected state.
-    }
-  }
-  if (collisions.length > 0) {
-    throw new QrPosterError(
-      'OUTPUT_EXISTS',
-      `Refusing to overwrite existing output files: ${collisions.join(', ')}. Use --force to replace them.`,
-    )
-  }
 }
