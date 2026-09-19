@@ -65,7 +65,7 @@ Structure after migration (implemented):
 
 ```text
 src/app/                         # Page, layout, Node route handlers
-src/components/editor/          # Upload, content form, Konva canvas, result
+src/components/editor/          # Step components and editor hooks (upload, mask, icons), Konva canvas, result
 src/lib/editor/                 # Reducer, coordinate mapping, request schemas
 src/server/                     # Buffer services, validation, response adapters
 src/core/                       # Reused QR, mask, placement, pattern, assembly
