@@ -8,10 +8,23 @@ export interface TextMaskFont {
   label: string
   /** Public URL of the font file, relative to the site root. */
   file: string
+  /** Optional usage caveat shown under the mask font picker. */
+  note?: string
 }
 
 export const TEXT_MASK_FONTS: TextMaskFont[] = [
   { id: 'fathead', family: 'Fathead', label: 'Fathead', file: '/fonts/Fathead_PersonalUseOnly.ttf' },
+  { id: 'fatc', family: 'FatC', label: 'FatC', file: '/fonts/FatC.ttf' },
+  { id: 'fat-ass-filled', family: 'Fat Ass Filled', label: 'Fat Ass Filled', file: '/fonts/FATASSFI.TTF' },
+  { id: 'fat-ass-sepulveda', family: 'Fat Ass Sepulveda', label: 'Fat Ass Sepulveda', file: '/fonts/fat_ass_.ttf' },
+  { id: 'fat-bross', family: 'Fat Bross', label: 'Fat Bross', file: '/fonts/FAT BROSS.ttf' },
+  { id: 'fat-cat', family: 'Fat Cat', label: 'Fat Cat', file: '/fonts/FatCatDEMO.otf' },
+  { id: 'fat-fantasy', family: 'Fat Fantasy', label: 'Fat Fantasy', file: '/fonts/Fat Fantasy.ttf' },
+  { id: 'fats-are-good', family: 'Fats Are Good', label: 'Fats Are Good', file: '/fonts/FATS ARE GOOD.otf' },
+  { id: 'fatlove', family: 'Fatlove', label: 'Happyloverstown Fatlove', file: '/fonts/avantfatlove.ttf' },
+  { id: 'slukoni-fat', family: 'Slukoni Fat', label: 'Slukoni Fat', file: '/fonts/Slukoni-Fat.otf' },
+  { id: 'trinta-quatro-fat', family: 'Trinta Quatro Fat', label: 'Trinta Quatro Fat', file: '/fonts/Trinta_quatro Fat.ttf', note: 'Uppercase, digits and punctuation only.' },
+  { id: 'wear-fat-shirt', family: 'Wear Fat Shirt', label: 'Wear Fat Shirt', file: '/fonts/WEAR FAT SHIRT.ttf' },
 ]
 
 export const TEXT_MASK_FILENAME = 'text-mask.png'

@@ -1,4 +1,15 @@
 @font-face{font-family:'Fathead';src:url('/fonts/Fathead_PersonalUseOnly.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'FatC';src:url('/fonts/FatC.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Fat Ass Filled';src:url('/fonts/FATASSFI.TTF') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Fat Ass Sepulveda';src:url('/fonts/fat_ass_.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Fat Bross';src:url('/fonts/FAT BROSS.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Fat Cat';src:url('/fonts/FatCatDEMO.otf') format('opentype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Fat Fantasy';src:url('/fonts/Fat Fantasy.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Fats Are Good';src:url('/fonts/FATS ARE GOOD.otf') format('opentype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Fatlove';src:url('/fonts/avantfatlove.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Slukoni Fat';src:url('/fonts/Slukoni-Fat.otf') format('opentype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Trinta Quatro Fat';src:url('/fonts/Trinta_quatro Fat.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Wear Fat Shirt';src:url('/fonts/WEAR FAT SHIRT.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:'Gloria Hallelujah';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/gloria-hallelujah.woff2') format('woff2')}
 :root{
   --ink:#23272b;
