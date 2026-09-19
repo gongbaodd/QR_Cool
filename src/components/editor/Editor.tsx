@@ -39,7 +39,7 @@ export default function Editor() {
   const [step, setStep] = useState(1)
   const [textConfirmed, setTextConfirmed] = useState(false)
   const [poster, setPoster] = useState<File | null>(null), [mask, setMask] = useState<File | null>(null), [posterUrl, setPosterUrl] = useState('')
-  const [maskText, setMaskText] = useState(TEXT_MASK_DEFAULT_TEXT), [maskFontId, setMaskFontId] = useState(TEXT_MASK_FONTS[0]!.id), [maskSize, setMaskSize] = useState<number | null>(null), [maskBusy, setMaskBusy] = useState(false)
+  const [maskText, setMaskText] = useState(TEXT_MASK_DEFAULT_TEXT), [maskFontId, setMaskFontId] = useState(TEXT_MASK_FONTS[0]!.id), [maskBusy, setMaskBusy] = useState(false)
   const [maskFit, setMaskFit] = useState<number | null>(null)
   const maskPreview = useRef<HTMLCanvasElement | null>(null)
   const maskFont = TEXT_MASK_FONTS.find(entry => entry.id === maskFontId) ?? TEXT_MASK_FONTS[0]!
@@ -120,9 +120,11 @@ export default function Editor() {
   }
   useEffect(() => { if (step === 2) ensureBlankPoster() }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (textConfirmed && !poster) ensureBlankPoster() }, [textConfirmed]) // eslint-disable-line react-hooks/exhaustive-deps
-  async function applyTextMask() {
+  async function applyTextMask(fontId = maskFontId) {
     if (maskBusy) return
-    if (isBlank) {
+    const entry = TEXT_MASK_FONTS.find(item => item.id === fontId) ?? maskFont
+    const blank = entry.id === 'blank'
+    if (blank) {
       const prepared = state.prepared
       const width = prepared?.width ?? BLANK_POSTER_WIDTH, height = prepared?.height ?? BLANK_POSTER_HEIGHT
       const canvas = drawBlankMask(width, height)
@@ -131,24 +133,23 @@ export default function Editor() {
     }
     const prepared = state.prepared, text = effectiveMask
     if (!prepared || !text) return
-    const font = maskFont
     setMaskBusy(true)
     try {
-      await document.fonts.load(`16px "${font.family}"`)
-      if (!document.fonts.check(`16px "${font.family}"`)) throw new Error('font unavailable')
+      await document.fonts.load(`16px "${entry.family}"`)
+      if (!document.fonts.check(`16px "${entry.family}"`)) throw new Error('font unavailable')
     } catch {
-      dispatch({ type: 'error', revision: state.revision, message: `Could not load the ${font.label} mask font. Please retry.`, field: 'mask' })
+      dispatch({ type: 'error', revision: state.revision, message: `Could not load the ${entry.label} mask font. Please retry.`, field: 'mask' })
       setMaskBusy(false)
       return
     }
-    const canvas = drawTextMask(prepared.width, prepared.height, text, font.family, maskSize ?? defaultTextMaskSize(prepared.width, prepared.height))
+    const canvas = drawTextMask(prepared.width, prepared.height, text, entry.family, defaultTextMaskSize(prepared.width, prepared.height))
     canvas.toBlob(blob => { setMaskBusy(false); if (blob) uploadMaskFile(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' })) }, 'image/png')
   }
   useEffect(() => {
     if (isBlank) { setMaskFit(null); return }
     const prepared = state.prepared, text = effectiveMask
     if (!prepared || !text) { setMaskFit(null); return }
-    const cap = maskSize ?? defaultTextMaskSize(prepared.width, prepared.height)
+    const cap = defaultTextMaskSize(prepared.width, prepared.height)
     let live = true
     void document.fonts.load(`16px "${maskFont.family}"`).then(() => {
       if (!live) return
@@ -156,10 +157,9 @@ export default function Editor() {
       setMaskFit(largestWhiteSquare(canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height))
     })
     return () => { live = false }
-  }, [state.prepared, effectiveMask, maskSize, maskFontId, maskFont.family, isBlank])
+  }, [state.prepared, effectiveMask, maskFontId, maskFont.family, isBlank])
   const minMaskSquare = state.prepared ? state.prepared.qrMetadata.totalModules * 4 : 0
   const maskTooSmall = !isBlank && maskFit !== null && maskFit < minMaskSquare
-  const maskAtMax = !!state.prepared && (maskSize ?? defaultTextMaskSize(state.prepared.width, state.prepared.height)) >= state.prepared.height
   const ready = !!state.prepared && state.prepared.revision === state.revision && !state.error && !state.busy && contentCheck.success
   const move = (box: Placement) => edit({ type: 'edit', patch: { placement: canonicalPlacement(box, state.prepared!.qrMetadata.totalModules) } })
   const steps = ['Input text', 'select mask', 'Adjust QR', 'Generate']
@@ -194,7 +194,7 @@ export default function Editor() {
     </aside></div> : <div className="workspace"><aside>
       <div className="panel-heading"><span className="eyebrow">POSTER STUDIO · STEP {step} OF 4</span><h1>Make the code<br />part of the art.</h1></div>
       {step === 2 && <section><h2><span>02</span> select mask</h2>
-          <canvas ref={maskPreview} width={276} height={76} aria-label="Mask text preview" style={{ width: '100%', borderRadius: 6, background: 'black' }} /><label>Mask letter<input aria-label="Mask text" value={maskText} maxLength={TEXT_MASK_MAX_LENGTH} disabled={isBlank} onChange={e => setMaskText(e.target.value.slice(-TEXT_MASK_MAX_LENGTH))} /></label>{suggestedMask ? <p className="hint">Suggested letter <strong>{suggestedMask}</strong> from your link.{!isBlank && maskText.trim() !== suggestedMask && <button className="text-button" onClick={() => setMaskText(suggestedMask)}>Use suggested letter</button>}</p> : <p className="hint">Plain text uses a blank region — pick any letter or keep the full canvas.</p>}<div className="font-row" role="radiogroup" aria-label="Mask font">{TEXT_MASK_FONTS.map(entry => { const selected = entry.id === maskFontId; const glyph = isBlank ? '' : (effectiveMask || 'A'); const isBlankEntry = entry.id === 'blank'; return <button key={entry.id} type="button" role="radio" aria-checked={selected} aria-label={`Mask font ${entry.label}`} title={entry.label} onClick={() => setMaskFontId(entry.id)} className={selected ? 'font-card selected' : 'font-card'}>{isBlankEntry ? <><span className="font-glyph" style={{ fontSize: 14 }}>blank</span><span className="font-name">{entry.label}</span></> : <><span className="font-glyph" style={{ fontFamily: `"${entry.family}"` }}>{glyph}</span><span className="font-name">{entry.label}</span></>}</button> })}</div>{!isBlank && maskFont.note && <p className="hint">{maskFont.label}: {maskFont.note}</p>}<label>Mask text size (px)<input aria-label="Mask text size" type="number" min={8} max={state.prepared ? state.prepared.height : undefined} value={maskSize ?? (state.prepared ? defaultTextMaskSize(state.prepared.width, state.prepared.height) : '')} disabled={isBlank || !state.prepared} onChange={e => setMaskSize(Math.max(8, Math.round(Number(e.target.value))))} /></label><button disabled={maskBusy || (!isBlank && (!effectiveMask || maskTooSmall))} onClick={() => void applyTextMask()}>{maskBusy ? 'Drawing mask…' : isBlank ? 'Use blank mask' : 'Use letter as mask'}</button>{maskTooSmall && <p className="error" role="alert">{maskAtMax ? 'This letter leaves no room for the QR even at full height. Use a wider letter.' : 'This letter leaves no room for the QR at this size. Enlarge the size or use a wider letter.'}</p>}<div className="step-nav"><button onClick={() => goto(1)}>Back</button><button className="primary" disabled={!state.prepared} onClick={() => goto(3)}>Continue</button></div>
+          <canvas ref={maskPreview} width={276} height={76} aria-label="Mask text preview" style={{ width: '100%', borderRadius: 6, background: 'black' }} /><label>Mask letter<input aria-label="Mask text" value={maskText} maxLength={TEXT_MASK_MAX_LENGTH} disabled={isBlank} onChange={e => setMaskText(e.target.value.slice(-TEXT_MASK_MAX_LENGTH))} /></label>{suggestedMask ? <p className="hint">Suggested letter <strong>{suggestedMask}</strong> from your link.{!isBlank && maskText.trim() !== suggestedMask && <button className="text-button" onClick={() => setMaskText(suggestedMask)}>Use suggested letter</button>}</p> : <p className="hint">Plain text uses a blank region — pick any letter or keep the full canvas.</p>}<div className="font-row" role="radiogroup" aria-label="Mask font">{TEXT_MASK_FONTS.map(entry => { const selected = entry.id === maskFontId; const glyph = isBlank ? '' : (effectiveMask || 'A'); const isBlankEntry = entry.id === 'blank'; const disabled = maskBusy || (entry.id !== 'blank' && !effectiveMask); return <button key={entry.id} type="button" role="radio" aria-checked={selected} aria-label={`Mask font ${entry.label}`} title={entry.label} disabled={disabled} onClick={() => { setMaskFontId(entry.id); void applyTextMask(entry.id) }} className={selected ? 'font-card selected' : 'font-card'}>{isBlankEntry ? <><span className="font-glyph" style={{ fontSize: 14 }}>blank</span><span className="font-name">{entry.label}</span></> : <><span className="font-glyph" style={{ fontFamily: `"${entry.family}"` }}>{glyph}</span><span className="font-name">{entry.label}</span></>}</button> })}</div>{!isBlank && maskFont.note && <p className="hint">{maskFont.label}: {maskFont.note}</p>}{maskBusy && <p className="hint" role="status">Drawing mask…</p>}{maskTooSmall && <p className="error" role="alert">This letter leaves no room for the QR even at full height. Use a wider letter.</p>}<div className="step-nav"><button onClick={() => goto(1)}>Back</button><button className="primary" disabled={!state.prepared} onClick={() => goto(3)}>Continue</button></div>
       </section>}
       {step === 3 && <section><h2><span>03</span> Adjust QR</h2><p className="file-meta">Encoding: {state.content || '—'}</p><button className="text-button" onClick={() => goto(1)}>Change text</button><div className="coordinates">{(['x','y','size'] as const).map(key => <label key={key}>{key === 'size' ? 'Size' : key.toUpperCase()}<input aria-label={key === 'size' ? 'QR size' : `QR ${key.toUpperCase()}`} type="number" step={key === 'size' ? state.prepared?.qrMetadata.totalModules ?? 1 : 1} value={state.placement?.[key] ?? ''} disabled={!state.prepared} onChange={e => move({ ...state.placement!, [key]: Number(e.target.value) })} /></label>)}</div><button className="text-button" disabled={!poster || !contentCheck.success} onClick={() => edit({ type: 'edit', patch: { placement: null } })}>Reset to automatic placement</button><p className="hint">Original poster pixels. Size snaps to whole QR modules. Drag the QR in the preview or use the arrow keys.</p>
       <details className="advanced"><summary>Pattern settings</summary><label>Seed<input type="number" min={0} max={4294967295} value={state.settings.seed} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: Math.max(0, Math.min(4294967295, Math.round(Number(e.target.value)))) } } })} /></label><button onClick={() => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } })}>New pattern</button><label>Finder margin<span className="hint">1 module (fixed)</span></label><label>Marker corners<select value={state.settings.plateCorners} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, plateCorners: e.target.value as 'light' | 'texture' } } })}><option value="texture">Continue texture</option><option value="light">Keep light</option></select></label><label>Rim thickness<select value={state.settings.rimModules} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, rimModules: Number(e.target.value) } } })}>{[0,1,2,3,4,5].map(n => <option key={n} value={n}>{n} module{n!==1?'s':''}</option>)}</select></label><label>Round rim<input type="checkbox" checked={state.settings.rimRounded} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, rimRounded: e.target.checked } } })} /> antialiased</label></details>
