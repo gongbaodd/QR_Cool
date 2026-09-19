@@ -4,7 +4,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { initialState, reducer } from '../../lib/editor/state'
 import { canonicalPlacement, contentSchema, MAX_IMAGE_BYTES } from '../../lib/editor/schema'
 import { BLANK_MASK_FILENAME, BLANK_POSTER_FILENAME, BLANK_POSTER_HEIGHT, BLANK_POSTER_WIDTH, buildBlankMaskRgba, buildBlankPosterRgba } from '../../lib/editor/blank'
-import { TEXT_MASK_DEFAULT_TEXT, TEXT_MASK_FILENAME, TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH, defaultTextMaskSize, deriveMaskLetter, fitTextMaskSize, largestWhiteSquare } from '../../lib/editor/text-mask'
+import { TEXT_MASK_DEFAULT_TEXT, TEXT_MASK_FILENAME, TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH, defaultTextMaskSize, deriveMaskLetter, fitTextMaskSize, largestWhiteSquare, searchControlState } from '../../lib/editor/text-mask'
 import type { IconItem } from '../../lib/editor/text-mask'
 import type { Placement } from '../../lib/editor/schema'
 const Canvas = dynamic(() => import('./Canvas'), { ssr: false })
@@ -72,6 +72,7 @@ export default function Editor() {
   const [iconTotal, setIconTotal] = useState(0)
   const [iconLoading, setIconLoading] = useState(false)
   const [iconError, setIconError] = useState<string | null>(null)
+  const [fetchedQuery, setFetchedQuery] = useState('')
   const [selectedIconId, setSelectedIconId] = useState<string | null>(null)
   const [galleryMode, setGalleryMode] = useState(false)
 
@@ -90,6 +91,10 @@ export default function Editor() {
   const effectiveMask = (maskText.trim()[0] || suggestedMask).slice(0, 1).toUpperCase()
   const isBlank = maskFontId === 'blank' && !selectedIconId
   const isIconMode = !!selectedIconId
+  const searchQuery = maskText.trim()
+  const searchState = searchControlState(searchQuery, fetchedQuery, iconResults.length)
+  const searchQueryRef = useRef(searchQuery)
+  searchQueryRef.current = searchQuery
   useEffect(() => {
     const node = maskPreview.current
     if (!node) return
@@ -152,41 +157,38 @@ export default function Editor() {
     })
     return () => { live = false }
   }, [effectiveMask, maskFontId, maskFont.family, isBlank, isIconMode, selectedIconId, iconResults, galleryMode])
-  const lastFetchedQuery = useRef('')
-  async function fetchIconsForQuery(q: string) {
-    const query = q.trim()
-    if (!query) { setIconResults([]); setIconTotal(0); setIconError(null); setIconLoading(false); lastFetchedQuery.current = ''; return }
-    if (query.length <= 1) { setIconResults([]); setIconTotal(0); setIconError(null); setIconLoading(false); lastFetchedQuery.current = ''; return }
+  // One request per clicked term, cached for that term only. Returns whether icons came back.
+  async function fetchIconsForQuery(query: string): Promise<boolean> {
     setIconLoading(true); setIconError(null)
     try {
       const res = await fetch(`/api/icons?q=${encodeURIComponent(query)}`)
       if (!res.ok) throw new Error('search failed')
       const data = await res.json() as { total:number; count:number; items: IconItem[] }
-      setIconResults(data.items ?? []); setIconTotal(data.total ?? data.items?.length ?? 0); lastFetchedQuery.current = query
+      const items = data.items ?? []
+      setIconResults(items); setIconTotal(data.total ?? items.length); setFetchedQuery(query)
+      return items.length > 0
     } catch {
-      setIconError('Could not search icons.'); setIconResults([]); setIconTotal(0); lastFetchedQuery.current = query
+      setIconError('Could not search icons.'); setIconResults([]); setIconTotal(0); setFetchedQuery(query)
+      return false
     } finally { setIconLoading(false) }
   }
-  async function handleMoreSearch() {
-    const query = maskText.trim()
-    if (query.length <= 1 || maskBusy || iconLoading) return
-    if (lastFetchedQuery.current !== query) {
-      await fetchIconsForQuery(query)
-      // keep preview in place; user can click More again to see gallery. Letters stay even if empty.
-      return
-    }
-    if (iconResults.length > 0 || iconTotal > 0) {
-      setGalleryMode(v => !v)
-      return
-    }
-    // already fetched but empty result – keep gallery closed, letters stay visible
-    setGalleryMode(false)
+  // The combined search/more control: one click searches a new term and shows the
+  // results, reopens the gallery for a cached term, and stays put on an empty input.
+  async function handleSearchClick() {
+    const query = searchQuery
+    if (maskBusy || iconLoading) return
+    if (!query) { setGalleryMode(false); return }
+    if (fetchedQuery === query && iconResults.length > 0) { setGalleryMode(true); return }
+    const found = await fetchIconsForQuery(query)
+    // A response for an abandoned term never opens a stale gallery.
+    if (found && searchQueryRef.current === query) setGalleryMode(true)
   }
-  // Per user request: typing never mutates the icon grid; only More triggers search.
-  // Keep iconResults stable across input changes; only close gallery to avoid stale view.
+  // Typing never searches; it only closes the gallery so no stale results are shown.
   useEffect(() => {
     if (galleryMode) setGalleryMode(false)
   }, [maskText]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Entering step 2 re-derives the control from the input and starts on the mask preview.
+  useEffect(() => { setGalleryMode(false) }, [step])
   const abort = useRef<AbortController | null>(null), latest = useRef(state)
   latest.current = state
   const previews = useBlobUrls(state.prepared ? { 'mask.png': state.prepared.overlay, 'region.png': state.prepared.mask, 'qr.png': state.prepared.qr } : {})
@@ -349,7 +351,18 @@ export default function Editor() {
     </aside></div> : <div className={step === 2 ? "workspace workspace-step2" : "workspace"}><aside>
       <div className="panel-heading"><span className="eyebrow">POSTER STUDIO · STEP {step} OF 4</span><h1>Make the code<br />part of the art.</h1></div>
       {step === 2 && <section><h2><span>02</span> Mask Search</h2>
-          <label htmlFor="maskSearch">Mask Search<input id="maskSearch" aria-label="Mask search" aria-describedby="mask-search-hint" value={maskText} maxLength={TEXT_MASK_MAX_LENGTH} placeholder="Search icons or type a letter…" onChange={e => setMaskText(e.target.value.slice(0, TEXT_MASK_MAX_LENGTH))} /></label><span id="mask-search-compat" style={{display:'none'}}><label htmlFor="maskSearch">Mask text</label></span>{suggestedMask ? <p id="mask-search-hint" className="hint">Suggested letter <strong>{suggestedMask}</strong> from your link.{!isBlank && !isIconMode && (maskText.trim()[0] ?? '') !== suggestedMask && <button className="text-button" onClick={() => setMaskText(suggestedMask)}>Use suggested letter</button>}</p> : <p id="mask-search-hint" className="hint">Plain text uses a blank region — pick any letter or search icons.</p>}{iconLoading && <p className="hint" role="status">Searching icons…</p>}{iconError && <p className="error" role="alert">{iconError}</p>}{!iconLoading && lastFetchedQuery.current && lastFetchedQuery.current.length > 1 && iconResults.length === 0 && !iconError && <p className="hint">No icons found for “{lastFetchedQuery.current}”. Try another term.</p>}{!iconLoading && lastFetchedQuery.current && iconResults.length > 0 && <p className="hint">Found {iconTotal || iconResults.length} icons for “{lastFetchedQuery.current}”.</p>}<div className="font-row" role="radiogroup" aria-label="Mask options">{TEXT_MASK_FONTS.map(entry => { const isBlankEntry = entry.id === 'blank'; const selected = !selectedIconId && maskFontId === entry.id; const glyph = effectiveMask || 'A'; const disabled = maskBusy || (!isBlankEntry && !effectiveMask); return <button key={entry.id} type="button" role="radio" aria-checked={selected} aria-label={`Mask font ${entry.label}`} title={entry.label} disabled={disabled} onClick={() => { setMaskFontId(entry.id); void applyTextMask(entry.id) }} className={selected ? 'font-card selected' : 'font-card'}>{isBlankEntry ? <><span className="font-glyph" style={{ fontSize: 14 }}>blank</span><span className="font-name">{entry.label}</span></> : <><span className="font-glyph" style={{ fontFamily: `"${entry.family}", sans-serif` }}>{glyph}</span><span className="font-name">{entry.label}</span></>}</button> })}</div>{(() => { const query = maskText.trim(); const canSearch = query.length > 1; const pendingSearch = canSearch && lastFetchedQuery.current !== query; const moreEnabled = canSearch && !maskBusy && !iconLoading; const hasResults = iconResults.length > 0; if (!canSearch && !hasResults && !lastFetchedQuery.current) return null; return <div style={{ marginTop: 10 }}><button aria-label="More icons" title={moreEnabled ? `Search icons for ${query}` : 'Type 2+ characters to search'} disabled={!moreEnabled} onClick={() => { void handleMoreSearch() }} className={galleryMode ? 'font-card selected' : 'font-card'} style={{ width: '100%' }}><span className="font-glyph" style={{ fontSize: 16 }}>{pendingSearch ? `⋯ search ${query.slice(0,10)}` : hasResults ? `⋯ more — ${iconTotal || iconResults.length} icons` : `⋯ more — search ${query.slice(0,10) || 'icons'}`}</span><span className="font-name">{pendingSearch ? 'search' : 'more to search'}</span></button></div> })()}{!isBlank && !isIconMode && maskFont.note && <p className="hint">{maskFont.label}: {maskFont.note}</p>}{maskBusy && <p className="hint" role="status">Drawing mask…</p>}{maskTooSmall && <p className="error" role="alert">This {isIconMode ? 'icon' : 'letter'} leaves no room for the QR even at full height. Use a wider {isIconMode ? 'icon' : 'letter'}.</p>}<div className="step-nav"><button onClick={() => goto(1)}>Back</button><button className="primary" disabled={!state.prepared} onClick={() => goto(3)}>Continue</button></div>
+          <label htmlFor="maskSearch">Mask Search<input id="maskSearch" aria-label="Mask search" aria-describedby="mask-search-hint" value={maskText} maxLength={TEXT_MASK_MAX_LENGTH} placeholder="Search icons or type a letter…" onChange={e => setMaskText(e.target.value.slice(0, TEXT_MASK_MAX_LENGTH))} /></label><span id="mask-search-compat" style={{display:'none'}}><label htmlFor="maskSearch">Mask text</label></span>
+          {suggestedMask ? <p id="mask-search-hint" className="hint">Suggested letter <strong>{suggestedMask}</strong> from your link.{!isBlank && !isIconMode && (maskText.trim()[0] ?? '') !== suggestedMask && <button className="text-button" onClick={() => setMaskText(suggestedMask)}>Use suggested letter</button>}</p> : <p id="mask-search-hint" className="hint">Plain text uses a blank region — pick any letter or search icons.</p>}
+          {iconLoading && <p className="hint" role="status">Searching icons…</p>}
+          {iconError && fetchedQuery === searchQuery && <p className="error" role="alert">{iconError}</p>}
+          {!iconLoading && !iconError && fetchedQuery === searchQuery && fetchedQuery && iconResults.length === 0 && <p className="hint">No icons found for “{fetchedQuery}”. Try another term.</p>}
+          {!iconLoading && fetchedQuery === searchQuery && fetchedQuery && iconResults.length > 0 && <p className="hint">Found {iconTotal || iconResults.length} icons for “{fetchedQuery}”.</p>}
+          <div className="font-row" role="radiogroup" aria-label="Mask options">{TEXT_MASK_FONTS.map(entry => { const isBlankEntry = entry.id === 'blank'; const selected = !selectedIconId && maskFontId === entry.id; const glyph = effectiveMask || 'A'; const disabled = maskBusy || (!isBlankEntry && !effectiveMask); return <button key={entry.id} type="button" role="radio" aria-checked={selected} aria-label={`Mask font ${entry.label}`} title={entry.label} disabled={disabled} onClick={() => { setMaskFontId(entry.id); void applyTextMask(entry.id) }} className={selected ? 'font-card selected' : 'font-card'}>{isBlankEntry ? <><span className="font-glyph" style={{ fontSize: 14 }}>blank</span><span className="font-name">{entry.label}</span></> : <><span className="font-glyph" style={{ fontFamily: `"${entry.family}", sans-serif` }}>{glyph}</span><span className="font-name">{entry.label}</span></>}</button> })}</div>
+          <div style={{ marginTop: 10 }}><button aria-label="More icons" title={searchState === 'idle' ? 'Type a letter or word to search icons' : searchState === 'more' ? `Show ${iconTotal || iconResults.length} icons for ${searchQuery}` : `Search icons for ${searchQuery}`} disabled={maskBusy || iconLoading} onClick={() => { void handleSearchClick() }} className={galleryMode ? 'font-card selected' : 'font-card'} style={{ width: '100%' }}><span className="font-glyph" style={{ fontSize: 16 }}>{iconLoading ? '⋯ searching…' : searchState === 'more' ? `⋯ more — ${iconTotal || iconResults.length} icons` : searchState === 'idle' ? '⋯ search icons' : `⋯ search ${searchQuery.slice(0, 10)}`}</span><span className="font-name">{iconLoading ? 'searching' : searchState === 'more' ? 'more icons' : 'search'}</span></button>{searchState === 'idle' && !iconLoading && <p className="hint">Type a letter or word to search icons.</p>}</div>
+          {!isBlank && !isIconMode && maskFont.note && <p className="hint">{maskFont.label}: {maskFont.note}</p>}
+          {maskBusy && <p className="hint" role="status">Drawing mask…</p>}
+          {maskTooSmall && <p className="error" role="alert">This {isIconMode ? 'icon' : 'letter'} leaves no room for the QR even at full height. Use a wider {isIconMode ? 'icon' : 'letter'}.</p>}
+          <div className="step-nav"><button onClick={() => goto(1)}>Back</button><button className="primary" disabled={!state.prepared} onClick={() => goto(3)}>Continue</button></div>
       </section>}
       {step === 3 && <section><h2><span>03</span> Adjust QR</h2><p className="file-meta">Encoding: {state.content || '—'}</p><button className="text-button" onClick={() => goto(1)}>Change text</button><div className="coordinates">{(['x','y','size'] as const).map(key => <label key={key}>{key === 'size' ? 'Size' : key.toUpperCase()}<input aria-label={key === 'size' ? 'QR size' : `QR ${key.toUpperCase()}`} type="number" step={key === 'size' ? state.prepared?.qrMetadata.totalModules ?? 1 : 1} value={state.placement?.[key] ?? ''} disabled={!state.prepared} onChange={e => move({ ...state.placement!, [key]: Number(e.target.value) })} /></label>)}</div><button className="text-button" disabled={!poster || !contentCheck.success} onClick={() => edit({ type: 'edit', patch: { placement: null } })}>Reset to automatic placement</button><p className="hint">Original poster pixels. Size snaps to whole QR modules. Drag the QR in the preview or use the arrow keys.</p>
       <details className="advanced"><summary>Pattern settings</summary><label>Seed<input type="number" min={0} max={4294967295} value={state.settings.seed} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: Math.max(0, Math.min(4294967295, Math.round(Number(e.target.value)))) } } })} /></label><button onClick={() => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } })}>New pattern</button><label>Finder margin<span className="hint">1 module (fixed)</span></label><label>Marker corners<select value={state.settings.plateCorners} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, plateCorners: e.target.value as 'light' | 'texture' } } })}><option value="texture">Continue texture</option><option value="light">Keep light</option></select></label><label>Rim thickness<select value={state.settings.rimModules} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, rimModules: Number(e.target.value) } } })}>{[0,1,2,3,4,5].map(n => <option key={n} value={n}>{n} module{n!==1?'s':''}</option>)}</select></label><label>Round rim<input type="checkbox" checked={state.settings.rimRounded} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, rimRounded: e.target.checked } } })} /> antialiased</label></details>

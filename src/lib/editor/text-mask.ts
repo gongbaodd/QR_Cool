@@ -64,6 +64,24 @@ export function nearestWindow(selectedIdx: number, total: number, windowSize: nu
   return Math.max(0, Math.min(total - windowSize, selectedIdx - half))
 }
 
+/** Step 2's single search/more control: idle hint, a search, or the gallery. */
+export type SearchControlState = 'idle' | 'search' | 'more'
+
+/**
+ * Derive the label state of step 2's combined search/more control from the
+ * current input, so entering the step or editing the field always re-derives
+ * it instead of showing a stale count. An empty input is idle (hint only, no
+ * request); a term that differs from the last searched term — or a cached term
+ * whose search came back empty — offers a search; a cached term with icons
+ * offers more. Only the latest term is cached.
+ */
+export function searchControlState(query: string, fetchedQuery: string, resultCount: number): SearchControlState {
+  const trimmed = query.trim()
+  if (!trimmed) return 'idle'
+  if (trimmed !== fetchedQuery) return 'search'
+  return resultCount > 0 ? 'more' : 'search'
+}
+
 /**
  * Derive the single-letter mask suggestion from encoded content.
  * Website-like input yields the first letter of the host (scheme and a

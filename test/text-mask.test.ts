@@ -9,6 +9,7 @@ import {
   deriveMaskLetter,
   fitTextMaskSize,
   largestWhiteSquare,
+  searchControlState,
 } from '../src/lib/editor/text-mask'
 
 describe('text mask fonts', () => {
@@ -73,5 +74,20 @@ describe('text mask fonts', () => {
     expect(largestWhiteSquare(gray, 1, 1)).toBe(0)
     const exact = new Uint8ClampedArray([128, 128, 128, 128])
     expect(largestWhiteSquare(exact, 1, 1)).toBe(1)
+  })
+
+  it('derives step 2 search control state from the input and the cached term', () => {
+    // Empty input is idle: hint only, no request.
+    expect(searchControlState('', '', 0)).toBe('idle')
+    expect(searchControlState('   ', 'heart', 20)).toBe('idle')
+    // A term that differs from the cached one offers a search, even a single character.
+    expect(searchControlState('heart', '', 0)).toBe('search')
+    expect(searchControlState('star', 'heart', 20)).toBe('search')
+    expect(searchControlState('q', '', 0)).toBe('search')
+    // A cached term with icons offers more; surrounding spaces are ignored.
+    expect(searchControlState('heart', 'heart', 20)).toBe('more')
+    expect(searchControlState(' heart ', 'heart', 20)).toBe('more')
+    // A cached empty result retries the search on the next click.
+    expect(searchControlState('heart', 'heart', 0)).toBe('search')
   })
 })

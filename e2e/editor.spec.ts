@@ -17,6 +17,22 @@ async function enterAdjust(page: import('@playwright/test').Page) {
   await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
 }
 
+const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21s-6-4.5-6-10a6 6 0 0 1 12 0c0 5.5-6 10-6 10z" fill="currentColor"/></svg>'
+
+/** Mocks the icon-search proxy (recording its queries) and the SVG downloads it returns. */
+async function mockIconSearch(page: import('@playwright/test').Page, queries: string[] = [], count = 20) {
+  await page.route('**/dist/**/*.svg', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: ICON_SVG }))
+  await page.route('**/api/icons*', async route => {
+    const q = new URL(route.request().url()).searchParams.get('q') ?? ''
+    queries.push(q)
+    const items = Array.from({ length: count }, (_, i) => ({
+      id: `test/icon-${i}`, vendor: 'test', name: `${q}-${i}`, download: 'https://icons.grida.co/dist/lucide-icons/src/heart.svg',
+      variants: [{ name: `${q}-${i}`, properties: {}, download: 'https://icons.grida.co/dist/lucide-icons/src/heart.svg' }],
+    }))
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ total: count, count, limit: 100, offset: 0, items }) })
+  })
+}
+
 test('upload, edit, assemble, download, and invalidate', async ({ page }) => {
   await page.goto('/')
   await enterAdjust(page)
@@ -96,18 +112,8 @@ test('blank option starts an editable poster without an upload', async ({ page }
 })
 
 test('mask search keeps 3x4 grid, first letter rule and icon search', async ({ page }) => {
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21s-6-4.5-6-10a6 6 0 0 1 12 0c0 5.5-6 10-6 10z" fill="currentColor"/></svg>'
-  await page.route('**/dist/**/*.svg', async route => {
-    await route.fulfill({ status: 200, contentType: 'image/svg+xml', body: svg })
-  })
-  await page.route('**/api/icons*', async route => {
-    const url = new URL(route.request().url())
-    const q = url.searchParams.get('q') ?? ''
-    const items = Array.from({ length: 20 }, (_, i) => ({
-      id: `test/icon-${i}`, vendor: 'test', name: `${q}-${i}`, download: 'https://icons.grida.co/dist/lucide-icons/src/heart.svg', variants: [{ name: `${q}-${i}`, properties: {}, download: 'https://icons.grida.co/dist/lucide-icons/src/heart.svg' }]
-    }))
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ total: 20, count: 20, limit: 100, offset: 0, items }) })
-  })
+  const queries: string[] = []
+  await mockIconSearch(page, queries)
   await page.goto('/')
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page.getByRole('heading', { name: /Mask Search/i })).toBeVisible()
@@ -129,27 +135,40 @@ test('mask search keeps 3x4 grid, first letter rule and icon search', async ({ p
   await expect(page.getByRole('radio', { name: 'Mask font Fathead' })).toBeVisible()
   await page.getByRole('radio', { name: 'Mask font Fathead' }).click()
   await expect(page.getByRole('radio', { name: 'Mask font Fathead' })).toHaveAttribute('aria-checked', 'true')
+  // A term that has not been searched yet offers a search.
   await search.fill('heart')
-  await expect(page.getByRole('button', { name: 'More icons' })).toBeEnabled()
-  await page.getByRole('button', { name: 'More icons' }).click()
+  const control = page.getByRole('button', { name: 'More icons' })
+  await expect(control).toBeEnabled()
+  await expect(control).toContainText('search heart')
+  // One click searches and shows the results in the preview area.
+  await control.click()
   await expect(page.getByText('Found 20 icons for “heart”')).toBeVisible({ timeout: 5000 })
+  await expect(page.getByRole('heading', { name: /Icons for/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Gallery icon heart-0/ })).toBeVisible()
+  expect(queries).toEqual(['heart'])
   // sidebar stays 12 fonts from public/fonts — icons live only in the preview gallery
   await expect(page.getByRole('radiogroup', { name: 'Mask options' }).locator('button')).toHaveCount(12)
   await expect(page.getByRole('radio', { name: 'Mask font blank' })).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Mask font Fathead' })).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Mask font Wear Fat Shirt' })).toBeVisible()
   await expect(page.getByRole('radiogroup', { name: 'Mask options' }).getByRole('radio', { name: /Icon heart-0/ })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'More icons' })).toBeEnabled()
-  await page.getByRole('button', { name: 'More icons' }).click()
+  // The cached term keeps the gallery open instead of toggling it off.
+  await expect(control).toContainText('more — 20 icons')
+  await control.click()
   await expect(page.getByRole('heading', { name: /Icons for/ })).toBeVisible()
-  await expect(page.getByRole('button', { name: /Gallery icon heart-0/ })).toBeVisible()
+  // Back to preview closes the gallery; the control reopens the same results without a new request.
+  await page.getByRole('button', { name: 'Back to preview' }).click()
+  await expect(page.locator('.gallery-grid')).toHaveCount(0)
+  await expect(page.getByLabel('Mask text preview')).toBeVisible()
+  await control.click()
   const gallery = page.locator('.gallery-grid')
   await expect(gallery).toBeVisible()
+  expect(queries).toEqual(['heart'])
   await gallery.getByRole('button', { name: /Gallery icon heart-15/ }).click()
   await expect(page.getByLabel('Mask text preview')).toBeVisible()
   await expect(page.locator('.gallery-grid')).toHaveCount(0)
   await expect(page.getByRole('radiogroup', { name: 'Mask options' }).locator('button[aria-checked="true"]')).toHaveCount(1)
-  const moreText = await page.getByRole('button', { name: 'More icons' }).textContent()
+  const moreText = await control.textContent()
   expect(moreText).toMatch(/more/)
 })
 
@@ -159,6 +178,71 @@ test('mask search respects maxlength 10', async ({ page }) => {
   const search = page.getByLabel('Mask search', { exact: true })
   await search.fill('123456789012345')
   await expect(search).toHaveValue('1234567890')
+})
+
+test('one character query searches and opens the gallery', async ({ page }) => {
+  const queries: string[] = []
+  await mockIconSearch(page, queries)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  const search = page.getByLabel('Mask search', { exact: true })
+  await search.fill('Z')
+  const control = page.getByRole('button', { name: 'More icons' })
+  await expect(control).toContainText('search Z')
+  await control.click()
+  await expect(page.getByText('Found 20 icons for “Z”')).toBeVisible({ timeout: 5000 })
+  await expect(page.getByRole('button', { name: /Gallery icon Z-0/ })).toBeVisible()
+  expect(queries).toEqual(['Z'])
+})
+
+test('empty search input never fetches icons', async ({ page }) => {
+  const queries: string[] = []
+  await mockIconSearch(page, queries)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  const search = page.getByLabel('Mask search', { exact: true })
+  await search.fill('')
+  const control = page.getByRole('button', { name: 'More icons' })
+  await expect(control).toBeEnabled()
+  await expect(control).toContainText('search icons')
+  await expect(page.getByText('Type a letter or word to search icons.')).toBeVisible()
+  await control.click()
+  await expect(page.locator('.gallery-grid')).toHaveCount(0)
+  await expect(page.getByLabel('Mask text preview')).toBeVisible()
+  expect(queries).toEqual([])
+})
+
+test('re-entering step 2 refreshes the search control from the input', async ({ page }) => {
+  const queries: string[] = []
+  await mockIconSearch(page, queries)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  const search = page.getByLabel('Mask search', { exact: true })
+  const control = page.getByRole('button', { name: 'More icons' })
+  // The website in step 1 suggests the letter E, so the control starts from that input.
+  await expect(search).toHaveValue('E')
+  await search.fill('heart')
+  await control.click()
+  await expect(page.locator('.gallery-grid')).toBeVisible()
+  expect(queries).toEqual(['heart'])
+  // Leaving and re-entering step 2 closes the gallery but keeps the cached term.
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Step 2 Mask Search' }).click()
+  await expect(page.getByLabel('Mask search', { exact: true })).toBeVisible()
+  await expect(page.locator('.gallery-grid')).toHaveCount(0)
+  await expect(page.getByLabel('Mask text preview')).toBeVisible()
+  await expect(control).toContainText('more — 20 icons')
+  await expect(page.getByText('Found 20 icons for “heart”')).toBeVisible()
+  // Editing the input re-derives the label from the field and hides the stale count.
+  await search.fill('star')
+  await expect(control).toContainText('search star')
+  await expect(page.getByText('Found 20 icons for “heart”')).toHaveCount(0)
+  // The next click searches the new term and shows its icons.
+  await control.click()
+  await expect(page.getByRole('button', { name: /Gallery icon star-0/ })).toBeVisible()
+  await expect(page.getByText('Found 20 icons for “star”')).toBeVisible()
+  expect(queries).toEqual(['heart', 'star'])
 })
 
 test('invalid placement retains inputs and reset recovers', async ({ page }) => {
