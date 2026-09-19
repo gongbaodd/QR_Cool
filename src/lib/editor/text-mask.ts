@@ -29,7 +29,40 @@ export const TEXT_MASK_FONTS: TextMaskFont[] = [
 
 export const TEXT_MASK_FILENAME = 'text-mask.png'
 export const TEXT_MASK_DEFAULT_TEXT = 'Q'
-export const TEXT_MASK_MAX_LENGTH = 1
+export const TEXT_MASK_MAX_LENGTH = 10
+export const TEXT_MASK_SEARCH_MAX_LENGTH = 10
+export const MASK_SEARCH_LETTER_TILES = 3
+export const MASK_SEARCH_ICON_WINDOW = 8
+export const MASK_SEARCH_GRID_SIZE = 12
+
+export interface IconVariant {
+  name: string
+  properties: Record<string,string>
+  download: string
+}
+export interface IconItem {
+  id: string
+  vendor: string
+  name: string
+  description?: string
+  tags?: string[]
+  download: string
+  url?: string
+  variants: IconVariant[]
+}
+export interface IconSearchResponse {
+  total: number
+  count: number
+  limit: number
+  offset: number
+  items: IconItem[]
+}
+
+export function nearestWindow(selectedIdx: number, total: number, windowSize: number): number {
+  if (total <= windowSize) return 0
+  const half = Math.floor(windowSize / 2)
+  return Math.max(0, Math.min(total - windowSize, selectedIdx - half))
+}
 
 /**
  * Derive the single-letter mask suggestion from encoded content.

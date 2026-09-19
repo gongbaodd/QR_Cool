@@ -207,7 +207,9 @@ a.textlink{box-shadow:0 -8px var(--highlight) inset;text-decoration:none;color:i
 
 /* ---- masks / text preview ---- */
 canvas[aria-label="Mask text preview"]{border:2px solid var(--ink) !important;border-radius:var(--sketch-alt) !important}
-.font-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:10px;margin:14px 0}
+.font-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
+.mask-gallery-wrap .gallery-grid{scrollbar-width:thin}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .font-card{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;line-height:1.2}
 .font-card .font-glyph{font-size:34px;line-height:1.25;min-height:44px;display:grid;place-items:center}
 .font-card .font-name{font-size:11px;text-transform:none;letter-spacing:0;text-align:center;line-height:1.4}

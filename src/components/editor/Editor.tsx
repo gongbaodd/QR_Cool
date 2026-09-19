@@ -5,6 +5,7 @@ import { initialState, reducer } from '../../lib/editor/state'
 import { canonicalPlacement, contentSchema, MAX_IMAGE_BYTES } from '../../lib/editor/schema'
 import { BLANK_MASK_FILENAME, BLANK_POSTER_FILENAME, BLANK_POSTER_HEIGHT, BLANK_POSTER_WIDTH, buildBlankMaskRgba, buildBlankPosterRgba } from '../../lib/editor/blank'
 import { TEXT_MASK_DEFAULT_TEXT, TEXT_MASK_FILENAME, TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH, defaultTextMaskSize, deriveMaskLetter, fitTextMaskSize, largestWhiteSquare } from '../../lib/editor/text-mask'
+import type { IconItem } from '../../lib/editor/text-mask'
 import type { Placement } from '../../lib/editor/schema'
 const Canvas = dynamic(() => import('./Canvas'), { ssr: false })
 const freshSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!
@@ -27,6 +28,32 @@ function drawBlankMask(width: number, height: number): HTMLCanvasElement {
   context.fillStyle = 'white'; context.fillRect(0, 0, width, height)
   return canvas
 }
+function recolorSvgToWhite(svg: string): string {
+  return svg
+    .replace(/currentColor/g, 'white')
+    .replace(/#000000/gi, 'white')
+    .replace(/#000\b/gi, 'white')
+    .replace(/\bblack\b/gi, 'white')
+}
+async function drawIconMask(width: number, height: number, svgText: string, capPx: number): Promise<HTMLCanvasElement> {
+  const recolored = recolorSvgToWhite(svgText)
+  const blob = new Blob([recolored], { type: 'image/svg+xml' })
+  const url = URL.createObjectURL(blob)
+  const img = new window.Image()
+  await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error('icon load failed')); img.src = url })
+  const canvas = document.createElement('canvas')
+  canvas.width = width; canvas.height = height
+  const ctx = canvas.getContext('2d')!
+  ctx.fillStyle = 'black'; ctx.fillRect(0, 0, width, height)
+  const naturalW = (img as unknown as { naturalWidth: number }).naturalWidth || img.width || 24
+  const naturalH = (img as unknown as { naturalHeight: number }).naturalHeight || img.height || 24
+  const maxW = width * 0.94, maxH = Math.min(capPx, height * 0.94)
+  const scale = Math.min(maxW / naturalW, maxH / naturalH, 1)
+  const drawW = naturalW * scale, drawH = naturalH * scale
+  ctx.drawImage(img, (width - drawW) / 2, (height - drawH) / 2, drawW, drawH)
+  URL.revokeObjectURL(url)
+  return canvas
+}
 function blobFromBase64(value: string, type: string) { return new Blob([Uint8Array.from(atob(value), c => c.charCodeAt(0))], { type }) }
 function useBlobUrls(values: Record<string, string>) {
   const [urls, setUrls] = useState<Record<string, string>>({})
@@ -41,23 +68,76 @@ export default function Editor() {
   const [poster, setPoster] = useState<File | null>(null), [mask, setMask] = useState<File | null>(null), [posterUrl, setPosterUrl] = useState('')
   const [maskText, setMaskText] = useState(TEXT_MASK_DEFAULT_TEXT), [maskFontId, setMaskFontId] = useState('blank'), [maskBusy, setMaskBusy] = useState(false)
   const [maskFit, setMaskFit] = useState<number | null>(null)
+  const [iconResults, setIconResults] = useState<IconItem[]>([])
+  const [iconTotal, setIconTotal] = useState(0)
+  const [iconLoading, setIconLoading] = useState(false)
+  const [iconError, setIconError] = useState<string | null>(null)
+  const [selectedIconId, setSelectedIconId] = useState<string | null>(null)
+  const [galleryMode, setGalleryMode] = useState(false)
+
   const maskPreview = useRef<HTMLCanvasElement | null>(null)
   const maskFont = TEXT_MASK_FONTS.find(entry => entry.id === maskFontId) ?? TEXT_MASK_FONTS[0]!
+  useEffect(() => {
+    if (step !== 2 || typeof document === 'undefined' || !('fonts' in document)) return
+    for (const entry of TEXT_MASK_FONTS) {
+      if (!entry.family) continue
+      void document.fonts.load(`34px "${entry.family}"`).catch(() => {})
+    }
+  }, [step])
   const contentCheck = contentSchema.safeParse(state.content)
   const contentError = !contentCheck.success ? contentCheck.error.issues[0]!.message : state.field === 'content' ? state.error : null
   const suggestedMask = deriveMaskLetter(state.content)
-  const effectiveMask = (maskText.trim() || suggestedMask).slice(0, TEXT_MASK_MAX_LENGTH)
-  const isBlank = maskFontId === 'blank'
+  const effectiveMask = (maskText.trim()[0] || suggestedMask).slice(0, 1).toUpperCase()
+  const isBlank = maskFontId === 'blank' && !selectedIconId
+  const isIconMode = !!selectedIconId
   useEffect(() => {
     const node = maskPreview.current
     if (!node) return
     let live = true
+    if (galleryMode) return () => { live = false }
     if (isBlank) {
       const context = node.getContext('2d')!
       context.fillStyle = 'white'; context.fillRect(0, 0, node.width, node.height)
       context.fillStyle = 'black'; context.textAlign = 'center'; context.textBaseline = 'middle'
       context.font = `${Math.max(14, Math.round(node.width * 0.032))}px sans-serif`
       context.fillText('blank — full canvas', node.width / 2, node.height / 2)
+      return () => { live = false }
+    }
+    if (isIconMode) {
+      const item = iconResults.find(r => r.id === selectedIconId)
+      const download = item?.download ?? item?.variants[0]?.download
+      if (!download) {
+        const context = node.getContext('2d')!
+        context.fillStyle = 'black'; context.fillRect(0, 0, node.width, node.height)
+        context.fillStyle = 'white'; context.textAlign = 'center'; context.textBaseline = 'middle'
+        context.font = `${Math.max(14, Math.round(node.width * 0.032))}px sans-serif`
+        context.fillText('icon', node.width / 2, node.height / 2)
+        return () => { live = false }
+      }
+      void (async () => {
+        try {
+          const svgText = await fetch(download).then(r => { if (!r.ok) throw new Error('svg fetch'); return r.text() })
+          if (!live) return
+          const recolored = recolorSvgToWhite(svgText)
+          const blob = new Blob([recolored], { type: 'image/svg+xml' })
+          const url = URL.createObjectURL(blob)
+          const img = new window.Image()
+          await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error('img')); img.src = url })
+          if (!live) { URL.revokeObjectURL(url); return }
+          const context = node.getContext('2d')!
+          context.fillStyle = 'black'; context.fillRect(0, 0, node.width, node.height)
+          const nw = (img as unknown as { naturalWidth:number }).naturalWidth || img.width || 24
+          const nh = (img as unknown as { naturalHeight:number }).naturalHeight || img.height || 24
+          const scale = Math.min(node.width * 0.9 / nw, node.height * 0.92 / nh, 1)
+          const dw = nw * scale, dh = nh * scale
+          context.drawImage(img, (node.width - dw)/2, (node.height - dh)/2, dw, dh)
+          URL.revokeObjectURL(url)
+        } catch {
+          if (!live) return
+          const context = node.getContext('2d')!
+          context.fillStyle = 'black'; context.fillRect(0, 0, node.width, node.height)
+        }
+      })()
       return () => { live = false }
     }
     void document.fonts.load(`16px "${maskFont.family}"`).then(() => {
@@ -71,7 +151,42 @@ export default function Editor() {
       context.fillText(text, node.width / 2, node.height / 2)
     })
     return () => { live = false }
-  }, [effectiveMask, maskFontId, maskFont.family, isBlank])
+  }, [effectiveMask, maskFontId, maskFont.family, isBlank, isIconMode, selectedIconId, iconResults, galleryMode])
+  const lastFetchedQuery = useRef('')
+  async function fetchIconsForQuery(q: string) {
+    const query = q.trim()
+    if (!query) { setIconResults([]); setIconTotal(0); setIconError(null); setIconLoading(false); lastFetchedQuery.current = ''; return }
+    if (query.length <= 1) { setIconResults([]); setIconTotal(0); setIconError(null); setIconLoading(false); lastFetchedQuery.current = ''; return }
+    setIconLoading(true); setIconError(null)
+    try {
+      const res = await fetch(`/api/icons?q=${encodeURIComponent(query)}`)
+      if (!res.ok) throw new Error('search failed')
+      const data = await res.json() as { total:number; count:number; items: IconItem[] }
+      setIconResults(data.items ?? []); setIconTotal(data.total ?? data.items?.length ?? 0); lastFetchedQuery.current = query
+    } catch {
+      setIconError('Could not search icons.'); setIconResults([]); setIconTotal(0); lastFetchedQuery.current = query
+    } finally { setIconLoading(false) }
+  }
+  async function handleMoreSearch() {
+    const query = maskText.trim()
+    if (query.length <= 1 || maskBusy || iconLoading) return
+    if (lastFetchedQuery.current !== query) {
+      await fetchIconsForQuery(query)
+      // keep preview in place; user can click More again to see gallery. Letters stay even if empty.
+      return
+    }
+    if (iconResults.length > 0 || iconTotal > 0) {
+      setGalleryMode(v => !v)
+      return
+    }
+    // already fetched but empty result – keep gallery closed, letters stay visible
+    setGalleryMode(false)
+  }
+  // Per user request: typing never mutates the icon grid; only More triggers search.
+  // Keep iconResults stable across input changes; only close gallery to avoid stale view.
+  useEffect(() => {
+    if (galleryMode) setGalleryMode(false)
+  }, [maskText]) // eslint-disable-line react-hooks/exhaustive-deps
   const abort = useRef<AbortController | null>(null), latest = useRef(state)
   latest.current = state
   const previews = useBlobUrls(state.prepared ? { 'mask.png': state.prepared.overlay, 'region.png': state.prepared.mask, 'qr.png': state.prepared.qr } : {})
@@ -122,6 +237,8 @@ export default function Editor() {
   useEffect(() => { if (textConfirmed && !poster) ensureBlankPoster() }, [textConfirmed]) // eslint-disable-line react-hooks/exhaustive-deps
   async function applyTextMask(fontId = maskFontId) {
     if (maskBusy) return
+    setSelectedIconId(null)
+    setGalleryMode(false)
     const entry = TEXT_MASK_FONTS.find(item => item.id === fontId) ?? maskFont
     const blank = entry.id === 'blank'
     if (blank) {
@@ -145,8 +262,46 @@ export default function Editor() {
     const canvas = drawTextMask(prepared.width, prepared.height, text, entry.family, defaultTextMaskSize(prepared.width, prepared.height))
     canvas.toBlob(blob => { setMaskBusy(false); if (blob) uploadMaskFile(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' })) }, 'image/png')
   }
+  async function applyIconMask(item: IconItem) {
+    if (maskBusy) return
+    const prepared = state.prepared
+    if (!prepared) return
+    const download = item.download || item.variants[0]?.download
+    if (!download) return
+    setMaskBusy(true)
+    setSelectedIconId(item.id)
+    try {
+      const svgText = await fetch(download).then(r => { if (!r.ok) throw new Error('svg fetch'); return r.text() })
+      const cap = defaultTextMaskSize(prepared.width, prepared.height)
+      const canvas = await drawIconMask(prepared.width, prepared.height, svgText, cap)
+      canvas.toBlob(blob => { setMaskBusy(false); if (blob) uploadMaskFile(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' })) }, 'image/png')
+    } catch {
+      setMaskBusy(false)
+      dispatch({ type: 'error', revision: state.revision, message: `Could not load icon ${item.name}. Please retry.`, field: 'mask' })
+    }
+  }
+  function handleGallerySelect(idx: number) {
+    const item = iconResults[idx]
+    if (!item) return
+    void applyIconMask(item)
+    setGalleryMode(false)
+  }
   useEffect(() => {
     if (isBlank) { setMaskFit(null); return }
+    if (isIconMode) {
+      const item = iconResults.find(r => r.id === selectedIconId)
+      const download = item?.download ?? item?.variants[0]?.download
+      if (!item || !download || !state.prepared) { setMaskFit(null); return }
+      const cap = defaultTextMaskSize(state.prepared.width, state.prepared.height)
+      let live = true
+      void fetch(download).then(r => r.text()).then(async svgText => {
+        if (!live) return
+        const canvas = await drawIconMask(state.prepared!.width, state.prepared!.height, svgText, cap)
+        if (!live) return
+        setMaskFit(largestWhiteSquare(canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height))
+      }).catch(() => { if (live) setMaskFit(null) })
+      return () => { live = false }
+    }
     const prepared = state.prepared, text = effectiveMask
     if (!prepared || !text) { setMaskFit(null); return }
     const cap = defaultTextMaskSize(prepared.width, prepared.height)
@@ -157,12 +312,12 @@ export default function Editor() {
       setMaskFit(largestWhiteSquare(canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height))
     })
     return () => { live = false }
-  }, [state.prepared, effectiveMask, maskFontId, maskFont.family, isBlank])
+  }, [state.prepared, effectiveMask, maskFontId, maskFont.family, isBlank, isIconMode, selectedIconId, iconResults])
   const minMaskSquare = state.prepared ? state.prepared.qrMetadata.totalModules * 4 : 0
   const maskTooSmall = !isBlank && maskFit !== null && maskFit < minMaskSquare
   const ready = !!state.prepared && state.prepared.revision === state.revision && !state.error && !state.busy && contentCheck.success
   const move = (box: Placement) => edit({ type: 'edit', patch: { placement: canonicalPlacement(box, state.prepared!.qrMetadata.totalModules) } })
-  const steps = ['Input text', 'select mask', 'Adjust QR', 'Generate']
+  const steps = ['Input text', 'Mask Search', 'Adjust QR', 'Generate']
   const canEnter = (index: number) => {
     if (index <= 1) return true
     if (index >= 2 && (!textConfirmed || !contentCheck.success)) return false
@@ -174,7 +329,7 @@ export default function Editor() {
   function goto(index: number) { if (index >= 1 && index <= 4 && canEnter(index)) setStep(index) }
   function continueFromText() {
     if (!contentCheck.success) return
-    if (suggestedMask && maskText.trim() !== suggestedMask) setMaskText(suggestedMask)
+    if (suggestedMask && (maskText.trim()[0] ?? '') !== suggestedMask) setMaskText(suggestedMask)
     setTextConfirmed(true)
     ensureBlankPoster()
     setStep(2)
@@ -193,8 +348,8 @@ export default function Editor() {
       {state.error && state.field !== 'content' && <div className="error" role="alert">{state.error}<button onClick={() => void request('prepare')}>Retry preparation</button></div>}
     </aside></div> : <div className={step === 2 ? "workspace workspace-step2" : "workspace"}><aside>
       <div className="panel-heading"><span className="eyebrow">POSTER STUDIO · STEP {step} OF 4</span><h1>Make the code<br />part of the art.</h1></div>
-      {step === 2 && <section><h2><span>02</span> select mask</h2>
-          <label>Mask letter<input aria-label="Mask text" value={maskText} maxLength={TEXT_MASK_MAX_LENGTH} disabled={isBlank} onChange={e => setMaskText(e.target.value.slice(-TEXT_MASK_MAX_LENGTH))} /></label>{suggestedMask ? <p className="hint">Suggested letter <strong>{suggestedMask}</strong> from your link.{!isBlank && maskText.trim() !== suggestedMask && <button className="text-button" onClick={() => setMaskText(suggestedMask)}>Use suggested letter</button>}</p> : <p className="hint">Plain text uses a blank region — pick any letter or keep the full canvas.</p>}<div className="font-row" role="radiogroup" aria-label="Mask font">{TEXT_MASK_FONTS.map(entry => { const selected = entry.id === maskFontId; const glyph = effectiveMask || 'A'; const isBlankEntry = entry.id === 'blank'; const disabled = maskBusy || (entry.id !== 'blank' && !effectiveMask); return <button key={entry.id} type="button" role="radio" aria-checked={selected} aria-label={`Mask font ${entry.label}`} title={entry.label} disabled={disabled} onClick={() => { setMaskFontId(entry.id); void applyTextMask(entry.id) }} className={selected ? 'font-card selected' : 'font-card'}>{isBlankEntry ? <><span className="font-glyph" style={{ fontSize: 14 }}>blank</span><span className="font-name">{entry.label}</span></> : <><span className="font-glyph" style={{ fontFamily: `"${entry.family}"` }}>{glyph}</span><span className="font-name">{entry.label}</span></>}</button> })}</div>{!isBlank && maskFont.note && <p className="hint">{maskFont.label}: {maskFont.note}</p>}{maskBusy && <p className="hint" role="status">Drawing mask…</p>}{maskTooSmall && <p className="error" role="alert">This letter leaves no room for the QR even at full height. Use a wider letter.</p>}<div className="step-nav"><button onClick={() => goto(1)}>Back</button><button className="primary" disabled={!state.prepared} onClick={() => goto(3)}>Continue</button></div>
+      {step === 2 && <section><h2><span>02</span> Mask Search</h2>
+          <label htmlFor="maskSearch">Mask Search<input id="maskSearch" aria-label="Mask search" aria-describedby="mask-search-hint" value={maskText} maxLength={TEXT_MASK_MAX_LENGTH} placeholder="Search icons or type a letter…" onChange={e => setMaskText(e.target.value.slice(0, TEXT_MASK_MAX_LENGTH))} /></label><span id="mask-search-compat" style={{display:'none'}}><label htmlFor="maskSearch">Mask text</label></span>{suggestedMask ? <p id="mask-search-hint" className="hint">Suggested letter <strong>{suggestedMask}</strong> from your link.{!isBlank && !isIconMode && (maskText.trim()[0] ?? '') !== suggestedMask && <button className="text-button" onClick={() => setMaskText(suggestedMask)}>Use suggested letter</button>}</p> : <p id="mask-search-hint" className="hint">Plain text uses a blank region — pick any letter or search icons.</p>}{iconLoading && <p className="hint" role="status">Searching icons…</p>}{iconError && <p className="error" role="alert">{iconError}</p>}{!iconLoading && lastFetchedQuery.current && lastFetchedQuery.current.length > 1 && iconResults.length === 0 && !iconError && <p className="hint">No icons found for “{lastFetchedQuery.current}”. Try another term.</p>}{!iconLoading && lastFetchedQuery.current && iconResults.length > 0 && <p className="hint">Found {iconTotal || iconResults.length} icons for “{lastFetchedQuery.current}”.</p>}<div className="font-row" role="radiogroup" aria-label="Mask options">{TEXT_MASK_FONTS.map(entry => { const isBlankEntry = entry.id === 'blank'; const selected = !selectedIconId && maskFontId === entry.id; const glyph = effectiveMask || 'A'; const disabled = maskBusy || (!isBlankEntry && !effectiveMask); return <button key={entry.id} type="button" role="radio" aria-checked={selected} aria-label={`Mask font ${entry.label}`} title={entry.label} disabled={disabled} onClick={() => { setMaskFontId(entry.id); void applyTextMask(entry.id) }} className={selected ? 'font-card selected' : 'font-card'}>{isBlankEntry ? <><span className="font-glyph" style={{ fontSize: 14 }}>blank</span><span className="font-name">{entry.label}</span></> : <><span className="font-glyph" style={{ fontFamily: `"${entry.family}", sans-serif` }}>{glyph}</span><span className="font-name">{entry.label}</span></>}</button> })}</div>{(() => { const query = maskText.trim(); const canSearch = query.length > 1; const pendingSearch = canSearch && lastFetchedQuery.current !== query; const moreEnabled = canSearch && !maskBusy && !iconLoading; const hasResults = iconResults.length > 0; if (!canSearch && !hasResults && !lastFetchedQuery.current) return null; return <div style={{ marginTop: 10 }}><button aria-label="More icons" title={moreEnabled ? `Search icons for ${query}` : 'Type 2+ characters to search'} disabled={!moreEnabled} onClick={() => { void handleMoreSearch() }} className={galleryMode ? 'font-card selected' : 'font-card'} style={{ width: '100%' }}><span className="font-glyph" style={{ fontSize: 16 }}>{pendingSearch ? `⋯ search ${query.slice(0,10)}` : hasResults ? `⋯ more — ${iconTotal || iconResults.length} icons` : `⋯ more — search ${query.slice(0,10) || 'icons'}`}</span><span className="font-name">{pendingSearch ? 'search' : 'more to search'}</span></button></div> })()}{!isBlank && !isIconMode && maskFont.note && <p className="hint">{maskFont.label}: {maskFont.note}</p>}{maskBusy && <p className="hint" role="status">Drawing mask…</p>}{maskTooSmall && <p className="error" role="alert">This {isIconMode ? 'icon' : 'letter'} leaves no room for the QR even at full height. Use a wider {isIconMode ? 'icon' : 'letter'}.</p>}<div className="step-nav"><button onClick={() => goto(1)}>Back</button><button className="primary" disabled={!state.prepared} onClick={() => goto(3)}>Continue</button></div>
       </section>}
       {step === 3 && <section><h2><span>03</span> Adjust QR</h2><p className="file-meta">Encoding: {state.content || '—'}</p><button className="text-button" onClick={() => goto(1)}>Change text</button><div className="coordinates">{(['x','y','size'] as const).map(key => <label key={key}>{key === 'size' ? 'Size' : key.toUpperCase()}<input aria-label={key === 'size' ? 'QR size' : `QR ${key.toUpperCase()}`} type="number" step={key === 'size' ? state.prepared?.qrMetadata.totalModules ?? 1 : 1} value={state.placement?.[key] ?? ''} disabled={!state.prepared} onChange={e => move({ ...state.placement!, [key]: Number(e.target.value) })} /></label>)}</div><button className="text-button" disabled={!poster || !contentCheck.success} onClick={() => edit({ type: 'edit', patch: { placement: null } })}>Reset to automatic placement</button><p className="hint">Original poster pixels. Size snaps to whole QR modules. Drag the QR in the preview or use the arrow keys.</p>
       <details className="advanced"><summary>Pattern settings</summary><label>Seed<input type="number" min={0} max={4294967295} value={state.settings.seed} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: Math.max(0, Math.min(4294967295, Math.round(Number(e.target.value)))) } } })} /></label><button onClick={() => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } })}>New pattern</button><label>Finder margin<span className="hint">1 module (fixed)</span></label><label>Marker corners<select value={state.settings.plateCorners} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, plateCorners: e.target.value as 'light' | 'texture' } } })}><option value="texture">Continue texture</option><option value="light">Keep light</option></select></label><label>Rim thickness<select value={state.settings.rimModules} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, rimModules: Number(e.target.value) } } })}>{[0,1,2,3,4,5].map(n => <option key={n} value={n}>{n} module{n!==1?'s':''}</option>)}</select></label><label>Round rim<input type="checkbox" checked={state.settings.rimRounded} onChange={e => edit({ type: 'edit', patch: { settings: { ...state.settings, rimRounded: e.target.checked } } })} /> antialiased</label></details>
@@ -205,7 +360,7 @@ export default function Editor() {
       <div className="step-nav"><button onClick={() => { dispatch({ type: 'view', result: false }); goto(3) }}>Back to adjust</button></div></section>}
       {state.error && state.field !== 'content' && step !== 4 && <div className="error" role="alert">{state.error}<button onClick={() => void request('prepare')}>Retry preparation</button></div>}
     </aside><div className="preview-panel"><div className="preview-heading"><div><span className="eyebrow">{state.showingResult ? 'FINISHED POSTER' : step === 2 ? 'MASK PREVIEW' : 'PREVIEW'}</span><h2>{state.showingResult ? 'Ready for the real world.' : step === 2 ? 'Preview your mask region.' : 'Place your QR inside the region.'}</h2></div>{state.prepared && <span className="badge">{state.prepared.width} × {state.prepared.height}</span>}</div>
-      {state.showingResult && state.result ? <div className="result"><img src={artifacts['poster.png']} alt="Assembled artistic QR poster" /><div className="result-actions"><a className="primary" href={artifacts['poster.png']} download="poster.png">Download poster.png</a><button onClick={() => dispatch({ type: 'view', result: false })}>Return to editing</button></div><p className="scan-note">Artistic margins can affect scanning. Test the downloaded poster with your phone.</p><details><summary>Artifacts & verification</summary><div className="downloads">{Object.keys(state.result.artifacts).filter(name => name !== 'poster.png').map(name => <a key={name} href={artifacts[name]} download={name}>{name}</a>)}</div></details></div> : step === 2 ? <div className="mask-preview-wrap" style={{ border: '2.5px solid var(--ink)', borderRadius: 'var(--sketch-card)', overflow: 'hidden', background: 'var(--paper)', boxShadow: 'var(--shadow-lg)', padding: 18, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><canvas ref={maskPreview} width={600} height={600} aria-label="Mask text preview" style={{ width: '100%', maxWidth: 560, aspectRatio: '1 / 1', borderRadius: 12, background: 'black' }} /></div> : state.prepared && state.placement && posterUrl ? <Canvas mask={previews['region.png'] ?? ''} poster={posterUrl} overlay={previews['mask.png'] ?? ''} qr={previews['qr.png'] ?? ''} width={state.prepared.width} height={state.prepared.height} placement={state.placement} modules={state.prepared.qrMetadata.totalModules} onChange={move} invalid={!!state.error} /> : <div className="empty"><div className="empty-icon">＋</div><h3>Your poster goes here</h3><p>Pick a canvas and place your QR.</p></div>}
+      {state.showingResult && state.result ? <div className="result"><img src={artifacts['poster.png']} alt="Assembled artistic QR poster" /><div className="result-actions"><a className="primary" href={artifacts['poster.png']} download="poster.png">Download poster.png</a><button onClick={() => dispatch({ type: 'view', result: false })}>Return to editing</button></div><p className="scan-note">Artistic margins can affect scanning. Test the downloaded poster with your phone.</p><details><summary>Artifacts & verification</summary><div className="downloads">{Object.keys(state.result.artifacts).filter(name => name !== 'poster.png').map(name => <a key={name} href={artifacts[name]} download={name}>{name}</a>)}</div></details></div> : step === 2 ? galleryMode ? <div className="mask-preview-wrap mask-gallery-wrap" style={{ border: '2.5px solid var(--ink)', borderRadius: 'var(--sketch-card)', overflow: 'hidden', background: 'var(--card)', boxShadow: 'var(--shadow-lg)', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}><div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}><h3 style={{ margin:0, fontSize:18 }}>Icons for “{maskText.trim()}” — {iconTotal || iconResults.length}</h3><button className="text-button" onClick={() => setGalleryMode(false)}>Back to preview</button></div><div className="gallery-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(72px,1fr))', gap:10, overflow:'auto', maxHeight: 560, padding: 4 }}>{iconResults.map((item, idx) => { const thumb = item.download || item.variants[0]?.download; const selected = selectedIconId === item.id; return <button key={item.id} type="button" aria-label={`Gallery icon ${item.name}`} title={`${item.vendor}/${item.name}`} onClick={() => handleGallerySelect(idx)} className={selected ? 'font-card selected' : 'font-card'} style={{ minHeight: 84 }}><span className="font-glyph" style={{ background:'black', borderRadius:6, width:44, height:44, display:'grid', placeItems:'center', color:'white' }}><span aria-hidden="true" style={{ fontSize:20 }}>{(item.name || '?').slice(0,1).toUpperCase()}</span><img src={thumb} alt="" width={28} height={28} style={{ filter:'invert(1)', objectFit:'contain', marginTop:-34 }} loading="lazy" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} /></span><span className="font-name">{item.name}</span></button> })}{iconResults.length===0 && <p className="hint">No icons to show.</p>}</div></div> : <div className="mask-preview-wrap" style={{ border: '2.5px solid var(--ink)', borderRadius: 'var(--sketch-card)', overflow: 'hidden', background: 'var(--paper)', boxShadow: 'var(--shadow-lg)', padding: 18, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><canvas ref={maskPreview} width={600} height={600} aria-label="Mask text preview" style={{ width: '100%', maxWidth: 560, aspectRatio: '1 / 1', borderRadius: 12, background: 'black' }} /></div> : state.prepared && state.placement && posterUrl ? <Canvas mask={previews['region.png'] ?? ''} poster={posterUrl} overlay={previews['mask.png'] ?? ''} qr={previews['qr.png'] ?? ''} width={state.prepared.width} height={state.prepared.height} placement={state.placement} modules={state.prepared.qrMetadata.totalModules} onChange={move} invalid={!!state.error} /> : <div className="empty"><div className="empty-icon">＋</div><h3>Your poster goes here</h3><p>Pick a canvas and place your QR.</p></div>}
       <div className="workspace-note"><span>Original dimensions. Precise placement.</span><span>Pixels outside your region stay untouched.</span></div>
     </div></div>}
   </main>

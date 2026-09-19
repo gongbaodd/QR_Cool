@@ -26,7 +26,7 @@ describe('text mask fonts', () => {
     }
     expect(TEXT_MASK_FILENAME).toBe('text-mask.png')
     expect(TEXT_MASK_DEFAULT_TEXT.trim().length).toBe(1)
-    expect(TEXT_MASK_MAX_LENGTH).toBe(1)
+    expect(TEXT_MASK_MAX_LENGTH).toBe(10)
   })
 
   it('derives a single mask letter from website content and blanks otherwise', () => {
