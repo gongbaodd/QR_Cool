@@ -319,12 +319,8 @@ export interface PatternCutResult {
 export type AssemblePosterOptions = PosterInputOptions & QrInputOptions & {
   /** Seed for the pattern random text line and the marker refill; defaults to a fresh seed per run. */
   seed?: number
-  /**
-   * Depth of the light band kept beside each finder marker, in whole modules; defaults to 1 and
-   * capped at the profile's two-module quiet zone. The band is a row of whole cells, so a fraction
-   * is rejected rather than rounded.
-   */
-  qrMargin?: number
+  /** Depth of the light band kept beside each finder marker: one whole module. */
+  qrMargin?: 1
   /**
    * Plate corner treatment: zero keeps the diagonal corner block beside each finder marker light,
    * and any positive value hands those three blocks to the texture. Defaults to two module pitches
@@ -332,6 +328,10 @@ export type AssemblePosterOptions = PosterInputOptions & QrInputOptions & {
    * whole modules, so there is no fillet to size.
    */
   radius?: number
+  /** Outer dark rim thickness in modules, 0 disables the rim. Range 0-5. */
+  rimModules?: number
+  /** When true the rim's outer corners are rounded with antialiased edges. */
+  rimRounded?: boolean
   /** Not used by assembly: the cut is module-aligned rather than traced. Rejected when supplied. */
   smoothTolerance?: number
 }
@@ -387,21 +387,21 @@ export interface AssembleReport {
     droppedPartialPixels: number
     /** Modules the cut draws: safe modules minus the QR plate hole. */
     drawnModules: number
-    /** Outer rings of drawn modules forced dark, so the rim is whole modules too. */
-    rim: { modules: number, style: 'cell' }
+    /** Outer rings of drawn modules forced dark; rounded is antialiased. */
+    rim: { modules: number, style: 'cell' | 'rounded-antialiased' }
     /** Modules of the plate handed back to the texture: the diagonal block at each marker corner. */
     plateCornerModules: number
     /** The cut shape is the detected or supplied painted region itself. */
     keep: 'region-mask'
-    /** Whole modules replace the original pixels; dropped modules keep them bit-exact. */
-    edgeBlend: 'cell-aligned-over-original'
+    /** Whole modules replace the original pixels; antialiased blends the edge. */
+    edgeBlend: 'cell-aligned-over-original' | 'antialiased'
   }
   /** The plate the texture is cut around and the QR is drawn in; all of it is whole modules. */
   qrPlate: {
     /** The light band is kept beside the finder markers only, never around the whole code. */
     band: 'markers'
-    /** Requested depth of the light band beside each marker, in whole modules; 1 or 2. */
-    marginModules: number
+    /** Depth of the light band beside each marker: one whole module. */
+    marginModules: 1
     /** The band actually painted, in pixels: `marginModules * modulePixels`. */
     marginPixels: number
     /** Finder footprint each band arm spans, in modules. */

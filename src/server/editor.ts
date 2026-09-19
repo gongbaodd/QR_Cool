@@ -35,7 +35,7 @@ export function validatePlacement({ regionMask, qrMetadata, placement, settings 
   selectPatternVersion(pitch, regionMask.width, regionMask.height, pitch)
   const lattice = buildModuleLattice(regionMask.width, regionMask.height, pitch, p)
   const safe = computeSafeArea(regionMask.data, regionMask.width, regionMask.height, lattice)
-  const rim = computeRimModules(safe.safe, lattice, 4)
+  const rim = computeRimModules(safe.safe, lattice, settings.rimModules)
   const grid = { x: p.x + 2 * pitch, y: p.y + 2 * pitch, width: qrMetadata.qrModules * pitch, height: qrMetadata.qrModules * pitch }
   const { arms, cornerBlocks } = markerBandRects(grid, qrMetadata.qrModules, pitch, settings.qrMargin)
   const corners = settings.plateCorners === 'texture'
@@ -43,7 +43,7 @@ export function validatePlacement({ regionMask, qrMetadata, placement, settings 
   if (!safe.safe.some((cell, i) => cell && !rim[i] && !plate.cells[i])) throw new QrPosterError('QR_LAYOUT_INVALID', 'No decorative texture fits beside this QR. Reduce its size or choose a larger region.')
   return p
 }
-const defaults: Settings = { seed: 0, qrMargin: 1, plateCorners: 'texture' }
+const defaults: Settings = { seed: 0, qrMargin: 1, plateCorners: 'texture', rimModules: 4, rimRounded: false }
 async function resolveBuffers(input: BufferInput): Promise<{ layout: ResolvedLayout; validation: string | null }> {
   contentSchema.parse(input.content)
   const poster = await readImage(input.posterBytes, 'poster')
@@ -54,7 +54,7 @@ async function resolveBuffers(input: BufferInput): Promise<{ layout: ResolvedLay
   const decoded = { ...decodeQrRawDetailed(qrSource.data, qrSource.width, qrSource.height), version: generated.version }
   if (decoded.text !== input.content) throw new QrPosterError('QR_TEXT_MISMATCH', 'Generated QR did not preserve the entered text.')
   const qrMetadata = inspectAntfuQr(qrSource, input.content, generated.version)
-  const settings = input.settings ?? defaults
+  const settings = { ...defaults, ...input.settings }
   let requested = input.placement
   if (requested && input.previousTotalModules && input.previousTotalModules !== qrMetadata.totalModules) {
     const size = Math.max(4, Math.round(requested.size / input.previousTotalModules)) * qrMetadata.totalModules
@@ -91,10 +91,12 @@ export async function prepareEditor(input: BufferInput) {
   for (let i = 0; i < regionMask.data.length; i++) if (regionMask.data[i]) overlay.set([75, 224, 182, 95], i * 4)
   return { width: poster.width, height: poster.height, mask: (await renderRegionMask(regionMask)).toString('base64'), overlay: (await rgbaToPng(overlay, poster.width, poster.height)).toString('base64'), qr: normalizedQr.toString('base64'), qrMetadata, placement: { x: placement.x, y: placement.y, size: placement.size }, validation }
 }
-export async function assembleFromBuffers(input: BufferInput & { placement: Placement; seed: number; qrMargin: 1 | 2; plateCorners: Settings['plateCorners'] }) {
-  const { layout, validation } = await resolveBuffers({ ...input, previousTotalModules: undefined, settings: { seed: input.seed, qrMargin: input.qrMargin, plateCorners: input.plateCorners } })
+export async function assembleFromBuffers(input: BufferInput & { placement: Placement; seed: number; qrMargin: 1; plateCorners: Settings['plateCorners']; rimModules?: number; rimRounded?: boolean }) {
+  const rimModules = input.rimModules ?? input.settings?.rimModules ?? defaults.rimModules
+  const rimRounded = input.rimRounded ?? input.settings?.rimRounded ?? defaults.rimRounded
+  const { layout, validation } = await resolveBuffers({ ...input, previousTotalModules: undefined, settings: { seed: input.seed, qrMargin: input.qrMargin, plateCorners: input.plateCorners, rimModules, rimRounded } })
   if (validation) throw new QrPosterError('QR_LAYOUT_INVALID', validation)
-  const result = await assembleResolved(layout, { seed: input.seed, qrMargin: input.qrMargin, radius: input.plateCorners === 'light' ? 0 : layout.placement.modulePixels * 2 })
+  const result = await assembleResolved(layout, { seed: input.seed, qrMargin: input.qrMargin, radius: input.plateCorners === 'light' ? 0 : layout.placement.modulePixels * 2, rimModules, rimRounded })
   if (!result.report.qualified) throw new QrPosterError('VERIFICATION_FAILED', `Pixel verification failed (${result.report.verification.checks.filter(c => !c.passed).map(c => c.name).join(', ')}). Adjust the placement and try again.`, 4)
   return result
 }

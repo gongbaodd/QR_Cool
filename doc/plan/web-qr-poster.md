@@ -16,7 +16,7 @@ The black region is part of the uploaded poster, not a second required file. Det
 4. **Assemble:** render the full-resolution result from the current content, placement, and seed. Display progress, show the result, and let users return to editing. Changing an input makes the previous result stale and disables its download until reassembled.
 5. **Download:** offer `poster.png` at original resolution. Put the QR PNG, transparent cut PNG, cut SVG, mask PNG, and verification report behind an optional details section. No account is required.
 
-Keep seed, finder margin (1 or 2 modules), and plate corner treatment in advanced settings. Generate the seed once per new poster and retain it across edits; an explicit “New pattern” action changes it. Do not present the old numeric cut-radius control as general silhouette rounding: in assembly it only chooses the marker-corner treatment.
+Keep seed, fixed 1-module finder margin, plate corner treatment, rim thickness 0–5, and rounded rim (antialiased) in advanced settings. Generate the seed once per new poster and retain it across edits; an explicit “New pattern” action changes it. Do not present the old numeric cut-radius control as general silhouette rounding: in assembly it only chooses the marker-corner treatment.
 
 Excluded from this migration: paid Qwen generation, QR image uploads, standalone pattern-preview/pattern-cut tools, freehand mask painting, text printed on the poster, rotation, multiple QRs, accounts, saved projects, and a template marketplace.
 
@@ -103,8 +103,8 @@ Return structured errors `{ code, message, field?, revision }`: 400 for malforme
 1. Generate the real QR from content with the current `uqr` defaults and rounded style; normalize at integer pitch and verify its decoded text.
 2. Detect/select the poster region and validate the whole normalized QR square inside it.
 3. Generate the seeded marker-free texture and phase-lock it to the QR lattice, with the existing extra-module crop headroom.
-4. Draw only complete modules entirely inside the region and canvas. Force the outer four safe-module rings dark; the plate does not seed this rim.
-5. Cut the current module plate and overlay the exact normalized QR pixels belonging to it, keeping the existing finder-only band of 1 or 2 modules and corner behavior.
+4. Draw only complete modules entirely inside the region and canvas. Force the outer 0–5 safe-module rings dark (rounded rim is antialiased); the plate does not seed this rim.
+5. Cut the current module plate and overlay the exact normalized QR pixels belonging to it, keeping the existing finder-only band of one module and corner behavior.
 6. Preserve pixels outside the region, partially covered modules, and the original alpha channel. Reject layouts with no remaining texture.
 7. Run all existing mandatory schema-8 checks. Keep `poster`, `posterHalfScale`, and `posterJpeg80` in skipped checks and `phoneScan: untested`; do not present the artistic result as scan-certified. Show a concise result note: “Artistic margins can affect scanning. Test the downloaded poster with your phone.”
 
@@ -140,7 +140,7 @@ The full normalized QR square is the placement constraint; the smaller module pl
 ### 5. Validate the runnable web release
 
 - Run Vitest, typecheck, production build, and Playwright against the production server.
-- Cover Chromium, Firefox, and WebKit plus a touch viewport. Exercise small/large posters, multiple QR versions, mask holes, partial cells, both finder margins, both corner options, and deterministic seeds.
+- Cover Chromium, Firefox, and WebKit plus a touch viewport. Exercise small/large posters, multiple QR versions, mask holes, partial cells, the finder margin, both corner options, and deterministic seeds.
 - Measure preparation/assembly latency and peak memory at upload limits on the target Node host. Use a host/container supporting Sharp and sufficient request duration; a static-only host cannot execute this architecture.
 - Gate: tests pass, limits are documented, and the core user journey works from a fresh checkout using web commands only. Deployment configuration belongs to implementation; this plan does not publish anything.
 

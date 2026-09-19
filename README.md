@@ -30,7 +30,7 @@ No credentials or accounts are needed. QR text is never fetched as a URL. Upload
 
 Every input edit invalidates the previous output. Invalid manual placements are flagged and never silently moved. **Reset to automatic placement** finds a valid square with space left for texture. Longer content retains the previous center and module pitch when possible, then revalidates the enlarged QR.
 
-Pattern settings provide a stable seed, **New pattern**, a finder margin of one or two modules, and marker corners that continue the texture or stay light. The corner setting affects the QR plate, not the poster's silhouette.
+Pattern settings provide a stable seed, **New pattern**, a fixed 1-module finder margin, marker corners that continue the texture or stay light, a rim thickness of 0–5 modules, and a rounded rim with antialiasing. The corner setting affects the QR plate, not the poster's silhouette.
 
 **Artistic margins can affect scanning. Test the downloaded poster with your phone.** The result is not scan-certified. The report deliberately skips poster/full-size, half-scale, and JPEG decoding checks; `phoneScan` remains `untested`.
 
@@ -38,8 +38,8 @@ Pattern settings provide a stable seed, **New pattern**, a finder margin of one 
 
 - `uqr`, M error correction, automatic mask selection, two locally drawn source margin modules, existing rounded module geometry.
 - Seeded marker-free decorative matrix, phase-locked to the placed QR's lattice. Finder/separator and alignment cells are randomly refilled; timing and function cells remain.
-- Only whole modules fully covered by the selected region are drawn. The outer four safe-module rings are dark. The plate does not seed that rim.
-- The actual plate is the code grid plus whole-cell finder-only light bands. Its footprint is smaller than the full QR square used for placement constraints.
+- Only whole modules fully covered by the selected region are drawn. The outer 0–5 safe-module rings are dark (antialiased when rounded). The plate does not seed that rim.
+- The actual plate is the code grid plus finder-only light bands of one module (whole cells). Its footprint is smaller than the full QR square used for placement constraints.
 - Outside-region pixels, partially covered modules, QR plate pixels, and original alpha are verified. Any mandatory check failure rejects export.
 - Schema-8 reports are preserved. API response metadata is a separate version-1 envelope, with logical input names and no server paths.
 

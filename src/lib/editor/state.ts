@@ -8,7 +8,7 @@ export interface State {
   revision: number; content: string; settings: Settings; prepared: Prepared | null; placement: Placement | null
   result: Result | null; busy: 'prepare' | 'assemble' | null; error: string | null; field: string | null; showingResult: boolean
 }
-export const initialState: State = { revision: 0, content: 'https://example.com', settings: { seed: 0, qrMargin: 1, plateCorners: 'texture' }, prepared: null, placement: null, result: null, busy: null, error: null, field: null, showingResult: false }
+export const initialState: State = { revision: 0, content: 'https://example.com', settings: { seed: 0, qrMargin: 1, plateCorners: 'texture', rimModules: 4, rimRounded: false }, prepared: null, placement: null, result: null, busy: null, error: null, field: null, showingResult: false }
 export type Action =
   | { type: 'edit'; patch: Partial<Pick<State, 'content' | 'settings' | 'placement'>>; reset?: boolean }
   | { type: 'busy'; mode: 'prepare' | 'assemble'; revision: number }

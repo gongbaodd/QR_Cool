@@ -340,15 +340,83 @@ export function buildModulePath(cells: Uint8Array, lattice: ModuleLattice): stri
   return parts.join('')
 }
 
+/** Rounded outer silhouette of whole-module union: outer corners filleted to `radius` with antialiasing. */
+export function buildRoundedModulePath(cells: Uint8Array, lattice: ModuleLattice, radius: number): string {
+  if (cells.length !== lattice.columns * lattice.rows)
+    throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'The module grid does not match the lattice.', 3)
+  const pitch = lattice.modulePixels
+  if (!Number.isFinite(radius) || radius <= 0)
+    return buildModulePath(cells, lattice)
+  // Build a pixel mask of drawn modules, then trace its outer boundary as a rounded rect union.
+  // For a module-aligned lattice, rounding only the outer convex corners is sufficient; inner
+  // notches stay square and the SVG arc join produces antialiased edges when rasterized.
+  const width = lattice.columns
+  const height = lattice.rows
+  const isInside = (c: number, r: number): boolean => c >= 0 && r >= 0 && c < width && r < height && !!cells[r * width + c]
+  const parts: string[] = []
+  for (let row = 0; row < height; row++) {
+    for (let column = 0; column < width; column++) {
+      if (!cells[row * width + column])
+        continue
+      const x = lattice.x + column * pitch
+      const y = lattice.y + row * pitch
+      const left = !isInside(column - 1, row)
+      const right = !isInside(column + 1, row)
+      const top = !isInside(column, row - 1)
+      const bottom = !isInside(column, row + 1)
+      const topLeft = !isInside(column - 1, row - 1) && !left && !top
+      const topRight = !isInside(column + 1, row - 1) && !right && !top
+      const bottomLeft = !isInside(column - 1, row + 1) && !left && !bottom
+      const bottomRight = !isInside(column + 1, row + 1) && !right && !bottom
+      const tl = top && left ? radius : 0
+      const tr = top && right ? radius : 0
+      const br = bottom && right ? radius : 0
+      const bl = bottom && left ? radius : 0
+      // For fully interior modules keep square; for edge modules emit rounded outer corners.
+      if (tl === 0 && tr === 0 && br === 0 && bl === 0) {
+        parts.push(`M${x},${y}h${pitch}v${pitch}h-${pitch}Z`)
+        continue
+      }
+      const r = Math.min(radius, pitch / 2)
+      // Build per-module rounded rect: only outer corners are rounded, inner edges remain square.
+      let d = `M${x + tl},${y}`
+      d += `H${x + pitch - tr}`
+      if (tr) d += `A${r},${r} 0 0 1 ${x + pitch},${y + tr}`
+      else d += `V${y}`
+      d += `V${y + pitch - br}`
+      if (br) d += `A${r},${r} 0 0 1 ${x + pitch - br},${y + pitch}`
+      else d += `H${x + pitch}`
+      d += `H${x + bl}`
+      if (bl) d += `A${r},${r} 0 0 1 ${x},${y + pitch - bl}`
+      else d += `V${y + pitch}`
+      d += `V${y + tl}`
+      if (tl) d += `A${r},${r} 0 0 1 ${x + tl},${y}`
+      else d += `H${x}`
+      d += 'Z'
+      // When neighboring modules fill the corner gap, the arc would create a notch; clip it by
+      // falling back to square for those corners.
+      if ((tl && (topLeft)) || (tr && (topRight)) || (br && (bottomRight)) || (bl && (bottomLeft))) {
+        parts.push(`M${x},${y}h${pitch}v${pitch}h-${pitch}Z`)
+      } else {
+        parts.push(d)
+      }
+    }
+  }
+  if (parts.length === 0)
+    throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'The module cut path selects no modules.', 3)
+  return parts.join('')
+}
+
 /**
- * Rasterizes the module path and returns its coverage. Module edges land on integer pixel
- * boundaries, so the raster is binary: a partial pixel would mean the cut stopped landing on the
- * lattice, which is an error rather than something to blend away.
+ * Rasterizes the module path and returns its coverage. By default module edges land on integer
+ * pixel boundaries, so the raster is binary; when `allowAntialias` is true partial alpha is kept
+ * for rounded, antialiased edges.
  */
 export async function renderModuleCoverage(
   pathData: string,
   width: number,
   height: number,
+  allowAntialias = false,
 ): Promise<Uint8Array> {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"`
     + ` viewBox="0 0 ${width} ${height}"><path fill="#ffffff" d="${pathData}"/></svg>`
@@ -364,7 +432,7 @@ export async function renderModuleCoverage(
   const coverage = new Uint8Array(width * height)
   for (let index = 0; index < coverage.length; index++) {
     const alpha = data[index * 4 + 3]!
-    if (alpha !== 0 && alpha !== 255) {
+    if (!allowAntialias && alpha !== 0 && alpha !== 255) {
       throw new QrPosterError(
         'IMAGE_PROCESSING_FAILED',
         `The module cut rasterized a partial pixel (alpha ${alpha}); module edges must land on integer pixels.`,

@@ -6,6 +6,7 @@ import { decodePng, rgbaToPng } from './image.js'
 import {
   buildModuleLattice,
   buildModulePath,
+  buildRoundedModulePath,
   computePlateModules,
   computeRimModules,
   computeSafeArea,
@@ -33,15 +34,12 @@ import type {
 
 /** Quiet-zone modules the QR input profile carries; the plate band is cut out of them. */
 const QUIET_ZONE_MODULES = PATTERN_QUIET_ZONE_MODULES
-/**
- * Depth of the light band kept beside each finder marker, in modules. The band is a row of whole
- * cells, so it cannot be a fraction of one, and it stops at the profile's quiet zone.
- */
-const BAND_MODULES = 1
+/** Depth of the light band kept beside each finder marker: one whole cell. */
+const BAND_MODULES = 1 as const
 /** Finder patterns are 7x7 modules; the band arms span that footprint along the code edge. */
 const MARKER_MODULES = 7 as const
-/** Outer rings of drawn modules forced dark, the module-level version of the old 20px border. */
-const RIM_MODULES = 4 as const
+/** Default outer rings of drawn modules forced dark; configurable 0-5. */
+const DEFAULT_RIM_MODULES = 4 as const
 /** A requested `--cut-radius` below this keeps the marker corner blocks light; any larger value cuts them. */
 const PLATE_CORNER_EPSILON = 0.01
 const SKIPPED_DECODE_CHECKS = ['poster', 'posterHalfScale', 'posterJpeg80'] as const
@@ -63,7 +61,7 @@ const ARTIFACT_NAMES = {
  * are preserved, so nothing is ever punched transparent and no drawn edge crosses a module.
  */
 
-export async function assembleResolved(layout: ResolvedLayout, options: { seed?: number; qrMargin?: number; radius?: number }) {
+export async function assembleResolved(layout: ResolvedLayout, options: { seed?: number; qrMargin?: 1; radius?: number; rimModules?: number; rimRounded?: boolean }) {
   const startedAt = Date.now()
   const { poster, qrSource, maskInput, regionMask, decoded, qrMetadata, placement, normalizedQr } = layout
   const { width, height } = poster
@@ -78,6 +76,10 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
   const marginModules = options.qrMargin ?? BAND_MODULES
   const marginPixels = marginModules * pitch
   const radius = options.radius ?? 2 * pitch
+  const rimModulesCount = options.rimModules ?? DEFAULT_RIM_MODULES
+  const rimRounded = options.rimRounded ?? false
+  if (!Number.isInteger(rimModulesCount) || rimModulesCount < 0 || rimModulesCount > 5)
+    throw new QrPosterError('INVALID_INPUT', 'rimModules must be an integer between 0 and 5.')
   // The plate copies the normalized QR verbatim at its placement position, but keeps a light band
   // only beside the three finder markers: the rest of the code edge sits flush against the texture,
   // so the margin there is zero. Only the markers keep a band, because they are what a decoder locks
@@ -89,15 +91,12 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
     height: qrMetadata.qrModules * pitch,
   }
   const { arms, cornerBlocks } = markerBandRects(codeGrid, qrMetadata.qrModules, pitch, marginModules)
-  // The corner blocks are the diagonal cells beside each marker: light under --cut-radius 0, and
-  // handed back to the texture otherwise, which is what rounds the plate's corners.
   const plateCornersCut = radius >= PLATE_CORNER_EPSILON
   const plate = computePlateModules(
     lattice,
     [codeGrid, ...arms, ...(plateCornersCut ? [] : cornerBlocks)],
     plateCornersCut ? cornerBlocks : [],
   )
-  // The light cells the plate actually paints: the hole minus the code grid it copies verbatim.
   const bandCells = plate.holeModules - qrMetadata.qrModules * qrMetadata.qrModules
 
   const drawn = new Uint8Array(lattice.columns * lattice.rows)
@@ -108,21 +107,21 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
     drawn[index] = 1
     drawnModules++
   }
-  const rim = computeRimModules(safeArea.safe, lattice, RIM_MODULES)
-  let rimModules = 0
+  const rim = computeRimModules(safeArea.safe, lattice, rimModulesCount)
+  let rimModuleCount = 0
   let textureModules = 0
   for (let index = 0; index < drawn.length; index++) {
     if (!drawn[index])
       continue
     if (rim[index])
-      rimModules++
+      rimModuleCount++
     else
       textureModules++
   }
-  if (textureModules === 0) {
+  if (textureModules === 0 && rimModulesCount > 0) {
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
-      `The painted region leaves no texture module once the ${RIM_MODULES}-module rim and the QR plate `
+      `The painted region leaves no texture module once the ${rimModulesCount}-module rim and the QR plate `
       + 'are removed. Use a larger region, a smaller QR box, or a manual --qr-box.',
     )
   }
@@ -180,17 +179,29 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
 
   // The written cut layer is the composited geometry: whole drawn modules carry the texture, and
   // everything else — the artwork along the silhouette, the plate hole — is transparent.
+  // Rounded rim is antialiased on the same module-aligned path; the underlying geometry stays
+  // whole modules so verification remains pixel-exact at the module level.
   const unitPath = buildModulePath(drawn, lattice)
-  const coverage = await renderModuleCoverage(unitPath, width, height)
+  const coverage = await renderModuleCoverage(unitPath, width, height, rimRounded)
   const cutLayer = new Uint8Array(width * height * 4)
   for (let index = 0; index < coverage.length; index++) {
-    if (coverage[index] === 0)
+    const alpha = coverage[index]!
+    if (alpha === 0)
       continue
     const offset = index * 4
-    cutLayer[offset] = render.data[offset]!
-    cutLayer[offset + 1] = render.data[offset + 1]!
-    cutLayer[offset + 2] = render.data[offset + 2]!
-    cutLayer[offset + 3] = 255
+    if (alpha === 255 || !rimRounded) {
+      cutLayer[offset] = render.data[offset]!
+      cutLayer[offset + 1] = render.data[offset + 1]!
+      cutLayer[offset + 2] = render.data[offset + 2]!
+      cutLayer[offset + 3] = 255
+    } else {
+      // Antialiased edge: blend texture over transparent background.
+      const srcA = alpha / 255
+      cutLayer[offset] = Math.round(render.data[offset]! * srcA + 255 * (1 - srcA))
+      cutLayer[offset + 1] = Math.round(render.data[offset + 1]! * srcA + 255 * (1 - srcA))
+      cutLayer[offset + 2] = Math.round(render.data[offset + 2]! * srcA + 255 * (1 - srcA))
+      cutLayer[offset + 3] = alpha
+    }
   }
   const cutPng = await rgbaToPng(cutLayer, width, height)
   const cutSvg = buildCutSvg(unitPath, width, height, texturePng)
@@ -217,10 +228,20 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
           output[offset + channel] = qrRaw[source + channel]!
         continue
       }
-      if (coverage[index] === 0)
+      const alpha = coverage[index]!
+      if (alpha === 0)
         continue
-      for (let channel = 0; channel < 3; channel++)
-        output[offset + channel] = render.data[offset + channel]!
+      if (alpha === 255 || !rimRounded) {
+        for (let channel = 0; channel < 3; channel++)
+          output[offset + channel] = render.data[offset + channel]!
+      } else {
+        const srcA = alpha / 255
+        for (let channel = 0; channel < 3; channel++) {
+          const src = render.data[offset + channel]!
+          const dst = output[offset + channel]!
+          output[offset + channel] = Math.round(src * srcA + dst * (1 - srcA))
+        }
+      }
     }
   }
 
@@ -238,6 +259,7 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
       const isCorner = cell >= 0 && plate.corners[cell] === 1
       const isPlate = cell >= 0 && plate.cells[cell] === 1
       const isDrawn = cell >= 0 && drawn[cell] === 1
+      const hasCoverage = coverage[index]! > 0
       if (isCorner)
         cornerTexturePixels++
       let changed = false
@@ -252,9 +274,10 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
         if (isCorner && value !== render.data[offset + channel]!)
           plateCornersPassed = false
       }
-      // Whole modules or nothing: a pixel can only differ from the original inside a drawn module.
-      // The plate hole is the one region the cut hands over wholesale to the QR.
-      if (changed && !isDrawn && !isPlate)
+      // Square rim: whole modules or nothing. Rounded rim: antialiased coverage may change pixels
+      // where coverage is partial, so allow any pixel with coverage >0.
+      const allowed = rimRounded ? (hasCoverage || isPlate) : (isDrawn || isPlate)
+      if (changed && !allowed)
         moduleCutPassed = false
       if (output[offset + 3] !== poster.data[offset + 3]!)
         alphaPassed = false
@@ -380,10 +403,10 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
       droppedPartialModules: safeArea.partialModules,
       droppedPartialPixels: safeArea.droppedPartialPixels,
       drawnModules,
-      rim: { modules: RIM_MODULES, style: 'cell' },
+      rim: { modules: rimModulesCount, style: rimRounded ? 'rounded-antialiased' : 'cell' },
       plateCornerModules: plate.cornerModules,
       keep: 'region-mask',
-      edgeBlend: 'cell-aligned-over-original',
+      edgeBlend: rimRounded ? 'antialiased' : 'cell-aligned-over-original',
     },
     qrPlate: {
       band: 'markers',
@@ -400,7 +423,7 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
       bounds: safeArea.bounds,
       area: drawnModules * pitch * pitch,
       modules: drawnModules,
-      rimModules,
+      rimModules: rimModuleCount,
       textureModules,
     },
     artifacts: {
@@ -442,7 +465,7 @@ export function markerBandRects(
   codeGrid: BoundingBox,
   qrModules: number,
   pitch: number,
-  marginModules: number,
+  marginModules: 1,
 ): { arms: BoundingBox[], cornerBlocks: BoundingBox[] } {
   const marginPixels = marginModules * pitch
   const markerPixels = MARKER_MODULES * pitch

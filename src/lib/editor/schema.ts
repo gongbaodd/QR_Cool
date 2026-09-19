@@ -5,7 +5,7 @@ export const MAX_PIXELS = 4_000_000
 export const MAX_BODY_BYTES = 2 * MAX_IMAGE_BYTES + 64 * 1024
 export const contentSchema = z.string().max(8000, 'Text exceeds QR capacity.').refine(s => s.trim().length > 0, 'Enter text or a URL.').refine(s => !/[\r\n]/.test(s), 'Use one line only.')
 export const placementSchema = z.object({ x: z.number().int().nonnegative(), y: z.number().int().nonnegative(), size: z.number().int().positive() }).strict()
-export const settingsSchema = z.object({ seed: z.number().int().min(0).max(0xffffffff), qrMargin: z.union([z.literal(1), z.literal(2)]).default(1), plateCorners: z.enum(['texture', 'light']).default('texture') }).strict()
+export const settingsSchema = z.object({ seed: z.number().int().min(0).max(0xffffffff), qrMargin: z.literal(1).default(1), plateCorners: z.enum(['texture', 'light']).default('texture'), rimModules: z.number().int().min(0).max(5).default(4), rimRounded: z.boolean().default(false) }).strict()
 export const requestSchema = z.object({ revision: z.number().int().nonnegative(), content: contentSchema, placement: placementSchema.optional(), previousTotalModules: z.number().int().min(25).max(181).optional(), settings: settingsSchema }).strict()
 export type Placement = z.infer<typeof placementSchema>
 export type Settings = z.infer<typeof settingsSchema>

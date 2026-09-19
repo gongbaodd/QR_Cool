@@ -23,7 +23,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 - "Remove the marker" means dropping `QrCodeDataType.Position` (finder patterns and their separators) and `Alignment`; keep `Timing` and `Function` cells. Dropped cells are refilled with seeded random modules, never left light.
 - Rounded pixel style: one inscribed circle per dark module plus corner wedges toward dark edge neighbours, with inner-corner fills on light modules.
 - The texture pitch always equals the placed QR pitch, the crop is phase-locked to its lattice, and the editor's stable seed makes the texture reproducible.
-- A module is safe only when its whole `pitch x pitch` block is on the canvas and every pixel of it is inside the region; a partially covered module keeps the original artwork. The four outer rings of drawn modules are forced dark cells. The plate is the code grid plus whole-cell finder-only light bands of 1 or 2 modules.
+- A module is safe only when its whole `pitch x pitch` block is on the canvas and every pixel of it is inside the region; a partially covered module keeps the original artwork. The outer 0–5 rings of drawn modules are forced dark cells; a rounded rim is antialiased. The plate is the code grid plus finder-only light bands of one module.
 - The poster is deliberately not decode-verified: `poster`/`posterHalfScale`/`posterJpeg80` are skipped checks, `phoneScan` stays `untested`, and the UI warns that artistic margins can affect scanning.
 - Upstream reference: `antfu/qrcode-toolkit` `logic/generate.ts` and `unjs/uqr` (`encode`, `QrCodeDataType`).
 

@@ -7,7 +7,7 @@ import { initialState, reducer } from '../src/lib/editor/state.js'
 import { MAX_BODY_BYTES } from '../src/lib/editor/schema.js'
 const posterBytes = await readFile('source/poster.png')
 const content = 'https://example.com/qr'
-const settings = { seed: 42, qrMargin: 1 as const, plateCorners: 'texture' as const }
+const settings = { seed: 42, qrMargin: 1 as const, plateCorners: 'texture' as const, rimModules: 4 as const, rimRounded: false as const }
 function request(data: unknown, poster = posterBytes, mask?: Buffer) {
   const form = new FormData()
   form.set('poster', new File([poster], 'poster.png'))
@@ -33,14 +33,23 @@ describe('buffer engine migration', () => {
     expect(result.report.verification.expectedText).toBe('  hello  ')
     await expect(assembleFromBuffers({ posterBytes, content, placement: { x: 0, y: 0, size: 145 }, ...settings })).rejects.toThrow()
   })
-  it.each([1, 2] as const)('verifies both corner treatments with margin %i', async qrMargin => {
+  it('verifies both corner treatments with 1-module margin', async () => {
     for (const plateCorners of ['texture', 'light'] as const) {
       const p = await prepareEditor({ posterBytes, content })
-      const r = await assembleFromBuffers({ posterBytes, content, placement: p.placement, ...settings, qrMargin, plateCorners })
+      const r = await assembleFromBuffers({ posterBytes, content, placement: p.placement, ...settings, qrMargin: 1, plateCorners })
       expect(r.report.qualified).toBe(true)
-      expect(r.report.qrPlate.marginModules).toBe(qrMargin)
+      expect(r.report.qrPlate.marginModules).toBe(1)
       expect(r.report.phoneScan).toBe('untested')
       expect(r.report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
+    }
+  })
+  it.each([0, 1, 2, 3, 4, 5] as const)('verifies rim thickness %i with antialiasing off/on', async rimModules => {
+    for (const rimRounded of [false, true] as const) {
+      const p = await prepareEditor({ posterBytes, content })
+      const r = await assembleFromBuffers({ posterBytes, content, placement: p.placement, ...settings, rimModules, rimRounded })
+      expect(r.report.qualified).toBe(true)
+      expect(r.report.cut.rim.modules).toBe(rimModules)
+      expect(r.report.cut.edgeBlend).toBe(rimRounded ? 'antialiased' : 'cell-aligned-over-original')
     }
   })
 })
