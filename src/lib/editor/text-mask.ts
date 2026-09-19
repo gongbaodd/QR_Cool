@@ -13,6 +13,7 @@ export interface TextMaskFont {
 }
 
 export const TEXT_MASK_FONTS: TextMaskFont[] = [
+  { id: 'blank', family: '', label: 'blank', file: '' },
   { id: 'fathead', family: 'Fathead', label: 'Fathead', file: '/fonts/Fathead_PersonalUseOnly.ttf' },
   { id: 'fatc', family: 'FatC', label: 'FatC', file: '/fonts/FatC.ttf' },
   { id: 'fat-ass-filled', family: 'Fat Ass Filled', label: 'Fat Ass Filled', file: '/fonts/FATASSFI.TTF' },
@@ -24,7 +25,6 @@ export const TEXT_MASK_FONTS: TextMaskFont[] = [
   { id: 'slukoni-fat', family: 'Slukoni Fat', label: 'Slukoni Fat', file: '/fonts/Slukoni-Fat.otf' },
   { id: 'trinta-quatro-fat', family: 'Trinta Quatro Fat', label: 'Trinta Quatro Fat', file: '/fonts/Trinta_quatro Fat.ttf', note: 'Uppercase, digits and punctuation only.' },
   { id: 'wear-fat-shirt', family: 'Wear Fat Shirt', label: 'Wear Fat Shirt', file: '/fonts/WEAR FAT SHIRT.ttf' },
-  { id: 'blank', family: '', label: 'blank', file: '' },
 ]
 
 export const TEXT_MASK_FILENAME = 'text-mask.png'

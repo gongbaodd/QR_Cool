@@ -73,6 +73,9 @@ header{
 
 /* ---- layout ---- */
 .workspace{display:grid;grid-template-columns:360px minmax(0,1fr);min-height:calc(100vh - 88px);align-items:start}
+.workspace-step2{align-items:center}
+.workspace-step2 .preview-panel{display:flex;flex-direction:column;justify-content:center;min-height:calc(100vh - 145px)}
+.workspace-step2 .mask-preview-wrap{flex:1;display:flex;justify-content:center;align-items:center}
 .workspace-centered{display:flex;justify-content:center;padding:48px 24px;min-height:calc(100vh - 88px);background:var(--paper)}
 .workspace-centered aside{width:100%;max-width:560px;padding:30px 28px;background:var(--card);border:2px solid var(--ink);border-radius:var(--sketch-card);box-shadow:var(--shadow-lg);align-self:start}
 aside{padding:30px 28px;background:var(--card);border-right:2px solid var(--ink)}
@@ -226,6 +229,7 @@ canvas[aria-label="Mask text preview"]{border:2px solid var(--ink) !important;bo
   header{min-height:70px;padding:10px 18px}
   .local-note{font-size:13px}
   .workspace{display:flex;flex-direction:column}
+  .workspace-step2 .preview-panel{min-height:auto}
   .workspace-centered{padding:24px 16px}
   .workspace-centered aside{border-radius:var(--sketch-card)}
   .preview-panel{order:-1;padding:20px 16px}
