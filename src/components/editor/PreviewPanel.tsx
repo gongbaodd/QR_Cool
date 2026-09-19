@@ -1,7 +1,6 @@
 'use client'
 import dynamic from 'next/dynamic'
 import * as stylex from '@stylexjs/stylex'
-import IconGallery from './IconGallery'
 import MaskPreviewCanvas from './MaskPreviewCanvas'
 import ResultPanel from './ResultPanel'
 import type { IconItem } from '../../lib/editor/text-mask'
@@ -142,15 +141,6 @@ export interface MaskPreviewView {
   selectedIconId: string | null
 }
 
-export interface GalleryView {
-  query: string
-  total: number
-  items: IconItem[]
-  selectedIconId: string | null
-  onSelect: (index: number) => void
-  onClose: () => void
-}
-
 export interface PreviewPanelProps {
   step: number
   showingResult: boolean
@@ -163,8 +153,6 @@ export interface PreviewPanelProps {
   modules: number
   invalid: boolean
   maskPreview: MaskPreviewView
-  gallery: GalleryView
-  galleryMode: boolean
   onMove: (box: Placement) => void
   onReturnToEditing: () => void
 }
@@ -182,8 +170,6 @@ export default function PreviewPanel({
   modules,
   invalid,
   maskPreview,
-  gallery,
-  galleryMode,
   onMove,
   onReturnToEditing,
 }: PreviewPanelProps) {
@@ -211,26 +197,14 @@ export default function PreviewPanel({
       {showingResult && result ? (
         <ResultPanel result={result} artifacts={artifacts} onReturnToEditing={onReturnToEditing} />
       ) : step === 2 ? (
-        galleryMode ? (
-          <IconGallery
-            query={gallery.query}
-            total={gallery.total}
-            items={gallery.items}
-            selectedIconId={gallery.selectedIconId}
-            onSelect={gallery.onSelect}
-            onClose={gallery.onClose}
-          />
-        ) : (
-          <MaskPreviewCanvas
-            effectiveMask={maskPreview.effectiveMask}
-            family={maskPreview.family}
-            isBlank={maskPreview.isBlank}
-            isIconMode={maskPreview.isIconMode}
-            iconResults={maskPreview.iconResults}
-            selectedIconId={maskPreview.selectedIconId}
-            galleryMode={galleryMode}
-          />
-        )
+        <MaskPreviewCanvas
+          effectiveMask={maskPreview.effectiveMask}
+          family={maskPreview.family}
+          isBlank={maskPreview.isBlank}
+          isIconMode={maskPreview.isIconMode}
+          iconResults={maskPreview.iconResults}
+          selectedIconId={maskPreview.selectedIconId}
+        />
       ) : dimensions && placement && posterUrl ? (
         <Canvas
           mask={previews['region.png'] ?? ''}

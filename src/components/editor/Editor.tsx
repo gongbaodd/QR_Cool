@@ -17,6 +17,7 @@ import EditorHeader from './EditorHeader'
 import StepRail from './StepRail'
 import PreviewPanel from './PreviewPanel'
 import PreparationError from './PreparationError'
+import IconGallery from './IconGallery'
 import StepInput from './steps/StepInput'
 import StepMaskSearch from './steps/StepMaskSearch'
 import StepAdjust from './steps/StepAdjust'
@@ -280,19 +281,21 @@ export default function Editor() {
               iconResults: iconSearch.results,
               selectedIconId: maskSelection.selectedIconId,
             }}
-            gallery={{
-              query: searchQuery,
-              total: iconSearch.total,
-              items: iconSearch.results,
-              selectedIconId: maskSelection.selectedIconId,
-              onSelect: handleGallerySelect,
-              onClose: iconSearch.closeGallery,
-            }}
-            galleryMode={iconSearch.galleryMode}
             onMove={move}
             onReturnToEditing={() => dispatch({ type: 'view', result: false })}
           />
         </div>
+      )}
+      {step === 2 && (
+        <IconGallery
+          open={iconSearch.galleryMode}
+          query={searchQuery}
+          total={iconSearch.total}
+          items={iconSearch.results}
+          selectedIconId={maskSelection.selectedIconId}
+          onSelect={handleGallerySelect}
+          onClose={iconSearch.closeGallery}
+        />
       )}
     </main>
   )

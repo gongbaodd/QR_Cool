@@ -39,7 +39,6 @@ export interface MaskPreviewCanvasProps {
   isIconMode: boolean
   iconResults: IconItem[]
   selectedIconId: string | null
-  galleryMode: boolean
 }
 
 /** Step 2's white-on-black mask preview, mirroring the uploaded mask canvas. */
@@ -50,17 +49,12 @@ export default function MaskPreviewCanvas({
   isIconMode,
   iconResults,
   selectedIconId,
-  galleryMode,
 }: MaskPreviewCanvasProps) {
   const maskPreview = useRef<HTMLCanvasElement | null>(null)
   useEffect(() => {
     const node = maskPreview.current
     if (!node) return
     let live = true
-    if (galleryMode)
-      return () => {
-        live = false
-      }
     if (isBlank) {
       const context = node.getContext('2d')!
       context.fillStyle = 'white'
@@ -158,7 +152,7 @@ export default function MaskPreviewCanvas({
     return () => {
       live = false
     }
-  }, [effectiveMask, family, isBlank, isIconMode, selectedIconId, iconResults, galleryMode])
+  }, [effectiveMask, family, isBlank, isIconMode, selectedIconId, iconResults])
   return (
     <div {...stylex.props(styles.wrap)}>
       <canvas

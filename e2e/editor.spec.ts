@@ -152,13 +152,13 @@ test('mask search keeps 3x4 grid, first letter rule and icon search', async ({ p
   const control = page.getByRole('button', { name: 'More icons' })
   await expect(control).toBeEnabled()
   await expect(control).toContainText('search heart')
-  // One click searches and shows the results in the preview area.
+  // One click searches and lists the results in a modal dialog.
   await control.click()
   await expect(page.getByText('Found 20 icons for “heart”')).toBeVisible({ timeout: 5000 })
   await expect(page.getByRole('heading', { name: /Icons for/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Gallery icon heart-0/ })).toBeVisible()
   expect(queries).toEqual(['heart'])
-  // sidebar stays 12 fonts from public/fonts — icons live only in the preview gallery
+  // The sidebar keeps 12 fonts from public/fonts — icons live only in the modal.
   await expect(page.getByRole('radiogroup', { name: 'Mask options' }).locator('button')).toHaveCount(12)
   await expect(page.getByRole('radio', { name: 'Mask font blank' })).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Mask font Fathead' })).toBeVisible()
@@ -166,21 +166,19 @@ test('mask search keeps 3x4 grid, first letter rule and icon search', async ({ p
   await expect(
     page.getByRole('radiogroup', { name: 'Mask options' }).getByRole('radio', { name: /Icon heart-0/ }),
   ).toHaveCount(0)
-  // The cached term keeps the gallery open instead of toggling it off.
-  await expect(control).toContainText('more — 20 icons')
-  await control.click()
-  await expect(page.getByRole('heading', { name: /Icons for/ })).toBeVisible()
-  // Back to preview closes the gallery; the control reopens the same results without a new request.
-  await page.getByRole('button', { name: 'Back to preview' }).click()
-  await expect(page.getByTestId('icon-gallery')).toHaveCount(0)
+  // Closing the modal returns to the mask preview and keeps the cached term.
+  await page.getByRole('button', { name: 'Close icon gallery' }).click()
+  await expect(page.getByTestId('icon-gallery')).not.toBeVisible()
   await expect(page.getByLabel('Mask text preview')).toBeVisible()
+  await expect(control).toContainText('more — 20 icons')
+  // The cached term reopens the same results without a new request.
   await control.click()
   const gallery = page.getByTestId('icon-gallery')
   await expect(gallery).toBeVisible()
   expect(queries).toEqual(['heart'])
   await gallery.getByRole('button', { name: /Gallery icon heart-15/ }).click()
   await expect(page.getByLabel('Mask text preview')).toBeVisible()
-  await expect(page.getByTestId('icon-gallery')).toHaveCount(0)
+  await expect(page.getByTestId('icon-gallery')).not.toBeVisible()
   await expect(
     page.getByRole('radiogroup', { name: 'Mask options' }).locator('button[aria-checked="true"]'),
   ).toHaveCount(1)
@@ -223,9 +221,32 @@ test('empty search input never fetches icons', async ({ page }) => {
   await expect(control).toContainText('search icons')
   await expect(page.getByText('Type a letter or word to search icons.')).toBeVisible()
   await control.click()
-  await expect(page.getByTestId('icon-gallery')).toHaveCount(0)
+  await expect(page.getByTestId('icon-gallery')).not.toBeVisible()
   await expect(page.getByLabel('Mask text preview')).toBeVisible()
   expect(queries).toEqual([])
+})
+
+test('icon modal dismisses on Escape and a backdrop click', async ({ page }) => {
+  const queries: string[] = []
+  await mockIconSearch(page, queries)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await page.getByLabel('Mask search', { exact: true }).fill('heart')
+  const control = page.getByRole('button', { name: 'More icons' })
+  await control.click()
+  const gallery = page.getByTestId('icon-gallery')
+  await expect(gallery).toBeVisible()
+  // Esc is the platform close request.
+  await page.keyboard.press('Escape')
+  await expect(gallery).not.toBeVisible()
+  await expect(page.getByLabel('Mask text preview')).toBeVisible()
+  // A click on the backdrop is a light dismiss; the cached term stays searchable.
+  await control.click()
+  await expect(gallery).toBeVisible()
+  await page.mouse.click(4, 4)
+  await expect(gallery).not.toBeVisible()
+  await expect(page.getByText('Found 20 icons for “heart”')).toBeVisible()
+  expect(queries).toEqual(['heart'])
 })
 
 test('re-entering step 2 refreshes the search control from the input', async ({ page }) => {
@@ -241,7 +262,9 @@ test('re-entering step 2 refreshes the search control from the input', async ({ 
   await control.click()
   await expect(page.getByTestId('icon-gallery')).toBeVisible()
   expect(queries).toEqual(['heart'])
-  // Leaving and re-entering step 2 closes the gallery but keeps the cached term.
+  // The modal closes before leaving step 2, and re-entering keeps the cached term.
+  await page.getByRole('button', { name: 'Close icon gallery' }).click()
+  await expect(page.getByTestId('icon-gallery')).toHaveCount(0)
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Step 2 Mask Search' }).click()

@@ -155,6 +155,7 @@ export default function StepMaskSearch({
         <button
           {...stylex.props(ui.button, ui.fontCard, styles.searchButton, galleryMode && ui.fontCardSelected)}
           aria-label="More icons"
+          aria-haspopup="dialog"
           title={
             searchState === 'idle'
               ? 'Type a letter or word to search icons'

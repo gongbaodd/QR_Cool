@@ -6,6 +6,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 
 - `pnpm test`, `pnpm typecheck`, and `pnpm build` must pass before handing off.
 - `pnpm dev` runs the editor locally; `pnpm start` serves the production build; `pnpm test:e2e` runs the Playwright browser journeys against it.
+- Don't run `pnpm test:e2e` on every change. The maintainer exercises UI work manually in the browser, then asks for `e2e/editor.spec.ts` to be updated — update the journeys on request and only run that suite when asked.
 - Poster fixture `source/poster.png` (688x566); QR fixture `test/fixtures/qr.png` (820x820, version 5, 41 total modules).
 
 ## Invariants
