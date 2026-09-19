@@ -59,7 +59,7 @@ export function buildModuleLattice(
   width: number,
   height: number,
   modulePixels: number,
-  origin: { x: number, y: number },
+  origin: { x: number; y: number },
 ): ModuleLattice {
   if (!Number.isInteger(modulePixels) || modulePixels < 1)
     throw new QrPosterError('INVALID_INPUT', 'The module pitch must be a positive integer.')
@@ -92,8 +92,7 @@ export function moduleBlock(lattice: ModuleLattice, column: number, row: number)
 export function moduleCellIndex(lattice: ModuleLattice, x: number, y: number): number {
   const column = Math.floor((x - lattice.x) / lattice.modulePixels)
   const row = Math.floor((y - lattice.y) / lattice.modulePixels)
-  if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows)
-    return -1
+  if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows) return -1
   return row * lattice.columns + column
 }
 
@@ -130,15 +129,12 @@ export function computeSafeArea(
       let block = 0
       for (let offsetY = 0; offsetY < pitch; offsetY++) {
         const y = originY + offsetY
-        if (y < 0 || y >= height)
-          continue
+        if (y < 0 || y >= height) continue
         for (let offsetX = 0; offsetX < pitch; offsetX++) {
           const x = originX + offsetX
-          if (x < 0 || x >= width)
-            continue
+          if (x < 0 || x >= width) continue
           block++
-          if (selection[y * width + x])
-            inside++
+          if (selection[y * width + x]) inside++
         }
       }
       if (block === pitch * pitch && inside === block) {
@@ -162,9 +158,10 @@ export function computeSafeArea(
     safeModules,
     partialModules,
     droppedPartialPixels,
-    bounds: safeModules === 0
-      ? { x: 0, y: 0, width: 0, height: 0 }
-      : { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+    bounds:
+      safeModules === 0
+        ? { x: 0, y: 0, width: 0, height: 0 }
+        : { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
   }
 }
 
@@ -182,8 +179,7 @@ export function computePlateModules(
   handbackRects: BoundingBox[] = [],
 ): PlateModules {
   const pitch = lattice.modulePixels
-  if (plateRects.length === 0)
-    throw new QrPosterError('INVALID_INPUT', 'The QR plate needs at least one rectangle.')
+  if (plateRects.length === 0) throw new QrPosterError('INVALID_INPUT', 'The QR plate needs at least one rectangle.')
   for (const rect of [...plateRects, ...handbackRects]) {
     if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite))
       throw new QrPosterError('INVALID_INPUT', 'The QR plate rectangles must use finite numbers.')
@@ -202,11 +198,9 @@ export function computePlateModules(
     const lastRow = Math.floor((rect.y + rect.height - lattice.y) / pitch) - 1
     for (let row = firstRow; row <= lastRow; row++) {
       for (let column = firstColumn; column <= lastColumn; column++) {
-        if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows)
-          continue
+        if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows) continue
         const index = row * lattice.columns + column
-        if (cells[index])
-          continue
+        if (cells[index]) continue
         cells[index] = 1
         holeModules++
       }
@@ -222,8 +216,7 @@ export function computePlateModules(
     const lastRow = Math.floor((rect.y + rect.height - lattice.y) / pitch) - 1
     for (let row = firstRow; row <= lastRow; row++) {
       for (let column = firstColumn; column <= lastColumn; column++) {
-        if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows)
-          continue
+        if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows) continue
         const index = row * lattice.columns + column
         if (cells[index]) {
           cells[index] = 0
@@ -244,8 +237,7 @@ export function computePlateModules(
   let maxY = Number.NEGATIVE_INFINITY
   for (let row = 0; row < lattice.rows; row++) {
     for (let column = 0; column < lattice.columns; column++) {
-      if (!cells[row * lattice.columns + column])
-        continue
+      if (!cells[row * lattice.columns + column]) continue
       const x = lattice.x + column * pitch
       const y = lattice.y + row * pitch
       minX = Math.min(minX, x)
@@ -259,9 +251,10 @@ export function computePlateModules(
     corners,
     holeModules,
     cornerModules: cornerCount,
-    bounds: holeModules === 0
-      ? { x: 0, y: 0, width: 0, height: 0 }
-      : { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+    bounds:
+      holeModules === 0
+        ? { x: 0, y: 0, width: 0, height: 0 }
+        : { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
   }
 }
 
@@ -271,21 +264,15 @@ export function computePlateModules(
  * band of whole modules that closes on the silhouette. The plate is never a seed: the rim follows
  * the painted region, not the QR window.
  */
-export function computeRimModules(
-  safe: Uint8Array,
-  lattice: ModuleLattice,
-  rimModules: number,
-): Uint8Array {
+export function computeRimModules(safe: Uint8Array, lattice: ModuleLattice, rimModules: number): Uint8Array {
   const { columns, rows } = lattice
   const rim = new Uint8Array(columns * rows)
-  if (!Number.isInteger(rimModules) || rimModules < 1)
-    return rim
+  if (!Number.isInteger(rimModules) || rimModules < 1) return rim
 
   const distance = new Int32Array(columns * rows).fill(-1)
   const queue: number[] = []
   for (let index = 0; index < safe.length; index++) {
-    if (safe[index])
-      continue
+    if (safe[index]) continue
     distance[index] = 0
     queue.push(index)
   }
@@ -293,29 +280,24 @@ export function computeRimModules(
     const index = queue[head]!
     const distance_ = distance[index]!
     const next = distance_ + 1
-    if (next > rimModules)
-      continue
+    if (next > rimModules) continue
     const row = Math.floor(index / columns)
     const column = index - row * columns
     for (let deltaY = -1; deltaY <= 1; deltaY++) {
       const neighbourRow = row + deltaY
-      if (neighbourRow < 0 || neighbourRow >= rows)
-        continue
+      if (neighbourRow < 0 || neighbourRow >= rows) continue
       for (let deltaX = -1; deltaX <= 1; deltaX++) {
         const neighbourColumn = column + deltaX
-        if (neighbourColumn < 0 || neighbourColumn >= columns)
-          continue
+        if (neighbourColumn < 0 || neighbourColumn >= columns) continue
         const neighbour = neighbourRow * columns + neighbourColumn
-        if (distance[neighbour] !== -1)
-          continue
+        if (distance[neighbour] !== -1) continue
         distance[neighbour] = next
         queue.push(neighbour)
       }
     }
   }
   for (let index = 0; index < rim.length; index++) {
-    if (safe[index] && distance[index]! >= 0)
-      rim[index] = 1
+    if (safe[index] && distance[index]! >= 0) rim[index] = 1
   }
   return rim
 }
@@ -328,8 +310,7 @@ export function buildModulePath(cells: Uint8Array, lattice: ModuleLattice): stri
   const parts: string[] = []
   for (let row = 0; row < lattice.rows; row++) {
     for (let column = 0; column < lattice.columns; column++) {
-      if (!cells[row * lattice.columns + column])
-        continue
+      if (!cells[row * lattice.columns + column]) continue
       const x = lattice.x + column * pitch
       const y = lattice.y + row * pitch
       parts.push(`M${x},${y}h${pitch}v${pitch}h-${pitch}Z`)
@@ -345,19 +326,18 @@ export function buildRoundedModulePath(cells: Uint8Array, lattice: ModuleLattice
   if (cells.length !== lattice.columns * lattice.rows)
     throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'The module grid does not match the lattice.', 3)
   const pitch = lattice.modulePixels
-  if (!Number.isFinite(radius) || radius <= 0)
-    return buildModulePath(cells, lattice)
+  if (!Number.isFinite(radius) || radius <= 0) return buildModulePath(cells, lattice)
   // Build a pixel mask of drawn modules, then trace its outer boundary as a rounded rect union.
   // For a module-aligned lattice, rounding only the outer convex corners is sufficient; inner
   // notches stay square and the SVG arc join produces antialiased edges when rasterized.
   const width = lattice.columns
   const height = lattice.rows
-  const isInside = (c: number, r: number): boolean => c >= 0 && r >= 0 && c < width && r < height && !!cells[r * width + c]
+  const isInside = (c: number, r: number): boolean =>
+    c >= 0 && r >= 0 && c < width && r < height && !!cells[r * width + c]
   const parts: string[] = []
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
-      if (!cells[row * width + column])
-        continue
+      if (!cells[row * width + column]) continue
       const x = lattice.x + column * pitch
       const y = lattice.y + row * pitch
       const left = !isInside(column - 1, row)
@@ -395,7 +375,7 @@ export function buildRoundedModulePath(cells: Uint8Array, lattice: ModuleLattice
       d += 'Z'
       // When neighboring modules fill the corner gap, the arc would create a notch; clip it by
       // falling back to square for those corners.
-      if ((tl && (topLeft)) || (tr && (topRight)) || (br && (bottomRight)) || (bl && (bottomLeft))) {
+      if ((tl && topLeft) || (tr && topRight) || (br && bottomRight) || (bl && bottomLeft)) {
         parts.push(`M${x},${y}h${pitch}v${pitch}h-${pitch}Z`)
       } else {
         parts.push(d)
@@ -418,10 +398,10 @@ export async function renderModuleCoverage(
   height: number,
   allowAntialias = false,
 ): Promise<Uint8Array> {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"`
-    + ` viewBox="0 0 ${width} ${height}"><path fill="#ffffff" d="${pathData}"/></svg>`
-  const { data, info } = await sharp(Buffer.from(svg)).ensureAlpha().raw()
-    .toBuffer({ resolveWithObject: true })
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"` +
+    ` viewBox="0 0 ${width} ${height}"><path fill="#ffffff" d="${pathData}"/></svg>`
+  const { data, info } = await sharp(Buffer.from(svg)).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
   if (info.width !== width || info.height !== height) {
     throw new QrPosterError(
       'IMAGE_PROCESSING_FAILED',

@@ -19,7 +19,7 @@ describe('blank canvas starter poster', () => {
     expect(file.length).toBeLessThanOrEqual(MAX_IMAGE_BYTES)
     expect(BLANK_POSTER_WIDTH * BLANK_POSTER_HEIGHT).toBeLessThanOrEqual(MAX_PIXELS)
     const poster = await decodePng(file, 'blank-poster.png', 'poster')
-    expect(poster.data.every(value => value === 255)).toBe(true)
+    expect(poster.data.every((value) => value === 255)).toBe(true)
     expect(() => detectRegionMask(poster)).toThrowError(QrPosterError)
     const maskFile = await rgbaToPng(buildBlankMaskRgba(), BLANK_POSTER_WIDTH, BLANK_POSTER_HEIGHT)
     const maskImage = await decodePng(maskFile, 'blank-mask.png', 'mask')
@@ -35,7 +35,13 @@ describe('blank canvas starter poster', () => {
     const content = 'https://example.com/qr'
     const prepared = await prepareEditor({ posterBytes, maskBytes, content })
     expect(prepared.validation).toBeNull()
-    const result = await assembleFromBuffers({ posterBytes, maskBytes, content, placement: prepared.placement, ...settings })
+    const result = await assembleFromBuffers({
+      posterBytes,
+      maskBytes,
+      content,
+      placement: prepared.placement,
+      ...settings,
+    })
     expect(result.report.qualified).toBe(true)
   })
 })

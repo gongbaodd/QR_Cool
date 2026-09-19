@@ -9,13 +9,8 @@ import type { LoadedPng } from './image'
 import { decodePng, luma, rgbaToPng } from './image'
 import type { QrMetadata, QrSourceTrim, VerificationCheck } from './types'
 
-const {
-  BinaryBitmap,
-  DecodeHintType,
-  HybridBinarizer,
-  QRCodeReader,
-  RGBLuminanceSource,
-} = (zxing as unknown as { default?: typeof zxing }).default ?? zxing
+const { BinaryBitmap, DecodeHintType, HybridBinarizer, QRCodeReader, RGBLuminanceSource } =
+  (zxing as unknown as { default?: typeof zxing }).default ?? zxing
 
 const QUIET_ZONE_MODULES = 2 as const
 const INK_LUMA_THRESHOLD = 128
@@ -38,14 +33,12 @@ export interface GeneratedQr {
 export async function generateQrFromContent(content: string): Promise<GeneratedQr> {
   if (content.trim().length === 0)
     throw new QrPosterError('INVALID_INPUT', '--content must not be empty or whitespace-only.')
-  if (/\r|\n/.test(content))
-    throw new QrPosterError('INVALID_INPUT', '--content must contain exactly one line.')
+  if (/\r|\n/.test(content)) throw new QrPosterError('INVALID_INPUT', '--content must contain exactly one line.')
 
   let encoded
   try {
     encoded = encode(content, { ecc: 'M', maskPattern: -1, border: 0 })
-  }
-  catch (error) {
+  } catch (error) {
     throw new QrPosterError(
       'QR_INVALID',
       'Could not encode --content as a QR code. The content may exceed the QR capacity.',
@@ -77,14 +70,22 @@ export async function generateQrFromContent(content: string): Promise<GeneratedQ
 /** Circular qrcode.antfu.me finder markers over the cleared Position cells. */
 function finderMarkerSvg(modules: number, pitch: number, marginModules: number): string {
   const size = (modules + marginModules * 2) * pitch
-  const origins = [[0, 0], [modules - 7, 0], [0, modules - 7]] as const
-  const markers = origins.map(([x, y]) => {
-    const cx = (marginModules + x + 3.5) * pitch
-    const cy = (marginModules + y + 3.5) * pitch
-    return `<circle cx="${cx}" cy="${cy}" r="${3.5 * pitch}" fill="#000"/>`
-      + `<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="#fff"/>`
-      + `<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`
-  }).join('')
+  const origins = [
+    [0, 0],
+    [modules - 7, 0],
+    [0, modules - 7],
+  ] as const
+  const markers = origins
+    .map(([x, y]) => {
+      const cx = (marginModules + x + 3.5) * pitch
+      const cy = (marginModules + y + 3.5) * pitch
+      return (
+        `<circle cx="${cx}" cy="${cy}" r="${3.5 * pitch}" fill="#000"/>` +
+        `<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="#fff"/>` +
+        `<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`
+      )
+    })
+    .join('')
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">${markers}</svg>`
 }
 
@@ -110,19 +111,25 @@ export function decodeQrRaw(data: Uint8Array, width: number, height: number): st
 export function decodeQrRawDetailed(data: Uint8Array, width: number, height: number): DecodedQr {
   const pixels = Uint8ClampedArray.from(data)
   // jsQR also supplies the version, required to normalize tight input crops unambiguously.
-  const decoded = (jsQR as unknown as (
-    data: Uint8ClampedArray, width: number, height: number,
-    options: { inversionAttempts: 'attemptBoth' },
-  ) => JsQrResult | null)(pixels, width, height, { inversionAttempts: 'attemptBoth' })
+  const decoded = (
+    jsQR as unknown as (
+      data: Uint8ClampedArray,
+      width: number,
+      height: number,
+      options: { inversionAttempts: 'attemptBoth' },
+    ) => JsQrResult | null
+  )(pixels, width, height, { inversionAttempts: 'attemptBoth' })
   if (decoded) return { text: decoded.data, decoder: 'jsqr', version: decoded.version }
   try {
     // ZXing expects one luminance byte per pixel, not interleaved RGBA.
     const luminances = new Uint8ClampedArray(width * height)
-    for (let i = 0; i < luminances.length; i++) luminances[i] = luma(pixels[i * 4]!, pixels[i * 4 + 1]!, pixels[i * 4 + 2]!)
+    for (let i = 0; i < luminances.length; i++)
+      luminances[i] = luma(pixels[i * 4]!, pixels[i * 4 + 1]!, pixels[i * 4 + 2]!)
     const source = new RGBLuminanceSource(luminances, width, height)
     const bitmap = new BinaryBitmap(new HybridBinarizer(source))
     const hints = new Map<number, unknown>([
-      [DecodeHintType.TRY_HARDER, true], [DecodeHintType.CHARACTER_SET, 'UTF-8'],
+      [DecodeHintType.TRY_HARDER, true],
+      [DecodeHintType.CHARACTER_SET, 'UTF-8'],
     ])
     return { text: new QRCodeReader().decode(bitmap, hints).getText(), decoder: 'zxing' }
   } catch (cause) {
@@ -171,8 +178,7 @@ function quietZoneProfileCandidates(image: LoadedPng, detectedVersion?: number):
   for (let version = MIN_VERSION; version <= MAX_VERSION; version++) {
     const qrModules = 21 + 4 * (version - 1)
     const totalModules = qrModules + QUIET_ZONE_MODULES * 2
-    if (image.width % totalModules !== 0)
-      continue
+    if (image.width % totalModules !== 0) continue
     const cell = image.width / totalModules
     const lightRatio = quietZoneLightRatio(image.data, image.width, image.height, QUIET_ZONE_MODULES * cell)
     if (cell >= 1 && lightRatio >= 0.98 && (detectedVersion === undefined || version === detectedVersion))
@@ -209,22 +215,20 @@ export interface ResolvedQrSource {
  * crop such as `source/qr.png` is accepted without resampling a single code pixel.
  */
 export async function resolveQrSource(source: LoadedPng, detectedVersion?: number): Promise<ResolvedQrSource> {
-  const candidates = source.width === source.height
-    ? quietZoneProfileCandidates(source, detectedVersion)
-    : []
-  if (candidates.length === 1)
-    return { source, image: source, quietZoneSource: 'source' }
+  const candidates = source.width === source.height ? quietZoneProfileCandidates(source, detectedVersion) : []
+  if (candidates.length === 1) return { source, image: source, quietZoneSource: 'source' }
 
   const grid = detectCodeGrid(source, detectedVersion)
   if (!grid) {
-    const reason = source.width === source.height
-      ? `found ${candidates.length} matching two-module quiet-zone profiles`
-      : `the image is ${source.width}x${source.height}, not square`
+    const reason =
+      source.width === source.height
+        ? `found ${candidates.length} matching two-module quiet-zone profiles`
+        : `the image is ${source.width}x${source.height}, not square`
     throw new QrPosterError(
       'QR_INVALID',
-      `QR input does not match the qrcode.antfu.me profile (${reason}) and no integer-scaled code grid`
-      + ` could be recovered from its pixels. Supply a square QR PNG with a two-module light margin,`
-      + ` or a code-only crop whose modules are an integer number of pixels.`,
+      `QR input does not match the qrcode.antfu.me profile (${reason}) and no integer-scaled code grid` +
+        ` could be recovered from its pixels. Supply a square QR PNG with a two-module light margin,` +
+        ` or a code-only crop whose modules are an integer number of pixels.`,
     )
   }
 
@@ -252,18 +256,15 @@ function detectCodeGrid(image: LoadedPng, detectedVersion?: number): CodeGrid | 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const offset = (y * width + x) * 4
-      if (data[offset + 3]! < INK_ALPHA_THRESHOLD)
-        continue
-      if (luma(data[offset]!, data[offset + 1]!, data[offset + 2]!) >= INK_LUMA_THRESHOLD)
-        continue
+      if (data[offset + 3]! < INK_ALPHA_THRESHOLD) continue
+      if (luma(data[offset]!, data[offset + 1]!, data[offset + 2]!) >= INK_LUMA_THRESHOLD) continue
       if (x < minX) minX = x
       if (x > maxX) maxX = x
       if (y < minY) minY = y
       if (y > maxY) maxY = y
     }
   }
-  if (maxX < 0)
-    return undefined
+  if (maxX < 0) return undefined
 
   const inkWidth = maxX - minX + 1
   const inkHeight = maxY - minY + 1
@@ -272,15 +273,13 @@ function detectCodeGrid(image: LoadedPng, detectedVersion?: number): CodeGrid | 
   for (let version = MIN_VERSION; version <= MAX_VERSION; version++) {
     const qrModules = 21 + 4 * (version - 1)
     const modulePixels = Math.round((inkWidth + inkHeight) / (2 * qrModules))
-    if (modulePixels < 1)
-      continue
+    if (modulePixels < 1) continue
     const codeSize = qrModules * modulePixels
     if (Math.abs(codeSize - inkWidth) > GRID_SIZE_TOLERANCE || Math.abs(codeSize - inkHeight) > GRID_SIZE_TOLERANCE)
       continue
-    if (codeSize > width || codeSize > height)
-      continue
+    if (codeSize > width || codeSize > height) continue
 
-    let best: { left: number, top: number, variance: number } | undefined
+    let best: { left: number; top: number; variance: number } | undefined
     const leftMin = Math.max(0, minX - GRID_ORIGIN_SEARCH)
     const leftMax = Math.min(width - codeSize, minX + GRID_ORIGIN_SEARCH)
     const topMin = Math.max(0, minY - GRID_ORIGIN_SEARCH)
@@ -288,27 +287,22 @@ function detectCodeGrid(image: LoadedPng, detectedVersion?: number): CodeGrid | 
     for (let left = leftMin; left <= leftMax; left++) {
       for (let top = topMin; top <= topMax; top++) {
         // The window must contain every ink pixel, so only the grid phase is being searched.
-        if (left > minX || top > minY || left + codeSize < maxX + 1 || top + codeSize < maxY + 1)
-          continue
+        if (left > minX || top > minY || left + codeSize < maxX + 1 || top + codeSize < maxY + 1) continue
         const variance = moduleGridVariance(sums, width, left, top, qrModules, modulePixels)
-        if (!best || variance < best.variance)
-          best = { left, top, variance }
+        if (!best || variance < best.variance) best = { left, top, variance }
       }
     }
-    if (best)
-      candidates.push({ version, qrModules, modulePixels, ...best })
+    if (best) candidates.push({ version, qrModules, modulePixels, ...best })
   }
-  if (candidates.length === 0)
-    return undefined
+  if (candidates.length === 0) return undefined
 
   // The decoded version is authoritative when a grid of that size fits the ink box.
-  const decoded = candidates.find(candidate => candidate.version === detectedVersion)
-  if (decoded)
-    return decoded
+  const decoded = candidates.find((candidate) => candidate.version === detectedVersion)
+  if (decoded) return decoded
   return candidates.sort((left, right) => left.variance - right.variance)[0]
 }
 
-function buildLumaIntegrals(image: LoadedPng): { sums: Float64Array, squares: Float64Array } {
+function buildLumaIntegrals(image: LoadedPng): { sums: Float64Array; squares: Float64Array } {
   const { data, width, height } = image
   const stride = width + 1
   const sums = new Float64Array(stride * (height + 1))
@@ -317,15 +311,20 @@ function buildLumaIntegrals(image: LoadedPng): { sums: Float64Array, squares: Fl
     for (let x = 1; x <= width; x++) {
       const offset = ((y - 1) * width + x - 1) * 4
       const value = luma(data[offset]!, data[offset + 1]!, data[offset + 2]!)
-      sums[y * stride + x] = sums[(y - 1) * stride + x]! + sums[y * stride + x - 1]! - sums[(y - 1) * stride + x - 1]! + value
-      squares[y * stride + x] = squares[(y - 1) * stride + x]! + squares[y * stride + x - 1]! - squares[(y - 1) * stride + x - 1]! + value * value
+      sums[y * stride + x] =
+        sums[(y - 1) * stride + x]! + sums[y * stride + x - 1]! - sums[(y - 1) * stride + x - 1]! + value
+      squares[y * stride + x] =
+        squares[(y - 1) * stride + x]! +
+        squares[y * stride + x - 1]! -
+        squares[(y - 1) * stride + x - 1]! +
+        value * value
     }
   }
   return { sums, squares }
 }
 
 function moduleGridVariance(
-  integrals: { sums: Float64Array, squares: Float64Array },
+  integrals: { sums: Float64Array; squares: Float64Array },
   stride: number,
   left: number,
   top: number,
@@ -349,7 +348,12 @@ function moduleGridVariance(
 }
 
 function integralBox(integral: Float64Array, stride: number, x0: number, y0: number, x1: number, y1: number): number {
-  return integral[y1 * stride + x1]! - integral[y0 * stride + x1]! - integral[y1 * stride + x0]! + integral[y0 * stride + x0]!
+  return (
+    integral[y1 * stride + x1]! -
+    integral[y0 * stride + x1]! -
+    integral[y1 * stride + x0]! +
+    integral[y0 * stride + x0]!
+  )
 }
 
 /** Copies the code grid 1:1 onto a fresh light margin; the code pixels are flattened, not rescaled. */
@@ -382,7 +386,11 @@ export async function normalizeQr(image: LoadedPng, targetSize: number): Promise
     .toBuffer()
 }
 
-export async function verifyQrVariant(name: VerificationCheck['name'], buffer: Buffer, expectedText: string): Promise<VerificationCheck> {
+export async function verifyQrVariant(
+  name: VerificationCheck['name'],
+  buffer: Buffer,
+  expectedText: string,
+): Promise<VerificationCheck> {
   try {
     const decoded = await decodeQrBufferDetailed(buffer)
     if (decoded.text !== expectedText) {
@@ -402,8 +410,7 @@ export async function verifyQrVariant(name: VerificationCheck['name'], buffer: B
       decoder: decoded.decoder,
       ...(decoded.version !== undefined ? { version: decoded.version } : {}),
     }
-  }
-  catch (error) {
+  } catch (error) {
     return {
       name,
       passed: false,
@@ -417,13 +424,11 @@ function quietZoneLightRatio(data: Uint8Array, width: number, height: number, ma
   let total = 0
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (x >= marginPixels && x < width - marginPixels && y >= marginPixels && y < height - marginPixels)
-        continue
+      if (x >= marginPixels && x < width - marginPixels && y >= marginPixels && y < height - marginPixels) continue
       const offset = (y * width + x) * 4
       const alpha = data[offset + 3]!
       const brightness = luma(data[offset]!, data[offset + 1]!, data[offset + 2]!)
-      if (alpha < 16 || brightness >= 200)
-        light++
+      if (alpha < 16 || brightness >= 200) light++
       total++
     }
   }
@@ -434,5 +439,8 @@ function quietZoneLightRatio(data: Uint8Array, width: number, height: number, ma
 export async function cropQrPattern(qr: Buffer, totalModules: number, modulePixels: number): Promise<Buffer> {
   const modules = Math.min(Math.floor(totalModules / 3), totalModules - 20)
   const start = Math.floor((totalModules - modules) / 2) * modulePixels
-  return sharp(qr).extract({ left: start, top: start, width: modules * modulePixels, height: modules * modulePixels }).png().toBuffer()
+  return sharp(qr)
+    .extract({ left: start, top: start, width: modules * modulePixels, height: modules * modulePixels })
+    .png()
+    .toBuffer()
 }

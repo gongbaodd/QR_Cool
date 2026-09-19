@@ -20,8 +20,7 @@ export async function loadPng(path: string, label: string): Promise<LoadedPng> {
   let file: Buffer
   try {
     file = await readFile(path)
-  }
-  catch (error) {
+  } catch (error) {
     throw new QrPosterError('INVALID_INPUT', `Could not read ${label}: ${path}`, 2, { cause: error })
   }
 
@@ -33,8 +32,7 @@ export async function decodePng(file: Buffer, path: string, label: string): Prom
   try {
     const source = sharp(file, { failOn: 'error', limitInputPixels: 16_000_000 })
     const metadata = await source.metadata()
-    if (metadata.format !== 'png' || !metadata.width || !metadata.height)
-      throw new Error('not a decodable PNG')
+    if (metadata.format !== 'png' || !metadata.width || !metadata.height) throw new Error('not a decodable PNG')
     const { data, info } = await source.ensureAlpha().raw().toBuffer({ resolveWithObject: true })
     return {
       path,
@@ -44,18 +42,21 @@ export async function decodePng(file: Buffer, path: string, label: string): Prom
       height: info.height,
       sha256: createHash('sha256').update(file).digest('hex'),
     }
-  }
-  catch (error) {
+  } catch (error) {
     throw new QrPosterError('INVALID_INPUT', `Could not decode ${label} as PNG: ${path}`, 2, { cause: error })
   }
 }
 
 export function rgbaToPng(data: Uint8Array, width: number, height: number): Promise<Buffer> {
-  return sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer()
+  return sharp(data, { raw: { width, height, channels: 4 } })
+    .png()
+    .toBuffer()
 }
 
 export function grayscaleToPng(data: Uint8Array, width: number, height: number): Promise<Buffer> {
-  return sharp(data, { raw: { width, height, channels: 1 } }).png().toBuffer()
+  return sharp(data, { raw: { width, height, channels: 1 } })
+    .png()
+    .toBuffer()
 }
 
 export function luma(r: number, g: number, b: number): number {

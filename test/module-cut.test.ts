@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { QrPosterError } from '../src/core/errors'
 import {
   buildModuleLattice,
   buildModulePath,
@@ -15,8 +14,7 @@ import {
 function rectangle(width: number, height: number, x: number, y: number, size: number): Uint8Array {
   const selection = new Uint8Array(width * height)
   for (let row = y; row < y + size; row++) {
-    for (let column = x; column < x + size; column++)
-      selection[row * width + column] = 1
+    for (let column = x; column < x + size; column++) selection[row * width + column] = 1
   }
   return selection
 }
@@ -37,8 +35,7 @@ describe('module lattice', () => {
   })
 
   it('rejects a pitch that is not a positive integer', () => {
-    expect(() => buildModuleLattice(10, 10, 0, { x: 0, y: 0 }))
-      .toThrowError(/module pitch/)
+    expect(() => buildModuleLattice(10, 10, 0, { x: 0, y: 0 })).toThrowError(/module pitch/)
   })
 })
 
@@ -89,15 +86,13 @@ describe('rim modules', () => {
     // Safe modules 1..10 (blocks 5..55): a 10x10 block of modules.
     const safe = new Uint8Array(lattice.columns * lattice.rows)
     for (let row = 1; row <= 10; row++) {
-      for (let column = 1; column <= 10; column++)
-        safe[row * lattice.columns + column] = 1
+      for (let column = 1; column <= 10; column++) safe[row * lattice.columns + column] = 1
     }
     const rim = computeRimModules(safe, lattice, 4)
     expect(rim[1 * lattice.columns + 1]).toBe(1)
     expect(rim[5 * lattice.columns + 5]).toBe(0)
     let counted = 0
-    for (const value of rim)
-      counted += value
+    for (const value of rim) counted += value
     // 10x10 minus the 2x2 interior that sits further than four modules from the edge.
     expect(counted).toBe(100 - 4)
   })
@@ -108,7 +103,7 @@ describe('rim modules', () => {
     safe[2 * lattice.columns + 1] = 1
     safe[2 * lattice.columns + 2] = 1
     const rim = computeRimModules(safe, lattice, 4)
-    expect([...rim].filter(value => value === 1)).toHaveLength(2)
+    expect([...rim].filter((value) => value === 1)).toHaveLength(2)
     expect([...computeRimModules(safe, lattice, 0)]).toEqual([...new Uint8Array(safe.length)])
   })
 })
@@ -119,15 +114,18 @@ describe('plate modules', () => {
     // A code grid plus the two arms beside a marker and its diagonal corner block.
     const plate = computePlateModules(
       lattice,
-      [{ x: 7, y: 7, width: 25, height: 25 }, { x: 2, y: 7, width: 5, height: 25 }, { x: 7, y: 2, width: 25, height: 5 }],
+      [
+        { x: 7, y: 7, width: 25, height: 25 },
+        { x: 2, y: 7, width: 5, height: 25 },
+        { x: 7, y: 2, width: 25, height: 5 },
+      ],
       [{ x: 2, y: 2, width: 5, height: 5 }],
     )
     expect(plate.holeModules).toBe(25 + 5 + 5)
     expect(plate.cornerModules).toBe(1)
     expect(plate.bounds).toEqual({ x: 2, y: 2, width: 30, height: 30 })
     let corners = 0
-    for (const value of plate.corners)
-      corners += value
+    for (const value of plate.corners) corners += value
     expect(corners).toBe(1)
     // No module is both the hole and a corner handed to the texture.
     for (let index = 0; index < plate.cells.length; index++)
@@ -163,10 +161,8 @@ describe('plate modules', () => {
     expect(plate.holeModules).toBe(5 * 5 + 2 * 3)
     expect(plate.cornerModules).toBe(0)
     expect(plate.bounds).toEqual({ x: 2, y: 7, width: 30, height: 40 })
-    expect(() => computePlateModules(lattice, [{ x: 7, y: 7, width: 0, height: 25 }]))
-      .toThrowError(/positive size/)
-    expect(() => computePlateModules(lattice, []))
-      .toThrowError(/at least one rectangle/)
+    expect(() => computePlateModules(lattice, [{ x: 7, y: 7, width: 0, height: 25 }])).toThrowError(/positive size/)
+    expect(() => computePlateModules(lattice, [])).toThrowError(/at least one rectangle/)
   })
 })
 
@@ -184,16 +180,14 @@ describe('module path and coverage', () => {
     const lattice = buildModuleLattice(20, 20, 4, { x: 0, y: 0 })
     const cells = new Uint8Array(lattice.columns * lattice.rows)
     for (let row = 1; row <= 3; row++) {
-      for (let column = 1; column <= 3; column++)
-        cells[row * lattice.columns + column] = 1
+      for (let column = 1; column <= 3; column++) cells[row * lattice.columns + column] = 1
     }
     cells[2 * lattice.columns + 2] = 0
     const coverage = await renderModuleCoverage(buildModulePath(cells, lattice), 20, 20)
     const values = new Set(coverage)
     expect([...values].sort()).toEqual([0, 255])
     let opaque = 0
-    for (const value of coverage)
-      opaque += value === 255 ? 1 : 0
+    for (const value of coverage) opaque += value === 255 ? 1 : 0
     // 9 modules of 16px minus the one hole module in the middle.
     expect(opaque).toBe(8 * 16)
     expect(coverage[(1 * 4 + 1) * 20 + 1 * 4 + 1]).toBe(255)

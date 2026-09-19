@@ -6,7 +6,6 @@ import { decodePng, rgbaToPng } from './image'
 import {
   buildModuleLattice,
   buildModulePath,
-  buildRoundedModulePath,
   computePlateModules,
   computeRimModules,
   computeSafeArea,
@@ -24,13 +23,7 @@ import {
 } from './pattern'
 import { buildCutSvg } from './pattern-cut'
 import { verifyQrVariant } from './qr'
-import type {
-  AssembleReport,
-  BoundingBox,
-  QrPlacement,
-  ResolvedLayout,
-  VerificationCheck,
-} from './types'
+import type { AssembleReport, BoundingBox, QrPlacement, ResolvedLayout, VerificationCheck } from './types'
 
 /** Quiet-zone modules the QR input profile carries; the plate band is cut out of them. */
 const QUIET_ZONE_MODULES = PATTERN_QUIET_ZONE_MODULES
@@ -61,7 +54,10 @@ const ARTIFACT_NAMES = {
  * are preserved, so nothing is ever punched transparent and no drawn edge crosses a module.
  */
 
-export async function assembleResolved(layout: ResolvedLayout, options: { seed?: number; qrMargin?: 1; radius?: number; rimModules?: number; rimRounded?: boolean }) {
+export async function assembleResolved(
+  layout: ResolvedLayout,
+  options: { seed?: number; qrMargin?: 1; radius?: number; rimModules?: number; rimRounded?: boolean },
+) {
   const startedAt = Date.now()
   const { poster, qrSource, maskInput, regionMask, decoded, qrMetadata, placement, normalizedQr } = layout
   const { width, height } = poster
@@ -70,7 +66,7 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
   // The module lattice is the placed QR's own lattice, so the texture's cells, the rim, and the
   // plate hole all share one grid and no drawn edge can slice a cell.
   const lattice = buildModuleLattice(width, height, pitch, placement)
-  const selection = Uint8Array.from(regionMask.data, value => (value ? 1 : 0))
+  const selection = Uint8Array.from(regionMask.data, (value) => (value ? 1 : 0))
   const safeArea = computeSafeArea(selection, width, height, lattice)
 
   const marginModules = options.qrMargin ?? BAND_MODULES
@@ -102,8 +98,7 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
   const drawn = new Uint8Array(lattice.columns * lattice.rows)
   let drawnModules = 0
   for (let index = 0; index < drawn.length; index++) {
-    if (!safeArea.safe[index] || plate.cells[index])
-      continue
+    if (!safeArea.safe[index] || plate.cells[index]) continue
     drawn[index] = 1
     drawnModules++
   }
@@ -111,18 +106,15 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
   let rimModuleCount = 0
   let textureModules = 0
   for (let index = 0; index < drawn.length; index++) {
-    if (!drawn[index])
-      continue
-    if (rim[index])
-      rimModuleCount++
-    else
-      textureModules++
+    if (!drawn[index]) continue
+    if (rim[index]) rimModuleCount++
+    else textureModules++
   }
   if (textureModules === 0 && rimModulesCount > 0) {
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
-      `The painted region leaves no texture module once the ${rimModulesCount}-module rim and the QR plate `
-      + 'are removed. Use a larger region, a smaller QR box, or a manual --qr-box.',
+      `The painted region leaves no texture module once the ${rimModulesCount}-module rim and the QR plate ` +
+        'are removed. Use a larger region, a smaller QR box, or a manual --qr-box.',
     )
   }
 
@@ -140,8 +132,8 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
   if (phaseX !== 0 || phaseY !== 0) {
     throw new QrPosterError(
       'IMAGE_PROCESSING_FAILED',
-      `The texture window at ${pattern.crop.left},${pattern.crop.top} is not phase-locked to the ${pitch}px `
-      + `QR lattice (residual ${phaseX},${phaseY}); whole-module drawing needs both on one grid.`,
+      `The texture window at ${pattern.crop.left},${pattern.crop.top} is not phase-locked to the ${pitch}px ` +
+        `QR lattice (residual ${phaseX},${phaseY}); whole-module drawing needs both on one grid.`,
       3,
     )
   }
@@ -149,25 +141,22 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
   const moduleOffsetY = (pattern.crop.top + (placement.y % pitch)) / pitch
   const matrixOffsetX = moduleOffsetX - pattern.marginModules
   const matrixOffsetY = moduleOffsetY - pattern.marginModules
-  const effective = pattern.matrix.map(row => row.slice())
+  const effective = pattern.matrix.map((row) => row.slice())
   for (let row = 0; row < lattice.rows; row++) {
     for (let column = 0; column < lattice.columns; column++) {
       const index = row * lattice.columns + column
-      if (!drawn[index])
-        continue
+      if (!drawn[index]) continue
       const matrixRow = row + matrixOffsetY
       const matrixColumn = column + matrixOffsetX
       if (matrixRow < 0 || matrixColumn < 0 || matrixRow >= effective.length || matrixColumn >= effective.length)
         continue
-      if (rim[index])
-        effective[matrixRow]![matrixColumn] = true
+      if (rim[index]) effective[matrixRow]![matrixColumn] = true
     }
   }
   const include = (moduleX: number, moduleY: number): boolean => {
     const column = moduleX - moduleOffsetX
     const row = moduleY - moduleOffsetY
-    if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows)
-      return false
+    if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows) return false
     return drawn[row * lattice.columns + column] === 1
   }
   const texturePng = await renderRoundedPattern(effective, pitch, {
@@ -186,8 +175,7 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
   const cutLayer = new Uint8Array(width * height * 4)
   for (let index = 0; index < coverage.length; index++) {
     const alpha = coverage[index]!
-    if (alpha === 0)
-      continue
+    if (alpha === 0) continue
     const offset = index * 4
     if (alpha === 255 || !rimRounded) {
       cutLayer[offset] = render.data[offset]!
@@ -211,11 +199,7 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
   // so the arms carry the QR's own quiet zone and the corner blocks keep the texture the drawn
   // modules put underneath. The rest of the code edge is texture, so the poster stays unverified and
   // the report warns about it.
-  const qrRaw = await sharp(normalizedQr)
-    .flatten({ background: '#ffffff' })
-    .ensureAlpha()
-    .raw()
-    .toBuffer()
+  const qrRaw = await sharp(normalizedQr).flatten({ background: '#ffffff' }).ensureAlpha().raw().toBuffer()
   const output = Uint8Array.from(poster.data)
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
@@ -224,16 +208,13 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
       const cell = moduleCellIndex(lattice, column, row)
       if (cell >= 0 && plate.cells[cell] === 1) {
         const source = qrSourceOffset(placement, column, row)
-        for (let channel = 0; channel < 4; channel++)
-          output[offset + channel] = qrRaw[source + channel]!
+        for (let channel = 0; channel < 4; channel++) output[offset + channel] = qrRaw[source + channel]!
         continue
       }
       const alpha = coverage[index]!
-      if (alpha === 0)
-        continue
+      if (alpha === 0) continue
       if (alpha === 255 || !rimRounded) {
-        for (let channel = 0; channel < 3; channel++)
-          output[offset + channel] = render.data[offset + channel]!
+        for (let channel = 0; channel < 3; channel++) output[offset + channel] = render.data[offset + channel]!
       } else {
         const srcA = alpha / 255
         for (let channel = 0; channel < 3; channel++) {
@@ -260,27 +241,20 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
       const isPlate = cell >= 0 && plate.cells[cell] === 1
       const isDrawn = cell >= 0 && drawn[cell] === 1
       const hasCoverage = coverage[index]! > 0
-      if (isCorner)
-        cornerTexturePixels++
+      if (isCorner) cornerTexturePixels++
       let changed = false
       for (let channel = 0; channel < 4; channel++) {
         const value = output[offset + channel]!
-        if (value !== poster.data[offset + channel]!)
-          changed = true
-        if (!regionMask.data[index] && value !== poster.data[offset + channel]!)
-          outsidePassed = false
-        if (isPlate && value !== qrRaw[qrSourceOffset(placement, column, row) + channel]!)
-          qrPassed = false
-        if (isCorner && value !== render.data[offset + channel]!)
-          plateCornersPassed = false
+        if (value !== poster.data[offset + channel]!) changed = true
+        if (!regionMask.data[index] && value !== poster.data[offset + channel]!) outsidePassed = false
+        if (isPlate && value !== qrRaw[qrSourceOffset(placement, column, row) + channel]!) qrPassed = false
+        if (isCorner && value !== render.data[offset + channel]!) plateCornersPassed = false
       }
       // Square rim: whole modules or nothing. Rounded rim: antialiased coverage may change pixels
       // where coverage is partial, so allow any pixel with coverage >0.
-      const allowed = rimRounded ? (hasCoverage || isPlate) : (isDrawn || isPlate)
-      if (changed && !allowed)
-        moduleCutPassed = false
-      if (output[offset + 3] !== poster.data[offset + 3]!)
-        alphaPassed = false
+      const allowed = rimRounded ? hasCoverage || isPlate : isDrawn || isPlate
+      if (changed && !allowed) moduleCutPassed = false
+      if (output[offset + 3] !== poster.data[offset + 3]!) alphaPassed = false
     }
   }
 
@@ -304,27 +278,25 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
     { name: 'moduleCut', passed: moduleCutPassed },
     { name: 'alphaPreserved', passed: alphaPassed },
   ]
-  const qualified = checks.every(check => check.passed)
+  const qualified = checks.every((check) => check.passed)
 
   const warnings: string[] = []
   warnings.push(
-    `The light band is kept beside the three finder markers only: ${bandCells} cell(s) `
-    + `${formatNumber(marginModules)} module deep (${marginPixels}px at ${pitch}px modules), with the `
-    + `plate's ${plate.cornerModules} corner block module(s) handed back to the texture. The code's other `
-    + `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not `
-    + 'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
+    `The light band is kept beside the three finder markers only: ${bandCells} cell(s) ` +
+      `${formatNumber(marginModules)} module deep (${marginPixels}px at ${pitch}px modules), with the ` +
+      `plate's ${plate.cornerModules} corner block module(s) handed back to the texture. The code's other ` +
+      `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not ` +
+      'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
   )
   if (safeArea.partialModules > 0) {
     warnings.push(
-      `${safeArea.partialModules} module(s) crossed the painted region's edge and kept the original `
-      + `artwork (${safeArea.droppedPartialPixels} region pixels); the cut draws whole modules only.`,
+      `${safeArea.partialModules} module(s) crossed the painted region's edge and kept the original ` +
+        `artwork (${safeArea.droppedPartialPixels} region pixels); the cut draws whole modules only.`,
     )
   }
-  if (pitch < 6)
-    warnings.push(`The normalized QR uses ${pitch}px modules; 6px or larger is preferred.`)
+  if (pitch < 6) warnings.push(`The normalized QR uses ${pitch}px modules; 6px or larger is preferred.`)
   for (const check of checks) {
-    if (!check.passed)
-      warnings.push(`${check.name} verification failed${check.error ? `: ${check.error}` : '.'}`)
+    if (!check.passed) warnings.push(`${check.name} verification failed${check.error ? `: ${check.error}` : '.'}`)
   }
 
   const regionMaskPng = await renderRegionMask(regionMask)
@@ -442,12 +414,14 @@ export async function assembleResolved(layout: ResolvedLayout, options: { seed?:
     warnings,
   }
   const artifacts: Record<string, Buffer> = {
-    'poster.png': assembled, 'region-mask.png': regionMaskPng, 'qr.png': normalizedQr,
-    'pattern-cut.png': cutPng, 'pattern-cut.svg': Buffer.from(cutSvg),
+    'poster.png': assembled,
+    'region-mask.png': regionMaskPng,
+    'qr.png': normalizedQr,
+    'pattern-cut.png': cutPng,
+    'pattern-cut.svg': Buffer.from(cutSvg),
     'report.json': Buffer.from(`${JSON.stringify(report, null, 2)}\n`),
   }
   return { report, artifacts }
-
 }
 
 function sha256(value: string | Buffer): string {
@@ -466,11 +440,15 @@ export function markerBandRects(
   qrModules: number,
   pitch: number,
   marginModules: 1,
-): { arms: BoundingBox[], cornerBlocks: BoundingBox[] } {
+): { arms: BoundingBox[]; cornerBlocks: BoundingBox[] } {
   const marginPixels = marginModules * pitch
   const markerPixels = MARKER_MODULES * pitch
   const last = qrModules - MARKER_MODULES
-  const origins = [{ column: 0, row: 0 }, { column: last, row: 0 }, { column: 0, row: last }]
+  const origins = [
+    { column: 0, row: 0 },
+    { column: last, row: 0 },
+    { column: 0, row: last },
+  ]
   const arms: BoundingBox[] = []
   const cornerBlocks: BoundingBox[] = []
   for (const { column, row } of origins) {

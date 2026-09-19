@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "nextjs", "import", "promise"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    // Preview surfaces render blob:/data: URLs, which next/image cannot serve.
+    "nextjs/no-img-element": "off",
+    // React Compiler diagnostics: the editor never enables the compiler, and these hooks
+    // intentionally sync derived state inside effects.
+    "react/set-state-in-effect": "off",
+    "react/refs": "off"
+  },
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": [".next/**", "dist/**", "node_modules/**", "output/**", "playwright-report/**", "test-results/**"],
+  "overrides": [
+    {
+      "files": ["src/components/**", "src/lib/**", "src/app/**"],
+      "env": { "browser": true }
+    },
+    {
+      "files": ["src/core/**", "src/server/**", "src/app/api/**", "test/**", "e2e/**", "scripts/**", "*.config.ts"],
+      "env": { "node": true }
+    }
+  ]
+}

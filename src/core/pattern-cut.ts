@@ -83,19 +83,13 @@ export function buildShapeSelection(mask: LoadedPng): Uint8Array {
  * fills pinholes and concave nicks, an opening (erode, dilate) drops specks and convex jags. Both
  * run at the same radius, so a pixel staircase becomes one continuous edge the fillet can round.
  */
-export function cleanMaskSelection(
-  selection: Uint8Array,
-  width: number,
-  height: number,
-  radius: number,
-): Uint8Array {
+export function cleanMaskSelection(selection: Uint8Array, width: number, height: number, radius: number): Uint8Array {
   if (selection.length !== width * height)
     throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'The cut selection does not match its dimensions.', 3)
   if (!Number.isFinite(radius) || radius < 0)
     throw new QrPosterError('INVALID_INPUT', 'The mask cleaning radius must be zero or a positive number.')
   const passes = Math.floor(radius)
-  if (passes < 1)
-    return selection.slice()
+  if (passes < 1) return selection.slice()
 
   const offsets = discOffsets(passes)
   const dilate = (source: Uint8Array): Uint8Array => {
@@ -105,8 +99,7 @@ export function cleanMaskSelection(
         for (const [deltaX, deltaY] of offsets) {
           const sampleX = x + deltaX
           const sampleY = y + deltaY
-          if (sampleX < 0 || sampleY < 0 || sampleX >= width || sampleY >= height)
-            continue
+          if (sampleX < 0 || sampleY < 0 || sampleX >= width || sampleY >= height) continue
           if (source[sampleY * width + sampleX]) {
             output[y * width + x] = 1
             break
@@ -124,9 +117,8 @@ export function cleanMaskSelection(
         for (const [deltaX, deltaY] of offsets) {
           const sampleX = x + deltaX
           const sampleY = y + deltaY
-          const inside = sampleX >= 0 && sampleY >= 0 && sampleX < width && sampleY < height
-            ? source[sampleY * width + sampleX]
-            : 0
+          const inside =
+            sampleX >= 0 && sampleY >= 0 && sampleX < width && sampleY < height ? source[sampleY * width + sampleX] : 0
           if (!inside) {
             keep = 0
             break
@@ -147,8 +139,7 @@ function discOffsets(radius: number): Array<[number, number]> {
   for (let deltaY = -radius; deltaY <= radius; deltaY++) {
     for (let deltaX = -radius; deltaX <= radius; deltaX++) {
       const distance = deltaX * deltaX + deltaY * deltaY
-      if (distance <= radius * radius + radius)
-        offsets.push([deltaX, deltaY, distance])
+      if (distance <= radius * radius + radius) offsets.push([deltaX, deltaY, distance])
     }
   }
   offsets.sort((left, right) => left[2] - right[2])
@@ -171,24 +162,17 @@ export function traceMaskContours(selected: Uint8Array, width: number, height: n
   const addEdge = (startX: number, startY: number, endX: number, endY: number): void => {
     const key = `${startX},${startY}`
     const edges = outgoing.get(key)
-    if (edges)
-      edges.push({ startX, startY, endX, endY })
-    else
-      outgoing.set(key, [{ startX, startY, endX, endY }])
+    if (edges) edges.push({ startX, startY, endX, endY })
+    else outgoing.set(key, [{ startX, startY, endX, endY }])
   }
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (!isSelected(x, y))
-        continue
-      if (!isSelected(x - 1, y))
-        addEdge(x, y, x, y + 1)
-      if (!isSelected(x + 1, y))
-        addEdge(x + 1, y + 1, x + 1, y)
-      if (!isSelected(x, y - 1))
-        addEdge(x + 1, y, x, y)
-      if (!isSelected(x, y + 1))
-        addEdge(x, y + 1, x + 1, y + 1)
+      if (!isSelected(x, y)) continue
+      if (!isSelected(x - 1, y)) addEdge(x, y, x, y + 1)
+      if (!isSelected(x + 1, y)) addEdge(x + 1, y + 1, x + 1, y)
+      if (!isSelected(x, y - 1)) addEdge(x + 1, y, x, y)
+      if (!isSelected(x, y + 1)) addEdge(x, y + 1, x + 1, y + 1)
     }
   }
 
@@ -198,23 +182,20 @@ export function traceMaskContours(selected: Uint8Array, width: number, height: n
 
   for (const edges of outgoing.values()) {
     for (const first of edges) {
-      if (visited.has(edgeKey(first)))
-        continue
+      if (visited.has(edgeKey(first))) continue
       const loop: Point[] = []
       let current = first
       while (true) {
         visited.add(edgeKey(current))
         loop.push({ x: current.startX, y: current.startY })
         const candidates = outgoing.get(`${current.endX},${current.endY}`)
-        if (!candidates)
-          break
+        if (!candidates) break
         const inX = current.endX - current.startX
         const inY = current.endY - current.startY
         let next: ContourEdge | undefined
         let bestTurn = Number.POSITIVE_INFINITY
         for (const candidate of candidates) {
-          if (visited.has(edgeKey(candidate)))
-            continue
+          if (visited.has(edgeKey(candidate))) continue
           // Hug the selection: prefer the sharpest turn in the traversal sense. At a diagonal
           // pinch this keeps the two touching regions as separate loops instead of merging them.
           const turn = inX * (candidate.endY - candidate.startY) - inY * (candidate.endX - candidate.startX)
@@ -223,14 +204,11 @@ export function traceMaskContours(selected: Uint8Array, width: number, height: n
             bestTurn = turn
           }
         }
-        if (!next)
-          break
+        if (!next) break
         current = next
-        if (current.startX === first.startX && current.startY === first.startY)
-          break
+        if (current.startX === first.startX && current.startY === first.startY) break
       }
-      if (loop.length >= 4)
-        loops.push(loop)
+      if (loop.length >= 4) loops.push(loop)
     }
   }
 
@@ -248,8 +226,7 @@ export function collapseCollinearPoints(loop: Point[]): Point[] {
     const inY = current.y - previous.y
     const outX = next.x - current.x
     const outY = next.y - current.y
-    if (inX * outY - inY * outX === 0 && inX * outX + inY * outY > 0)
-      continue
+    if (inX * outY - inY * outX === 0 && inX * outX + inY * outY > 0) continue
     collapsed.push(current)
   }
   return collapsed
@@ -257,8 +234,7 @@ export function collapseCollinearPoints(loop: Point[]): Point[] {
 
 /** Douglas-Peucker on an open polyline. */
 function simplifyOpen(points: Point[], tolerance: number): Point[] {
-  if (points.length < 3)
-    return points.slice()
+  if (points.length < 3) return points.slice()
   const keep = new Uint8Array(points.length)
   keep[0] = 1
   keep[points.length - 1] = 1
@@ -293,10 +269,8 @@ function simplifyOpen(points: Point[], tolerance: number): Point[] {
  * collapse the whole ring onto its duplicated start and end point.
  */
 export function simplifyClosedLoop(loop: Point[], tolerance: number): Point[] {
-  if (loop.length < 4)
-    return loop.slice()
-  if (tolerance <= 0)
-    return loop.slice()
+  if (loop.length < 4) return loop.slice()
+  if (tolerance <= 0) return loop.slice()
   const origin = loop[0]!
   let farthest = 1
   let distance = -1
@@ -348,8 +322,7 @@ export function filletLoop(loop: Point[], radius: number): FilletResult {
     const outY = next.y - current.y
     const inLength = Math.hypot(inX, inY)
     const outLength = Math.hypot(outX, outY)
-    if (inLength < 1e-9 || outLength < 1e-9)
-      continue
+    if (inLength < 1e-9 || outLength < 1e-9) continue
     const unitInX = inX / inLength
     const unitInY = inY / inLength
     const unitOutX = outX / outLength
@@ -370,13 +343,11 @@ export function filletLoop(loop: Point[], radius: number): FilletResult {
     if (!started) {
       commands.push(`M${format(startX)},${format(startY)}`)
       started = true
-    }
-    else {
+    } else {
       commands.push(`L${format(startX)},${format(startY)}`)
     }
     // A straight corner keeps the vertex itself, so the line above already reached it.
-    if (straight)
-      continue
+    if (straight) continue
     const endX = current.x + unitOutX * tangent
     const endY = current.y + unitOutY * tangent
     const sweep = unitInX * unitOutY - unitInY * unitOutX < 0 ? 1 : 0
@@ -399,17 +370,17 @@ export function buildCutPath(
   const traced = traceMaskContours(selected, width, height)
   const verticesTraced = traced.reduce((total, loop) => total + loop.length, 0)
   const candidates = traced
-    .map(loop => simplifyClosedLoop(collapseCollinearPoints(loop), smoothTolerance))
-    .filter(loop => loop.length >= 3)
-    .map(loop => ({ loop, area: polygonArea(loop) }))
+    .map((loop) => simplifyClosedLoop(collapseCollinearPoints(loop), smoothTolerance))
+    .filter((loop) => loop.length >= 3)
+    .map((loop) => ({ loop, area: polygonArea(loop) }))
     .sort((left, right) => Math.abs(right.area) - Math.abs(left.area))
 
-  const kept = candidates.filter(candidate => Math.abs(candidate.area) >= minLoopArea)
+  const kept = candidates.filter((candidate) => Math.abs(candidate.area) >= minLoopArea)
   if (kept.length === 0) {
     throw new QrPosterError(
       'MASK_INVALID',
-      `The supplied mask does not select any cut shape that survives a ${smoothTolerance}px smoothing tolerance`
-      + ` and a speck threshold of ${minLoopArea}px². Lower --cut-smooth, lower --cut-radius, or check the mask.`,
+      `The supplied mask does not select any cut shape that survives a ${smoothTolerance}px smoothing tolerance` +
+        ` and a speck threshold of ${minLoopArea}px². Lower --cut-smooth, lower --cut-radius, or check the mask.`,
     )
   }
 
@@ -421,10 +392,10 @@ export function buildCutPath(
     subpaths.push(`${filled.commands.join('')}Z`)
   }
 
-  const minX = Math.floor(Math.min(...kept.flatMap(({ loop }) => loop.map(point => point.x))))
-  const minY = Math.floor(Math.min(...kept.flatMap(({ loop }) => loop.map(point => point.y))))
-  const maxX = Math.ceil(Math.max(...kept.flatMap(({ loop }) => loop.map(point => point.x))))
-  const maxY = Math.ceil(Math.max(...kept.flatMap(({ loop }) => loop.map(point => point.y))))
+  const minX = Math.floor(Math.min(...kept.flatMap(({ loop }) => loop.map((point) => point.x))))
+  const minY = Math.floor(Math.min(...kept.flatMap(({ loop }) => loop.map((point) => point.y))))
+  const maxX = Math.ceil(Math.max(...kept.flatMap(({ loop }) => loop.map((point) => point.x))))
+  const maxY = Math.ceil(Math.max(...kept.flatMap(({ loop }) => loop.map((point) => point.y))))
   const signedArea = kept.reduce((total, candidate) => total + candidate.area, 0)
 
   return {
@@ -460,15 +431,18 @@ export function buildCutSvg(
   const borderWidth = options.borderWidth ?? 0
   // A centered stroke of twice the width, clipped to the shape, leaves a band of exactly
   // `borderWidth` pixels along the inside of the edge.
-  const border = borderWidth > 0
-    ? `  <path d="${pathData}" fill="none" stroke="#000000" stroke-width="${format(borderWidth * 2)}"`
-      + ` fill-rule="evenodd" clip-rule="evenodd" clip-path="url(#${SVG_CLIP_ID})"/>\n`
-    : ''
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">\n`
-    + `  <defs><clipPath id="${SVG_CLIP_ID}"><path fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></clipPath></defs>\n`
-    + `  <image x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none" clip-path="url(#${SVG_CLIP_ID})" href="data:image/png;base64,${encoded}"/>\n`
-    + border
-    + '</svg>\n'
+  const border =
+    borderWidth > 0
+      ? `  <path d="${pathData}" fill="none" stroke="#000000" stroke-width="${format(borderWidth * 2)}"` +
+        ` fill-rule="evenodd" clip-rule="evenodd" clip-path="url(#${SVG_CLIP_ID})"/>\n`
+      : ''
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">\n` +
+    `  <defs><clipPath id="${SVG_CLIP_ID}"><path fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></clipPath></defs>\n` +
+    `  <image x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none" clip-path="url(#${SVG_CLIP_ID})" href="data:image/png;base64,${encoded}"/>\n` +
+    border +
+    '</svg>\n'
+  )
 }
 
 /**
@@ -476,9 +450,10 @@ export function buildCutSvg(
  * inside, and the partial values along the edge that make the fillet smooth.
  */
 export async function renderCutCoverage(pathData: string, width: number, height: number): Promise<Uint8Array> {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"`
-    + ` viewBox="0 0 ${width} ${height}">`
-    + `<path fill="#ffffff" fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></svg>`
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"` +
+    ` viewBox="0 0 ${width} ${height}">` +
+    `<path fill="#ffffff" fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></svg>`
   return rasterizeCoverage(svg, width, height, 'Cut rasterization')
 }
 
@@ -495,19 +470,18 @@ export async function renderCutBorderCoverage(
 ): Promise<Uint8Array> {
   if (!Number.isFinite(borderWidth) || borderWidth < 0)
     throw new QrPosterError('INVALID_INPUT', 'The cut border width must be zero or a positive number.')
-  if (borderWidth === 0)
-    return new Uint8Array(width * height)
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"`
-    + ` viewBox="0 0 ${width} ${height}"><defs><clipPath id="${SVG_CLIP_ID}">`
-    + `<path fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></clipPath></defs>`
-    + `<path fill="none" stroke="#ffffff" stroke-width="${format(borderWidth * 2)}"`
-    + ` fill-rule="evenodd" clip-rule="evenodd" clip-path="url(#${SVG_CLIP_ID})" d="${pathData}"/></svg>`
+  if (borderWidth === 0) return new Uint8Array(width * height)
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"` +
+    ` viewBox="0 0 ${width} ${height}"><defs><clipPath id="${SVG_CLIP_ID}">` +
+    `<path fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></clipPath></defs>` +
+    `<path fill="none" stroke="#ffffff" stroke-width="${format(borderWidth * 2)}"` +
+    ` fill-rule="evenodd" clip-rule="evenodd" clip-path="url(#${SVG_CLIP_ID})" d="${pathData}"/></svg>`
   return rasterizeCoverage(svg, width, height, 'Border rasterization')
 }
 
 async function rasterizeCoverage(svg: string, width: number, height: number, label: string): Promise<Uint8Array> {
-  const { data, info } = await sharp(Buffer.from(svg)).ensureAlpha().raw()
-    .toBuffer({ resolveWithObject: true })
+  const { data, info } = await sharp(Buffer.from(svg)).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
   if (info.width !== width || info.height !== height) {
     throw new QrPosterError(
       'IMAGE_PROCESSING_FAILED',
@@ -516,8 +490,7 @@ async function rasterizeCoverage(svg: string, width: number, height: number, lab
     )
   }
   const coverage = new Uint8Array(width * height)
-  for (let index = 0; index < coverage.length; index++)
-    coverage[index] = data[index * 4 + 3]!
+  for (let index = 0; index < coverage.length; index++) coverage[index] = data[index * 4 + 3]!
   return coverage
 }
 
@@ -525,11 +498,7 @@ async function rasterizeCoverage(svg: string, width: number, height: number, lab
  * Applies the cut coverage without resampling the source. An optional black band is composited
  * inside the outline; pixels beyond it stay bit-exact and everything outside is transparent.
  */
-export async function renderCutPng(
-  pattern: LoadedPng,
-  pathData: string,
-  borderWidth = 0,
-): Promise<Buffer> {
+export async function renderCutPng(pattern: LoadedPng, pathData: string, borderWidth = 0): Promise<Buffer> {
   const [coverage, borderCoverage] = await Promise.all([
     renderCutCoverage(pathData, pattern.width, pattern.height),
     renderCutBorderCoverage(pathData, pattern.width, pattern.height, borderWidth),
@@ -541,7 +510,7 @@ export async function renderCutPng(
     output[offset] = Math.round(pattern.data[offset]! * (1 - border))
     output[offset + 1] = Math.round(pattern.data[offset + 1]! * (1 - border))
     output[offset + 2] = Math.round(pattern.data[offset + 2]! * (1 - border))
-    output[offset + 3] = Math.round(pattern.data[offset + 3]! * coverage[index]! / 255)
+    output[offset + 3] = Math.round((pattern.data[offset + 3]! * coverage[index]!) / 255)
   }
   return rgbaToPng(output, pattern.width, pattern.height)
 }

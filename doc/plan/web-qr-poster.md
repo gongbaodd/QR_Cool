@@ -24,16 +24,16 @@ Excluded from this migration: paid Qwen generation, QR image uploads, standalone
 
 Prefer established packages and framework/browser primitives for general functionality. The choices below prioritize ecosystem adoption and suitability; they are not a claim of a measured download ranking. Select mutually compatible stable versions at implementation time and commit the pnpm lockfile.
 
-| Responsibility | Choice | Why / boundary |
-| --- | --- | --- |
-| Web application and HTTP endpoints | Next.js App Router, React, TypeScript | One application for the editor and Node rendering endpoints; no separate API framework. [Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route) support standard Request/Response and multipart form data. |
-| Canvas interactions | `konva` + `react-konva` | Use the existing scene graph, dragging, hit testing, and [Transformer](https://konvajs.org/docs/react/Transformer.html) for handles. Write only placement constraints and coordinate conversion. |
-| Image decoding, compositing, PNG/SVG rendering | Existing `sharp` | Retain the current server renderer and raw-pixel checks. Configure its documented [input pixel limit](https://sharp.pixelplumbing.com/api-constructor/). |
-| QR encoding and module classification | Existing `uqr` | [Its encoder](https://github.com/unjs/uqr) exposes the matrix and cell types required by marker removal. Keep it even though generic QR widgets are more common; switching would jeopardize style and module parity. |
-| QR verification | Existing `@zxing/library` and `jsqr` | Retain the tested decoder chain. No custom decoder. |
-| Request and form validation | `zod` | Shared [runtime schemas](https://zod.dev/) and inferred types; image and placement checks remain authoritative on the server. |
-| Tests | Existing Vitest + Playwright | Preserve pixel/geometry tests; add [browser workflow tests](https://playwright.dev/docs/intro) for upload, editing, and download. |
-| Simple UI state, uploads, downloads | React reducer, native form controls, Fetch, FormData, Blob URLs | Sufficient for one editor; no custom state framework, upload protocol, or file-saving library. |
+| Responsibility                                 | Choice                                                          | Why / boundary                                                                                                                                                                                                                        |
+| ---------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web application and HTTP endpoints             | Next.js App Router, React, TypeScript                           | One application for the editor and Node rendering endpoints; no separate API framework. [Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route) support standard Request/Response and multipart form data. |
+| Canvas interactions                            | `konva` + `react-konva`                                         | Use the existing scene graph, dragging, hit testing, and [Transformer](https://konvajs.org/docs/react/Transformer.html) for handles. Write only placement constraints and coordinate conversion.                                      |
+| Image decoding, compositing, PNG/SVG rendering | Existing `sharp`                                                | Retain the current server renderer and raw-pixel checks. Configure its documented [input pixel limit](https://sharp.pixelplumbing.com/api-constructor/).                                                                              |
+| QR encoding and module classification          | Existing `uqr`                                                  | [Its encoder](https://github.com/unjs/uqr) exposes the matrix and cell types required by marker removal. Keep it even though generic QR widgets are more common; switching would jeopardize style and module parity.                  |
+| QR verification                                | Existing `@zxing/library` and `jsqr`                            | Retain the tested decoder chain. No custom decoder.                                                                                                                                                                                   |
+| Request and form validation                    | `zod`                                                           | Shared [runtime schemas](https://zod.dev/) and inferred types; image and placement checks remain authoritative on the server.                                                                                                         |
+| Tests                                          | Existing Vitest + Playwright                                    | Preserve pixel/geometry tests; add [browser workflow tests](https://playwright.dev/docs/intro) for upload, editing, and download.                                                                                                     |
+| Simple UI state, uploads, downloads            | React reducer, native form controls, Fetch, FormData, Blob URLs | Sufficient for one editor; no custom state framework, upload protocol, or file-saving library.                                                                                                                                        |
 
 Reuse the project-specific detector, safe-module calculation, phase locking, four-module rim, plate geometry, seeded pattern logic, and rounded cell geometry. These are the product's existing algorithms. Do not reimplement PNG codecs, QR encoding, canvas manipulation, multipart parsing, or validation libraries. Do not add a tracing library for assembly: its boundary consists of whole modules, not a traced silhouette.
 
@@ -77,10 +77,10 @@ e2e/                            # Playwright user journeys
 
 Start with stateless requests. The browser retains the original File objects and resends them when required; the server retains no uploaded assets between requests. This avoids sessions, databases, and cleanup jobs for the first release.
 
-| Endpoint | Input | Output |
-| --- | --- | --- |
-| `POST /api/prepare` | Multipart poster, optional mask, content, editor revision | Versioned JSON with dimensions, mask/QR PNG previews, QR version/module count, suggested placement, validation messages, revision |
-| `POST /api/assemble` | Same files plus Zod-validated JSON settings, explicit placement, seed, revision | Versioned JSON with canonical placement, artifacts encoded as base64, report, revision |
+| Endpoint             | Input                                                                           | Output                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/prepare`  | Multipart poster, optional mask, content, editor revision                       | Versioned JSON with dimensions, mask/QR PNG previews, QR version/module count, suggested placement, validation messages, revision |
+| `POST /api/assemble` | Same files plus Zod-validated JSON settings, explicit placement, seed, revision | Versioned JSON with canonical placement, artifacts encoded as base64, report, revision                                            |
 
 Base64 is a deliberate initial transport simplification with roughly one-third byte overhead. Convert it to Blob URLs for display/download and revoke them on replacement or unmount. Include response memory in the input-size benchmark; move to binary artifact delivery only if measured limits require it. Mark responses `Cache-Control: no-store` and never log file bytes or QR text.
 
@@ -152,3 +152,12 @@ The full normalized QR square is the placement constraint; the smaller module pl
 - Make `pnpm dev`, `pnpm build`, and `pnpm start` the web commands; retain `pnpm test` and `pnpm typecheck`, and add `pnpm test:e2e`.
 - Rewrite README and AGENTS.md around the web workflow and mark the previous artistic-QR plan as historical. Remove obsolete CLI/Qwen setup instructions from active documentation, retaining useful design history and verification contracts.
 - Final gate: no active CLI imports or scripts remain; clean-install build, engine tests, API tests, and browser journey pass. The web app is the only supported product interface.
+
+### 7. Add lint and format tooling (completed)
+
+- `oxlint` and `oxfmt` are dev dependencies driven by `.oxlintrc.json` and `.oxfmtrc.json`, with `pnpm lint`, `pnpm lint:fix`, `pnpm format`, and `pnpm format:check`. Neither tool runs in a request; they touch only source, test, and config files.
+- Lint config keeps the correctness category as errors, scopes browser globals to components/lib/app and Node globals to core/server/api/tests, and leaves two project-owned rules off: `nextjs/no-img-element` because previews render blob/data URLs, and the React Compiler diagnostics `react/set-state-in-effect` and `react/refs` because the compiler is not enabled.
+- Format config encodes the repo style: single quotes, no semicolons, two spaces, trailing commas, 120 columns, and generated directories ignored.
+- The first lint run was fixed rather than suppressed: retired-CLI dead helpers and imports left in `src/core/pattern.ts` and `src/core/assemble.ts`, unused test/e2e variables, and one redundant regex escape are gone, so `pnpm lint` passes on a fresh checkout. The wordmark now uses `next/link` instead of a raw `<a href="/">`.
+- Adopting the formatter repo-wide is opt-in: existing sources pack several statements per line, so `pnpm format` rewrites most files. Run it deliberately, then keep `pnpm format:check` green.
+- Gate: `pnpm lint` passes on a fresh checkout and `pnpm test`, `pnpm typecheck`, and `pnpm build` stay green.

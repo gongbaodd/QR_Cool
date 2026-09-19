@@ -74,6 +74,7 @@ The proposed 16-megapixel limit used about **1.2 GiB RSS** even on a simple imag
 ## Verification
 
 ```sh
+pnpm lint
 pnpm test
 pnpm typecheck
 pnpm build
@@ -81,6 +82,8 @@ pnpm exec playwright install chromium firefox webkit
 pnpm test:e2e
 pnpm benchmark
 ```
+
+`pnpm lint` runs oxlint (`.oxlintrc.json`) over the TypeScript, TSX, and config files, and `pnpm lint:fix` applies its safe fixes. `pnpm format` rewrites files with oxfmt, and `pnpm format:check` reports differences without writing; `.oxfmtrc.json` sets the project style (single quotes, no semicolons, two spaces, 120 columns) and skips generated directories. Both tools are dev-only and play no part in the request path.
 
 Vitest covers engine geometry, decoder fixtures, deterministic artifact hashes captured before refactoring, pixel invariants, buffer services, request limits, concurrent users, and stale reducer responses. Playwright runs production-server journeys in Chromium, Firefox, WebKit, and an iPhone touch viewport, including upload, numeric/keyboard/pointer editing, zoom, assembly, download-byte equality, invalid-placement recovery, and result invalidation.
 

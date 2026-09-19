@@ -27,29 +27,54 @@ export function useIconSearch(activeQueryRef: RefObject<string>): IconSearch {
   const [galleryMode, setGalleryMode] = useState(false)
   // One request per clicked term, cached for that term only. Returns whether icons came back.
   async function runSearch(query: string): Promise<boolean> {
-    setIconLoading(true); setIconError(null)
+    setIconLoading(true)
+    setIconError(null)
     try {
       const res = await fetch(`/api/icons?q=${encodeURIComponent(query)}`)
       if (!res.ok) throw new Error('search failed')
-      const data = await res.json() as { total:number; count:number; items: IconItem[] }
+      const data = (await res.json()) as { total: number; count: number; items: IconItem[] }
       const items = data.items ?? []
-      setIconResults(items); setIconTotal(data.total ?? items.length); setFetchedQuery(query)
+      setIconResults(items)
+      setIconTotal(data.total ?? items.length)
+      setFetchedQuery(query)
       return items.length > 0
     } catch {
-      setIconError('Could not search icons.'); setIconResults([]); setIconTotal(0); setFetchedQuery(query)
+      setIconError('Could not search icons.')
+      setIconResults([])
+      setIconTotal(0)
+      setFetchedQuery(query)
       return false
-    } finally { setIconLoading(false) }
+    } finally {
+      setIconLoading(false)
+    }
   }
   // The combined search/more control: one click searches a new term and shows the
   // results, reopens the gallery for a cached term, and stays put on an empty input.
   async function handleSearchClick(query: string, maskBusy: boolean) {
     if (maskBusy || iconLoading) return
-    if (!query) { setGalleryMode(false); return }
-    if (fetchedQuery === query && iconResults.length > 0) { setGalleryMode(true); return }
+    if (!query) {
+      setGalleryMode(false)
+      return
+    }
+    if (fetchedQuery === query && iconResults.length > 0) {
+      setGalleryMode(true)
+      return
+    }
     const found = await runSearch(query)
     // A response for an abandoned term never opens a stale gallery.
     if (found && activeQueryRef.current === query) setGalleryMode(true)
   }
-  function closeGallery() { setGalleryMode(false) }
-  return { results: iconResults, total: iconTotal, loading: iconLoading, error: iconError, fetchedQuery, galleryMode, handleSearchClick, closeGallery }
+  function closeGallery() {
+    setGalleryMode(false)
+  }
+  return {
+    results: iconResults,
+    total: iconTotal,
+    loading: iconLoading,
+    error: iconError,
+    fetchedQuery,
+    galleryMode,
+    handleSearchClick,
+    closeGallery,
+  }
 }

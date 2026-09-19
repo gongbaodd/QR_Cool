@@ -158,12 +158,13 @@ export interface PosterInputOptions {
 
 /** Generate a QR from content, or retain the legacy QR PNG input for programmatic callers. */
 export type QrInputOptions =
-  | { content: string, qrPath?: never, expectedText?: never }
-  | { content?: never, qrPath: string, expectedText?: string }
+  | { content: string; qrPath?: never; expectedText?: never }
+  | { content?: never; qrPath: string; expectedText?: string }
 
-export type PreparePosterOptions = PosterInputOptions & QrInputOptions & {
-  dryRun: true
-}
+export type PreparePosterOptions = PosterInputOptions &
+  QrInputOptions & {
+    dryRun: true
+  }
 
 export interface PrepareResult {
   report: ReportV1
@@ -178,19 +179,25 @@ export interface CompositePosterInputs {
   placement: QrPlacement
 }
 
-export type GeneratePosterOptions = PosterInputOptions & QrInputOptions & {
-  apiKey?: string
-  baseUrl?: string
-  model?: string
-  prompt?: string
-  generatedImagePath?: string
-}
+export type GeneratePosterOptions = PosterInputOptions &
+  QrInputOptions & {
+    apiKey?: string
+    baseUrl?: string
+    model?: string
+    prompt?: string
+    generatedImagePath?: string
+  }
 
 export interface ReportV2 extends Omit<ReportV1, 'schemaVersion' | 'status' | 'dryRun' | 'artifacts'> {
   schemaVersion: 2
   status: 'generated' | 'verification_failed' | 'generation_failed'
   dryRun: false
-  artifacts: ReportV1['artifacts'] & { aiRaw?: string; poster?: string; patternReference?: string; referenceCanvas?: string }
+  artifacts: ReportV1['artifacts'] & {
+    aiRaw?: string
+    poster?: string
+    patternReference?: string
+    referenceCanvas?: string
+  }
   generation: {
     source: 'qwen' | 'file'
     model: string
@@ -209,12 +216,13 @@ export interface GenerateResult {
   outputDir: string
 }
 
-export type PatternPreviewOptions = PosterInputOptions & QrInputOptions & {
-  /** Module pitch in poster pixels; defaults to the pitch the pipeline places on the poster. */
-  modulePixels?: number
-  /** Seed for the random text line; defaults to a fresh random seed per run. */
-  seed?: number
-}
+export type PatternPreviewOptions = PosterInputOptions &
+  QrInputOptions & {
+    /** Module pitch in poster pixels; defaults to the pitch the pipeline places on the poster. */
+    modulePixels?: number
+    /** Seed for the random text line; defaults to a fresh random seed per run. */
+    seed?: number
+  }
 
 export interface PatternReport {
   schemaVersion: 3
@@ -244,7 +252,7 @@ export interface PatternReport {
     refilledModules: number
     codeSize: number
     canvas: ImageDimensions
-    crop: { left: number, top: number }
+    crop: { left: number; top: number }
   }
   artifacts: {
     pattern: string
@@ -278,8 +286,8 @@ export interface PatternCutReport {
   createdAt: string
   durationMs: number
   inputs: {
-    pattern: { path: string, sha256: string, width: number, height: number }
-    mask: { path: string, sha256: string, width: number, height: number }
+    pattern: { path: string; sha256: string; width: number; height: number }
+    mask: { path: string; sha256: string; width: number; height: number }
   }
   cut: {
     radius: number
@@ -316,25 +324,26 @@ export interface PatternCutResult {
   outputDir: string
 }
 
-export type AssemblePosterOptions = PosterInputOptions & QrInputOptions & {
-  /** Seed for the pattern random text line and the marker refill; defaults to a fresh seed per run. */
-  seed?: number
-  /** Depth of the light band kept beside each finder marker: one whole module. */
-  qrMargin?: 1
-  /**
-   * Plate corner treatment: zero keeps the diagonal corner block beside each finder marker light,
-   * and any positive value hands those three blocks to the texture. Defaults to two module pitches
-   * (12px on the bundled version-5 fixture), which rounds the plate. The region silhouette is always
-   * whole modules, so there is no fillet to size.
-   */
-  radius?: number
-  /** Outer dark rim thickness in modules, 0 disables the rim. Range 0-5. */
-  rimModules?: number
-  /** When true the rim's outer corners are rounded with antialiased edges. */
-  rimRounded?: boolean
-  /** Not used by assembly: the cut is module-aligned rather than traced. Rejected when supplied. */
-  smoothTolerance?: number
-}
+export type AssemblePosterOptions = PosterInputOptions &
+  QrInputOptions & {
+    /** Seed for the pattern random text line and the marker refill; defaults to a fresh seed per run. */
+    seed?: number
+    /** Depth of the light band kept beside each finder marker: one whole module. */
+    qrMargin?: 1
+    /**
+     * Plate corner treatment: zero keeps the diagonal corner block beside each finder marker light,
+     * and any positive value hands those three blocks to the texture. Defaults to two module pitches
+     * (12px on the bundled version-5 fixture), which rounds the plate. The region silhouette is always
+     * whole modules, so there is no fillet to size.
+     */
+    radius?: number
+    /** Outer dark rim thickness in modules, 0 disables the rim. Range 0-5. */
+    rimModules?: number
+    /** When true the rim's outer corners are rounded with antialiased edges. */
+    rimRounded?: boolean
+    /** Not used by assembly: the cut is module-aligned rather than traced. Rejected when supplied. */
+    smoothTolerance?: number
+  }
 
 export interface AssembleReport {
   schemaVersion: 8
@@ -355,7 +364,7 @@ export interface AssembleReport {
       /** Finder footprint each band arm spans, in modules. */
       markerModules: number
       /** Crop of the normalized QR the plate copies verbatim: the code grid, no quiet zone. */
-      crop: { left: number, top: number, size: number }
+      crop: { left: number; top: number; size: number }
       x: number
       y: number
     }
@@ -369,14 +378,14 @@ export interface AssembleReport {
      */
     alignment: {
       alignedToQr: boolean
-      phase: { x: number, y: number }
+      phase: { x: number; y: number }
     }
   }
   cut: {
     /** Poster-space module pitch the cut is quantized to; equals the placed QR pitch. */
     modulePixels: number
     /** Poster-space origin of the module lattice, in `[0, modulePixels)`. */
-    lattice: { x: number, y: number }
+    lattice: { x: number; y: number }
     /** Requested `--cut-radius`; zero leaves the plate square, a positive value rounds it. */
     radius: number
     /** Modules whose whole pixel block is inside the painted region. */
@@ -388,7 +397,7 @@ export interface AssembleReport {
     /** Modules the cut draws: safe modules minus the QR plate hole. */
     drawnModules: number
     /** Outer rings of drawn modules forced dark; rounded is antialiased. */
-    rim: { modules: number, style: 'cell' | 'rounded-antialiased' }
+    rim: { modules: number; style: 'cell' | 'rounded-antialiased' }
     /** Modules of the plate handed back to the texture: the diagonal block at each marker corner. */
     plateCornerModules: number
     /** The cut shape is the detected or supplied painted region itself. */

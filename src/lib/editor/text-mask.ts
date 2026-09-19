@@ -23,7 +23,13 @@ export const TEXT_MASK_FONTS: TextMaskFont[] = [
   { id: 'fats-are-good', family: 'Fats Are Good', label: 'Fats Are Good', file: '/fonts/FATS ARE GOOD.otf' },
   { id: 'fatlove', family: 'Fatlove', label: 'Happyloverstown Fatlove', file: '/fonts/avantfatlove.ttf' },
   { id: 'slukoni-fat', family: 'Slukoni Fat', label: 'Slukoni Fat', file: '/fonts/Slukoni-Fat.otf' },
-  { id: 'trinta-quatro-fat', family: 'Trinta Quatro Fat', label: 'Trinta Quatro Fat', file: '/fonts/Trinta_quatro Fat.ttf', note: 'Uppercase, digits and punctuation only.' },
+  {
+    id: 'trinta-quatro-fat',
+    family: 'Trinta Quatro Fat',
+    label: 'Trinta Quatro Fat',
+    file: '/fonts/Trinta_quatro Fat.ttf',
+    note: 'Uppercase, digits and punctuation only.',
+  },
   { id: 'wear-fat-shirt', family: 'Wear Fat Shirt', label: 'Wear Fat Shirt', file: '/fonts/WEAR FAT SHIRT.ttf' },
 ]
 
@@ -37,7 +43,7 @@ export const MASK_SEARCH_GRID_SIZE = 12
 
 export interface IconVariant {
   name: string
-  properties: Record<string,string>
+  properties: Record<string, string>
   download: string
 }
 export interface IconItem {
@@ -94,7 +100,7 @@ export function deriveMaskLetter(content: string): string {
   if (!trimmed || /\s/.test(trimmed)) return ''
   const withoutScheme = trimmed.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '')
   const withoutWww = withoutScheme.replace(/^www\./i, '')
-  const host = withoutWww.split(/[\/?#:]/, 1)[0] ?? ''
+  const host = withoutWww.split(/[/?#:]/, 1)[0] ?? ''
   if (!host.includes('.')) return ''
   const match = host.match(/[A-Za-z]/)
   return match ? match[0]!.toUpperCase() : ''
@@ -120,8 +126,9 @@ export function largestWhiteSquare(pixels: Uint8ClampedArray, width: number, hei
     const current = new Uint32Array(width + 1)
     for (let x = 0; x < width; x++) {
       const offset = (y * width + x) * 4
-      const selected = pixels[offset + 3]! >= 128
-        && (299 * pixels[offset]! + 587 * pixels[offset + 1]! + 114 * pixels[offset + 2]!) / 1000 >= 128
+      const selected =
+        pixels[offset + 3]! >= 128 &&
+        (299 * pixels[offset]! + 587 * pixels[offset + 1]! + 114 * pixels[offset + 2]!) / 1000 >= 128
       if (!selected) continue
       current[x + 1] = 1 + Math.min(previous[x + 1]!, current[x]!, previous[x]!)
       if (current[x + 1]! > maximum) maximum = current[x + 1]!

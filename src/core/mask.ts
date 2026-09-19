@@ -55,8 +55,7 @@ export function detectRegionMask(image: LoadedPng): RegionMask {
     const alpha = data[offset + 3]!
     if (alpha >= 128 && r <= STRONG_BLACK_THRESHOLD && g <= STRONG_BLACK_THRESHOLD && b <= STRONG_BLACK_THRESHOLD)
       strong[index] = 1
-    if (alpha >= 128 && luma(r, g, b) <= TOLERANT_LUMA_THRESHOLD)
-      tolerant[index] = 1
+    if (alpha >= 128 && luma(r, g, b) <= TOLERANT_LUMA_THRESHOLD) tolerant[index] = 1
   }
 
   const integral = buildIntegral(strong, width, height)
@@ -66,24 +65,21 @@ export function detectRegionMask(image: LoadedPng): RegionMask {
     const y1 = Math.min(height - 1, y + radius)
     for (let x = 0; x < width; x++) {
       const index = y * width + x
-      if (!strong[index])
-        continue
+      if (!strong[index]) continue
       const x0 = Math.max(0, x - radius)
       const x1 = Math.min(width - 1, x + radius)
       const blackCount = integralSum(integral, width + 1, x0, y0, x1 + 1, y1 + 1)
       const windowArea = (x1 - x0 + 1) * (y1 - y0 + 1)
-      if (blackCount / windowArea >= DENSITY_THRESHOLD)
-        core[index] = 1
+      if (blackCount / windowArea >= DENSITY_THRESHOLD) core[index] = 1
     }
   }
 
   const { labels, components } = labelComponents(core, width, height)
   const minimumArea = Math.ceil(pixelCount * MIN_COMPONENT_FRACTION)
   const candidates = components
-    .filter(component => component.intersectsCenter && component.area >= minimumArea)
+    .filter((component) => component.intersectsCenter && component.area >= minimumArea)
     .sort((a, b) => {
-      if (b.area !== a.area)
-        return b.area - a.area
+      if (b.area !== a.area) return b.area - a.area
       return centerDistance(a, width, height) - centerDistance(b, width, height)
     })
 
@@ -112,8 +108,7 @@ export function detectRegionMask(image: LoadedPng): RegionMask {
 
   let grown = new Uint8Array(pixelCount)
   for (let index = 0; index < pixelCount; index++) {
-    if (labels[index] === winner.label)
-      grown[index] = 1
+    if (labels[index] === winner.label) grown[index] = 1
   }
 
   for (let step = 0; step < radius + 1; step++) {
@@ -121,18 +116,15 @@ export function detectRegionMask(image: LoadedPng): RegionMask {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const index = y * width + x
-        if (grown[index] || !tolerant[index])
-          continue
-        if (hasSelectedNeighbour(grown, width, height, x, y))
-          next[index] = 1
+        if (grown[index] || !tolerant[index]) continue
+        if (hasSelectedNeighbour(grown, width, height, x, y)) next[index] = 1
       }
     }
     grown = next
   }
 
   const selected = new Uint8Array(pixelCount)
-  for (let index = 0; index < pixelCount; index++)
-    selected[index] = grown[index] ? 255 : 0
+  for (let index = 0; index < pixelCount; index++) selected[index] = grown[index] ? 255 : 0
 
   const stats = calculateMaskStats(selected, width, height)
   return {
@@ -146,13 +138,17 @@ export function detectRegionMask(image: LoadedPng): RegionMask {
       tolerantLumaThreshold: TOLERANT_LUMA_THRESHOLD,
       separationRadius: radius,
       densityThreshold: DENSITY_THRESHOLD,
-      candidateAreas: candidates.map(candidate => candidate.area),
+      candidateAreas: candidates.map((candidate) => candidate.area),
       dominanceRatio,
     },
   }
 }
 
-export function calculateMaskStats(data: Uint8Array, width: number, height: number): {
+export function calculateMaskStats(
+  data: Uint8Array,
+  width: number,
+  height: number,
+): {
   area: number
   bounds: BoundingBox
   centroid: Point
@@ -166,8 +162,7 @@ export function calculateMaskStats(data: Uint8Array, width: number, height: numb
   let maxY = -1
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (!data[y * width + x])
-        continue
+      if (!data[y * width + x]) continue
       area++
       sumX += x
       sumY += y
@@ -177,8 +172,7 @@ export function calculateMaskStats(data: Uint8Array, width: number, height: numb
       maxY = Math.max(maxY, y)
     }
   }
-  if (area === 0)
-    throw new QrPosterError('MASK_INVALID', 'The region mask is empty.')
+  if (area === 0) throw new QrPosterError('MASK_INVALID', 'The region mask is empty.')
   return {
     area,
     bounds: { x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 },
@@ -203,7 +197,11 @@ function integralSum(data: Uint32Array, stride: number, x0: number, y0: number, 
   return data[y1 * stride + x1]! - data[y0 * stride + x1]! - data[y1 * stride + x0]! + data[y0 * stride + x0]!
 }
 
-function labelComponents(core: Uint8Array, width: number, height: number): {
+function labelComponents(
+  core: Uint8Array,
+  width: number,
+  height: number,
+): {
   labels: Int32Array
   components: Component[]
 } {
@@ -219,8 +217,7 @@ function labelComponents(core: Uint8Array, width: number, height: number): {
   let label = 0
 
   for (let start = 0; start < core.length; start++) {
-    if (!core[start] || labels[start])
-      continue
+    if (!core[start] || labels[start]) continue
     label++
     let head = 0
     let tail = 1
@@ -241,21 +238,16 @@ function labelComponents(core: Uint8Array, width: number, height: number): {
       component.area++
       component.sumX += x
       component.sumY += y
-      if (x >= centerMinX && x <= centerMaxX && y >= centerMinY && y <= centerMaxY)
-        component.intersectsCenter = true
-      if (x < outerX || x >= width - outerX || y < outerY || y >= height - outerY)
-        component.touchesOuterBand = true
+      if (x >= centerMinX && x <= centerMaxX && y >= centerMinY && y <= centerMaxY) component.intersectsCenter = true
+      if (x < outerX || x >= width - outerX || y < outerY || y >= height - outerY) component.touchesOuterBand = true
 
       for (let dy = -1; dy <= 1; dy++) {
         const ny = y + dy
-        if (ny < 0 || ny >= height)
-          continue
+        if (ny < 0 || ny >= height) continue
         for (let dx = -1; dx <= 1; dx++) {
-          if (dx === 0 && dy === 0)
-            continue
+          if (dx === 0 && dy === 0) continue
           const nx = x + dx
-          if (nx < 0 || nx >= width)
-            continue
+          if (nx < 0 || nx >= width) continue
           const neighbour = ny * width + nx
           if (core[neighbour] && !labels[neighbour]) {
             labels[neighbour] = label
@@ -272,14 +264,11 @@ function labelComponents(core: Uint8Array, width: number, height: number): {
 function hasSelectedNeighbour(data: Uint8Array, width: number, height: number, x: number, y: number): boolean {
   for (let dy = -1; dy <= 1; dy++) {
     const ny = y + dy
-    if (ny < 0 || ny >= height)
-      continue
+    if (ny < 0 || ny >= height) continue
     for (let dx = -1; dx <= 1; dx++) {
-      if (dx === 0 && dy === 0)
-        continue
+      if (dx === 0 && dy === 0) continue
       const nx = x + dx
-      if (nx >= 0 && nx < width && data[ny * width + nx])
-        return true
+      if (nx >= 0 && nx < width && data[ny * width + nx]) return true
     }
   }
   return false

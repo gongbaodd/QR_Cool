@@ -15,12 +15,10 @@ describe('QR placement', () => {
   it('chooses the centroid-nearest maximum square deterministically in an irregular mask', () => {
     const mask = rectangularMask(200, 100, 5, 8, 84, 84)
     for (let y = 8; y < 92; y++) {
-      for (let x = 111; x < 195; x++)
-        mask.data[y * mask.width + x] = 255
+      for (let x = 111; x < 195; x++) mask.data[y * mask.width + x] = 255
     }
     for (let y = 46; y < 54; y++) {
-      for (let x = 89; x < 111; x++)
-        mask.data[y * mask.width + x] = 255
+      for (let x = 89; x < 111; x++) mask.data[y * mask.width + x] = 255
     }
     mask.area = 84 * 84 * 2 + 22 * 8
     mask.bounds = { x: 5, y: 8, width: 190, height: 84 }
@@ -43,11 +41,17 @@ describe('QR placement', () => {
   })
 })
 
-function rectangularMask(width: number, height: number, x: number, y: number, boxWidth: number, boxHeight: number): RegionMask {
+function rectangularMask(
+  width: number,
+  height: number,
+  x: number,
+  y: number,
+  boxWidth: number,
+  boxHeight: number,
+): RegionMask {
   const data = new Uint8Array(width * height)
   for (let row = y; row < y + boxHeight; row++) {
-    for (let column = x; column < x + boxWidth; column++)
-      data[row * width + column] = 255
+    for (let column = x; column < x + boxWidth; column++) data[row * width + column] = 255
   }
   return {
     width,

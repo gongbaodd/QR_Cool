@@ -17,19 +17,31 @@ async function enterAdjust(page: import('@playwright/test').Page) {
   await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
 }
 
-const ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21s-6-4.5-6-10a6 6 0 0 1 12 0c0 5.5-6 10-6 10z" fill="currentColor"/></svg>'
+const ICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21s-6-4.5-6-10a6 6 0 0 1 12 0c0 5.5-6 10-6 10z" fill="currentColor"/></svg>'
 
 /** Mocks the icon-search proxy (recording its queries) and the SVG downloads it returns. */
 async function mockIconSearch(page: import('@playwright/test').Page, queries: string[] = [], count = 20) {
-  await page.route('**/dist/**/*.svg', route => route.fulfill({ status: 200, contentType: 'image/svg+xml', body: ICON_SVG }))
-  await page.route('**/api/icons*', async route => {
+  await page.route('**/dist/**/*.svg', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/svg+xml', body: ICON_SVG }),
+  )
+  await page.route('**/api/icons*', async (route) => {
     const q = new URL(route.request().url()).searchParams.get('q') ?? ''
     queries.push(q)
     const items = Array.from({ length: count }, (_, i) => ({
-      id: `test/icon-${i}`, vendor: 'test', name: `${q}-${i}`, download: 'https://icons.grida.co/dist/lucide-icons/src/heart.svg',
-      variants: [{ name: `${q}-${i}`, properties: {}, download: 'https://icons.grida.co/dist/lucide-icons/src/heart.svg' }],
+      id: `test/icon-${i}`,
+      vendor: 'test',
+      name: `${q}-${i}`,
+      download: 'https://icons.grida.co/dist/lucide-icons/src/heart.svg',
+      variants: [
+        { name: `${q}-${i}`, properties: {}, download: 'https://icons.grida.co/dist/lucide-icons/src/heart.svg' },
+      ],
     }))
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ total: count, count, limit: 100, offset: 0, items }) })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ total: count, count, limit: 100, offset: 0, items }),
+    })
   })
 }
 
@@ -53,7 +65,7 @@ test('upload, edit, assemble, download, and invalidate', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Continue to generate', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeVisible()
-  const responsePromise = page.waitForResponse(r => r.url().endsWith('/api/assemble'))
+  const responsePromise = page.waitForResponse((r) => r.url().endsWith('/api/assemble'))
   await page.getByRole('button', { name: 'Assemble poster', exact: true }).click()
   const response = await responsePromise
   expect(response.status()).toBe(200)
@@ -121,7 +133,7 @@ test('mask search keeps 3x4 grid, first letter rule and icon search', async ({ p
   await expect(search).toHaveAttribute('maxlength', '10')
   await search.fill('QR')
   await expect(search).toHaveValue('QR')
-  const bright = await page.getByLabel('Mask text preview').evaluate(node => {
+  const bright = await page.getByLabel('Mask text preview').evaluate((node) => {
     const canvas = node as HTMLCanvasElement
     const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
     let count = 0
@@ -151,7 +163,9 @@ test('mask search keeps 3x4 grid, first letter rule and icon search', async ({ p
   await expect(page.getByRole('radio', { name: 'Mask font blank' })).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Mask font Fathead' })).toBeVisible()
   await expect(page.getByRole('radio', { name: 'Mask font Wear Fat Shirt' })).toBeVisible()
-  await expect(page.getByRole('radiogroup', { name: 'Mask options' }).getByRole('radio', { name: /Icon heart-0/ })).toHaveCount(0)
+  await expect(
+    page.getByRole('radiogroup', { name: 'Mask options' }).getByRole('radio', { name: /Icon heart-0/ }),
+  ).toHaveCount(0)
   // The cached term keeps the gallery open instead of toggling it off.
   await expect(control).toContainText('more — 20 icons')
   await control.click()
@@ -167,7 +181,9 @@ test('mask search keeps 3x4 grid, first letter rule and icon search', async ({ p
   await gallery.getByRole('button', { name: /Gallery icon heart-15/ }).click()
   await expect(page.getByLabel('Mask text preview')).toBeVisible()
   await expect(page.locator('.gallery-grid')).toHaveCount(0)
-  await expect(page.getByRole('radiogroup', { name: 'Mask options' }).locator('button[aria-checked="true"]')).toHaveCount(1)
+  await expect(
+    page.getByRole('radiogroup', { name: 'Mask options' }).locator('button[aria-checked="true"]'),
+  ).toHaveCount(1)
   const moreText = await control.textContent()
   expect(moreText).toMatch(/more/)
 })
@@ -274,9 +290,10 @@ test('pointer coordinates and corner resizing follow the zoom transform', async 
     const x = Number(await page.getByLabel('QR X', { exact: true }).inputValue())
     const y = Number(await page.getByLabel('QR Y', { exact: true }).inputValue())
     const qrSize = Number(await size.inputValue())
-    const startX = Math.round(bounds.x + (x + qrSize / 2) * scale), startY = Math.round(bounds.y + (y + qrSize / 2) * scale)
-    const dx = Math.round(30 * scale), dy = Math.round(30 * scale)
-    const movedX = x + Math.round(dx / scale), movedY = y + Math.round(dy / scale)
+    const startX = Math.round(bounds.x + (x + qrSize / 2) * scale),
+      startY = Math.round(bounds.y + (y + qrSize / 2) * scale)
+    const dx = Math.round(30 * scale),
+      dy = Math.round(30 * scale)
     await page.mouse.move(startX, startY)
     await page.mouse.down()
     await page.mouse.move(startX + dx, startY + dy, { steps: 8 })

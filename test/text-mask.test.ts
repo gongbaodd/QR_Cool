@@ -59,12 +59,13 @@ describe('text mask fonts', () => {
   it('finds the largest white square with the server selection rule', () => {
     // 10x6 canvas, opaque white rect x=2..6, y=1..4 -> largest square 4.
     const pixels = new Uint8ClampedArray(10 * 6 * 4)
-    for (let y = 0; y < 6; y++) for (let x = 0; x < 10; x++) {
-      const offset = (y * 10 + x) * 4
-      const white = x >= 2 && x <= 6 && y >= 1 && y <= 4
-      pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = white ? 255 : 0
-      pixels[offset + 3] = 255
-    }
+    for (let y = 0; y < 6; y++)
+      for (let x = 0; x < 10; x++) {
+        const offset = (y * 10 + x) * 4
+        const white = x >= 2 && x <= 6 && y >= 1 && y <= 4
+        pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = white ? 255 : 0
+        pixels[offset + 3] = 255
+      }
     expect(largestWhiteSquare(pixels, 10, 6)).toBe(4)
     // Transparent white and dim gray do not count.
     const faint = new Uint8ClampedArray(4 * 4 * 4).fill(255)

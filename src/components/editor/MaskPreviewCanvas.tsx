@@ -14,35 +14,59 @@ export interface MaskPreviewCanvasProps {
 }
 
 /** Step 2's white-on-black mask preview, mirroring the uploaded mask canvas. */
-export default function MaskPreviewCanvas({ effectiveMask, family, isBlank, isIconMode, iconResults, selectedIconId, galleryMode }: MaskPreviewCanvasProps) {
+export default function MaskPreviewCanvas({
+  effectiveMask,
+  family,
+  isBlank,
+  isIconMode,
+  iconResults,
+  selectedIconId,
+  galleryMode,
+}: MaskPreviewCanvasProps) {
   const maskPreview = useRef<HTMLCanvasElement | null>(null)
   useEffect(() => {
     const node = maskPreview.current
     if (!node) return
     let live = true
-    if (galleryMode) return () => { live = false }
+    if (galleryMode)
+      return () => {
+        live = false
+      }
     if (isBlank) {
       const context = node.getContext('2d')!
-      context.fillStyle = 'white'; context.fillRect(0, 0, node.width, node.height)
-      context.fillStyle = 'black'; context.textAlign = 'center'; context.textBaseline = 'middle'
+      context.fillStyle = 'white'
+      context.fillRect(0, 0, node.width, node.height)
+      context.fillStyle = 'black'
+      context.textAlign = 'center'
+      context.textBaseline = 'middle'
       context.font = `${Math.max(14, Math.round(node.width * 0.032))}px sans-serif`
       context.fillText('blank — full canvas', node.width / 2, node.height / 2)
-      return () => { live = false }
+      return () => {
+        live = false
+      }
     }
     if (isIconMode) {
-      const item = iconResults.find(r => r.id === selectedIconId)
+      const item = iconResults.find((r) => r.id === selectedIconId)
       const download = item?.download ?? item?.variants[0]?.download
       if (!download) {
         const context = node.getContext('2d')!
-        context.fillStyle = 'black'; context.fillRect(0, 0, node.width, node.height)
-        context.fillStyle = 'white'; context.textAlign = 'center'; context.textBaseline = 'middle'
+        context.fillStyle = 'black'
+        context.fillRect(0, 0, node.width, node.height)
+        context.fillStyle = 'white'
+        context.textAlign = 'center'
+        context.textBaseline = 'middle'
         context.font = `${Math.max(14, Math.round(node.width * 0.032))}px sans-serif`
         context.fillText('icon', node.width / 2, node.height / 2)
-        return () => { live = false }
+        return () => {
+          live = false
+        }
       }
       void (async () => {
         try {
-          const svgText = await fetch(download).then(r => { if (!r.ok) throw new Error('svg fetch'); return r.text() })
+          const svgText = await fetch(download).then((r) => {
+            if (!r.ok) throw new Error('svg fetch')
+            return r.text()
+          })
           if (!live) return
           const recolored = svgText
             .replace(/currentColor/g, 'white')
@@ -52,35 +76,82 @@ export default function MaskPreviewCanvas({ effectiveMask, family, isBlank, isIc
           const blob = new Blob([recolored], { type: 'image/svg+xml' })
           const url = URL.createObjectURL(blob)
           const img = new window.Image()
-          await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error('img')); img.src = url })
-          if (!live) { URL.revokeObjectURL(url); return }
+          await new Promise<void>((res, rej) => {
+            img.onload = () => res()
+            img.onerror = () => rej(new Error('img'))
+            img.src = url
+          })
+          if (!live) {
+            URL.revokeObjectURL(url)
+            return
+          }
           const context = node.getContext('2d')!
-          context.fillStyle = 'black'; context.fillRect(0, 0, node.width, node.height)
-          const nw = (img as unknown as { naturalWidth:number }).naturalWidth || img.width || 24
-          const nh = (img as unknown as { naturalHeight:number }).naturalHeight || img.height || 24
-          const scale = Math.min(node.width * 0.9 / nw, node.height * 0.92 / nh, 1)
-          const dw = nw * scale, dh = nh * scale
-          context.drawImage(img, (node.width - dw)/2, (node.height - dh)/2, dw, dh)
+          context.fillStyle = 'black'
+          context.fillRect(0, 0, node.width, node.height)
+          const nw = (img as unknown as { naturalWidth: number }).naturalWidth || img.width || 24
+          const nh = (img as unknown as { naturalHeight: number }).naturalHeight || img.height || 24
+          const scale = Math.min((node.width * 0.9) / nw, (node.height * 0.92) / nh, 1)
+          const dw = nw * scale,
+            dh = nh * scale
+          context.drawImage(img, (node.width - dw) / 2, (node.height - dh) / 2, dw, dh)
           URL.revokeObjectURL(url)
         } catch {
           if (!live) return
           const context = node.getContext('2d')!
-          context.fillStyle = 'black'; context.fillRect(0, 0, node.width, node.height)
+          context.fillStyle = 'black'
+          context.fillRect(0, 0, node.width, node.height)
         }
       })()
-      return () => { live = false }
+      return () => {
+        live = false
+      }
     }
     void document.fonts.load(`16px "${family}"`).then(() => {
       if (!live) return
       const context = node.getContext('2d')!
-      context.fillStyle = 'black'; context.fillRect(0, 0, node.width, node.height)
-      context.fillStyle = 'white'; context.textAlign = 'center'; context.textBaseline = 'middle'
+      context.fillStyle = 'black'
+      context.fillRect(0, 0, node.width, node.height)
+      context.fillStyle = 'white'
+      context.textAlign = 'center'
+      context.textBaseline = 'middle'
       const text = effectiveMask || ' '
-      const size = fitTextMaskSize(px => { context.font = `${px}px "${family}"`; return context.measureText(text).width }, node.width * 0.9, node.height * 0.92)
+      const size = fitTextMaskSize(
+        (px) => {
+          context.font = `${px}px "${family}"`
+          return context.measureText(text).width
+        },
+        node.width * 0.9,
+        node.height * 0.92,
+      )
       context.font = `${size}px "${family}"`
       context.fillText(text, node.width / 2, node.height / 2)
     })
-    return () => { live = false }
+    return () => {
+      live = false
+    }
   }, [effectiveMask, family, isBlank, isIconMode, selectedIconId, iconResults, galleryMode])
-  return <div className="mask-preview-wrap" style={{ border: '2.5px solid var(--ink)', borderRadius: 'var(--sketch-card)', overflow: 'hidden', background: 'var(--paper)', boxShadow: 'var(--shadow-lg)', padding: 18, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><canvas ref={maskPreview} width={600} height={600} aria-label="Mask text preview" style={{ width: '100%', maxWidth: 560, aspectRatio: '1 / 1', borderRadius: 12, background: 'black' }} /></div>
+  return (
+    <div
+      className="mask-preview-wrap"
+      style={{
+        border: '2.5px solid var(--ink)',
+        borderRadius: 'var(--sketch-card)',
+        overflow: 'hidden',
+        background: 'var(--paper)',
+        boxShadow: 'var(--shadow-lg)',
+        padding: 18,
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <canvas
+        ref={maskPreview}
+        width={600}
+        height={600}
+        aria-label="Mask text preview"
+        style={{ width: '100%', maxWidth: 560, aspectRatio: '1 / 1', borderRadius: 12, background: 'black' }}
+      />
+    </div>
+  )
 }

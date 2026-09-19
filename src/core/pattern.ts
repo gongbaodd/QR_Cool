@@ -1,11 +1,7 @@
-import { createHash } from 'node:crypto'
-import { access, mkdir, writeFile } from 'node:fs/promises'
-import { isAbsolute, join, resolve } from 'node:path'
 import sharp from 'sharp'
 import { QrCodeDataType, encode } from 'uqr'
 import type { QrCodeGenerateResult } from 'uqr'
 import { QrPosterError } from './errors'
-import type { PatternPreviewOptions, PatternPreviewResult, PatternReport } from './types'
 
 /** qrcode.antfu.me defaults: ecc 'M', 2-module margin, rounded pixel style, auto mask. */
 export const PATTERN_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -17,9 +13,7 @@ export const PATTERN_QUIET_ZONE_MODULES = 2 as const
 
 const QUIET_ZONE_MODULES = PATTERN_QUIET_ZONE_MODULES
 const MAX_VERSION = 40
-const REMOVED_TYPES = ['Position', 'Alignment'] as const
-const REFILL_SEED_SALT = 0x9E3779B9
-const ARTIFACT_NAMES = { pattern: 'pattern.png', report: 'report.json' } as const
+const REFILL_SEED_SALT = 0x9e3779b9
 const WEDGE_RADIUS_PADDING = 2
 
 export interface PatternRenderWindow {
@@ -60,7 +54,7 @@ export interface PosterPatternOptions {
    * The texture's module boundaries then land on the same lattice as the QR's, so the field
    * continues the code's rhythm. Without it the window stays centered as before.
    */
-  alignTo?: { x: number, y: number }
+  alignTo?: { x: number; y: number }
 }
 
 export interface PosterPattern {
@@ -74,7 +68,7 @@ export interface PosterPattern {
   totalModules: number
   codeSize: number
   marginModules: number
-  crop: { left: number, top: number }
+  crop: { left: number; top: number }
   refilledModules: number
 }
 
@@ -86,16 +80,10 @@ export type PosterPatternLattice = Omit<PosterPattern, 'png'>
  * needs to phase-lock the window (see `alignTo`) asks for one module of headroom, so the code is
  * wider than the canvas and the window can still be shifted onto the requested lattice.
  */
-export function selectPatternVersion(
-  modulePixels: number,
-  width: number,
-  height: number,
-  headroomPixels = 0,
-): number {
+export function selectPatternVersion(modulePixels: number, width: number, height: number, headroomPixels = 0): number {
   const required = Math.max(width, height) + headroomPixels
   for (let version = 1; version <= MAX_VERSION; version++) {
-    if (totalModulesFor(version) * modulePixels >= required)
-      return version
+    if (totalModulesFor(version) * modulePixels >= required) return version
   }
   const maxModules = totalModulesFor(MAX_VERSION)
   throw new QrPosterError(
@@ -112,8 +100,7 @@ export function createPatternText(version: number, seed: number): string {
     let text = ''
     for (let index = 0; index < length; index++)
       text += PATTERN_ALPHABET[Math.floor(random() * PATTERN_ALPHABET.length)]
-    if (fitsVersion(text, version))
-      return text
+    if (fitsVersion(text, version)) return text
     length--
   }
   throw new QrPosterError('QR_INVALID', `Random text could not fill a version ${version} QR code.`)
@@ -127,12 +114,13 @@ export function createPatternText(version: number, seed: number): string {
  */
 export function stripMarkerModules(matrix: QrCodeGenerateResult, seed: number): boolean[][] {
   const random = mulberry32(markerRefillSeed(seed))
-  return matrix.data.map((row, y) => row.map((dark, x) => {
-    const type = matrix.types[y]?.[x] ?? QrCodeDataType.Data
-    if (type === QrCodeDataType.Position || type === QrCodeDataType.Alignment)
-      return random() < 0.5
-    return dark
-  }))
+  return matrix.data.map((row, y) =>
+    row.map((dark, x) => {
+      const type = matrix.types[y]?.[x] ?? QrCodeDataType.Data
+      if (type === QrCodeDataType.Position || type === QrCodeDataType.Alignment) return random() < 0.5
+      return dark
+    }),
+  )
 }
 
 /** Cells the marker refill replaces: the three 9x9 finder areas plus every 5x5 alignment block. */
@@ -141,8 +129,7 @@ export function countMarkerModules(matrix: QrCodeGenerateResult): number {
   for (let y = 0; y < matrix.size; y++) {
     for (let x = 0; x < matrix.size; x++) {
       const type = matrix.types[y]?.[x] ?? QrCodeDataType.Data
-      if (type === QrCodeDataType.Position || type === QrCodeDataType.Alignment)
-        count++
+      if (type === QrCodeDataType.Position || type === QrCodeDataType.Alignment) count++
     }
   }
   return count
@@ -164,7 +151,7 @@ export async function renderRoundedPattern(
 ): Promise<Buffer> {
   if (!Number.isInteger(modulePixels) || modulePixels < 1)
     throw new QrPosterError('INVALID_INPUT', 'modulePixels must be a positive integer.')
-  if (matrix.length === 0 || matrix.some(row => row.length !== matrix.length))
+  if (matrix.length === 0 || matrix.some((row) => row.length !== matrix.length))
     throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'Pattern matrix must be a non-empty square.', 3)
 
   const marginModules = options.marginModules ?? QUIET_ZONE_MODULES
@@ -172,8 +159,14 @@ export async function renderRoundedPattern(
   const totalModules = modules + marginModules * 2
   const codeSize = totalModules * modulePixels
   const window = options.window ?? { left: 0, top: 0, width: codeSize, height: codeSize }
-  if (window.left < 0 || window.top < 0 || window.width < 1 || window.height < 1
-    || window.left + window.width > codeSize || window.top + window.height > codeSize) {
+  if (
+    window.left < 0 ||
+    window.top < 0 ||
+    window.width < 1 ||
+    window.height < 1 ||
+    window.left + window.width > codeSize ||
+    window.top + window.height > codeSize
+  ) {
     throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'The pattern render window must fit inside the code canvas.', 3)
   }
 
@@ -182,21 +175,17 @@ export async function renderRoundedPattern(
   const include = options.include
   const skipInk = options.skipInk
   const included = (x: number, y: number): boolean => {
-    if (x < 0 || y < 0 || x >= totalModules || y >= totalModules)
-      return false
+    if (x < 0 || y < 0 || x >= totalModules || y >= totalModules) return false
     return include === undefined || include(x, y)
   }
   // A module outside the drawn set is light for every purpose, so a dark neighbour the cut drops
   // cannot pull a wedge into the artwork around the silhouette.
   const dark = (x: number, y: number): boolean => {
-    if (!included(x, y))
-      return false
-    if (skipInk?.(x, y))
-      return false
+    if (!included(x, y)) return false
+    if (skipInk?.(x, y)) return false
     const column = x - marginModules
     const row = y - marginModules
-    if (column < 0 || row < 0 || column >= modules || row >= modules)
-      return false
+    if (column < 0 || row < 0 || column >= modules || row >= modules) return false
     return matrix[row]![column]!
   }
 
@@ -216,10 +205,8 @@ export async function renderRoundedPattern(
 
   for (let y = 0; y < totalModules; y++) {
     for (let x = 0; x < totalModules; x++) {
-      if (!included(x, y))
-        continue
-      if (skipInk?.(x, y))
-        continue
+      if (!included(x, y)) continue
+      if (skipInk?.(x, y)) continue
       const ox = x * modulePixels
       const oy = y * modulePixels
       const up = dark(x, y - 1)
@@ -227,45 +214,38 @@ export async function renderRoundedPattern(
       const left = dark(x - 1, y)
       const right = dark(x + 1, y)
       if (dark(x, y)) {
-        circles.push(`M${ox},${oy + half}a${half},${half} 0 1 0 ${modulePixels},0a${half},${half} 0 1 0 ${-modulePixels},0Z`)
-        if (up || left)
-          wedge('tl', ox, oy)
-        if (up || right)
-          wedge('tr', ox, oy)
-        if (down || left)
-          wedge('bl', ox, oy)
-        if (down || right)
-          wedge('br', ox, oy)
-      }
-      else {
-        if (up && left && dark(x - 1, y - 1))
-          wedge('tl', ox, oy)
-        if (up && right && dark(x + 1, y - 1))
-          wedge('tr', ox, oy)
-        if (down && left && dark(x - 1, y + 1))
-          wedge('bl', ox, oy)
-        if (down && right && dark(x + 1, y + 1))
-          wedge('br', ox, oy)
+        circles.push(
+          `M${ox},${oy + half}a${half},${half} 0 1 0 ${modulePixels},0a${half},${half} 0 1 0 ${-modulePixels},0Z`,
+        )
+        if (up || left) wedge('tl', ox, oy)
+        if (up || right) wedge('tr', ox, oy)
+        if (down || left) wedge('bl', ox, oy)
+        if (down || right) wedge('br', ox, oy)
+      } else {
+        if (up && left && dark(x - 1, y - 1)) wedge('tl', ox, oy)
+        if (up && right && dark(x + 1, y - 1)) wedge('tr', ox, oy)
+        if (down && left && dark(x - 1, y + 1)) wedge('bl', ox, oy)
+        if (down && right && dark(x + 1, y + 1)) wedge('br', ox, oy)
       }
     }
   }
 
   // Without an include mask the whole canvas is one white field, exactly as before. With one, only
   // the drawn modules carry the texture's white, so the artwork shows through the dropped ones.
-  const background = include === undefined
-    ? `<rect width="${codeSize}" height="${codeSize}" fill="#ffffff"/>`
-    : `<path fill="#ffffff" d="${includedCells(include, totalModules, modulePixels)}"/>`
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${window.width}" height="${window.height}"`
-    + ` viewBox="${window.left} ${window.top} ${window.width} ${window.height}">`
-    + background
-    + `<path fill="#000000" d="${circles.join('')}"/>`
-    + `<path fill="#000000" d="${wedges.join('')}"/>`
-    + '</svg>'
+  const background =
+    include === undefined
+      ? `<rect width="${codeSize}" height="${codeSize}" fill="#ffffff"/>`
+      : `<path fill="#ffffff" d="${includedCells(include, totalModules, modulePixels)}"/>`
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${window.width}" height="${window.height}"` +
+    ` viewBox="${window.left} ${window.top} ${window.width} ${window.height}">` +
+    background +
+    `<path fill="#000000" d="${circles.join('')}"/>` +
+    `<path fill="#000000" d="${wedges.join('')}"/>` +
+    '</svg>'
 
   const raster = sharp(Buffer.from(svg))
-  const png = await (include === undefined ? raster.flatten({ background: '#ffffff' }) : raster)
-    .png()
-    .toBuffer()
+  const png = await (include === undefined ? raster.flatten({ background: '#ffffff' }) : raster).png().toBuffer()
   const metadata = await sharp(png).metadata()
   if (metadata.width !== window.width || metadata.height !== window.height) {
     throw new QrPosterError(
@@ -289,12 +269,7 @@ export async function buildPosterPattern(options: PosterPatternOptions): Promise
 
   // Phase-locking needs one module of freedom in each direction, so an aligned texture asks for a
   // version wide enough to leave that gap. The centered preview keeps the tightest version.
-  const version = selectPatternVersion(
-    modulePixels,
-    width,
-    height,
-    options.alignTo === undefined ? 0 : modulePixels,
-  )
+  const version = selectPatternVersion(modulePixels, width, height, options.alignTo === undefined ? 0 : modulePixels)
   const seed = options.seed ?? randomSeed()
   const text = createPatternText(version, seed)
   const encoded = encode(text, { ecc: PATTERN_ECC, minVersion: version, maxVersion: version, border: 0 })
@@ -329,16 +304,11 @@ export async function renderPosterPattern(options: PosterPatternOptions): Promis
 }
 
 /** White cell rectangles of the modules the include mask accepts, as one path. */
-function includedCells(
-  include: (x: number, y: number) => boolean,
-  totalModules: number,
-  modulePixels: number,
-): string {
+function includedCells(include: (x: number, y: number) => boolean, totalModules: number, modulePixels: number): string {
   const parts: string[] = []
   for (let y = 0; y < totalModules; y++) {
     for (let x = 0; x < totalModules; x++) {
-      if (!include(x, y))
-        continue
+      if (!include(x, y)) continue
       parts.push(`M${x * modulePixels},${y * modulePixels}h${modulePixels}v${modulePixels}h-${modulePixels}Z`)
     }
   }
@@ -354,10 +324,8 @@ function patternCapacity(version: number): number {
   let high = 3072
   while (low < high) {
     const middle = Math.ceil((low + high) / 2)
-    if (fitsVersion('a'.repeat(middle), version))
-      low = middle
-    else
-      high = middle - 1
+    if (fitsVersion('a'.repeat(middle), version)) low = middle
+    else high = middle - 1
   }
   return low
 }
@@ -366,8 +334,7 @@ function fitsVersion(text: string, version: number): boolean {
   try {
     encode(text, { ecc: PATTERN_ECC, minVersion: version, maxVersion: version, border: 0 })
     return true
-  }
-  catch {
+  } catch {
     return false
   }
 }
@@ -375,7 +342,7 @@ function fitsVersion(text: string, version: number): boolean {
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0
   return () => {
-    state = (state + 0x6D2B79F5) >>> 0
+    state = (state + 0x6d2b79f5) >>> 0
     let value = state
     value = Math.imul(value ^ (value >>> 15), value | 1)
     value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
@@ -388,8 +355,8 @@ function centeredCrop(
   width: number,
   height: number,
   modulePixels: number,
-  alignTo?: { x: number, y: number },
-): { left: number, top: number } {
+  alignTo?: { x: number; y: number },
+): { left: number; top: number } {
   const offset = (extent: number, phase?: number): number => {
     const raw = (codeSize - extent) / 2
     let aligned = Math.round(raw / modulePixels) * modulePixels
@@ -400,15 +367,12 @@ function centeredCrop(
       // away, and fall back to the closest fitting one when that nudged window runs off the canvas.
       const target = ((-phase % modulePixels) + modulePixels) % modulePixels
       const current = ((aligned % modulePixels) + modulePixels) % modulePixels
-      let delta = ((target - current) % modulePixels + modulePixels) % modulePixels
-      if (delta > modulePixels / 2)
-        delta -= modulePixels
+      let delta = (((target - current) % modulePixels) + modulePixels) % modulePixels
+      if (delta > modulePixels / 2) delta -= modulePixels
       aligned += delta
-      if (!fits(aligned, extent, codeSize))
-        return fittingOffset(raw, extent, codeSize, modulePixels, target)
+      if (!fits(aligned, extent, codeSize)) return fittingOffset(raw, extent, codeSize, modulePixels, target)
     }
-    if (fits(aligned, extent, codeSize))
-      return aligned
+    if (fits(aligned, extent, codeSize)) return aligned
     return fittingOffset(raw, extent, codeSize, modulePixels)
   }
   return { left: offset(width, alignTo?.x), top: offset(height, alignTo?.y) }
@@ -424,65 +388,25 @@ function fits(offset: number, extent: number, codeSize: number): boolean {
  * have to be a whole number of modules, only its phase does — and falls back to a whole-module
  * offset when the canvas is too tight for any of them.
  */
-function fittingOffset(
-  raw: number,
-  extent: number,
-  codeSize: number,
-  modulePixels: number,
-  phase?: number,
-): number {
+function fittingOffset(raw: number, extent: number, codeSize: number, modulePixels: number, phase?: number): number {
   const limit = codeSize - extent
   const base = Math.floor(raw / modulePixels) * modulePixels
-  if (limit < 0)
-    return base
+  if (limit < 0) return base
   if (phase !== undefined) {
     let best = -1
     for (let candidate = phase; candidate <= limit; candidate += modulePixels) {
-      if (best === -1 || Math.abs(candidate - raw) < Math.abs(best - raw))
-        best = candidate
+      if (best === -1 || Math.abs(candidate - raw) < Math.abs(best - raw)) best = candidate
     }
-    if (best !== -1)
-      return best
+    if (best !== -1) return best
   }
   let best = base
   for (const candidate of [base, base + modulePixels, base - modulePixels]) {
-    if (!fits(candidate, extent, codeSize))
-      continue
-    if (Math.abs(candidate - raw) < Math.abs(best - raw))
-      best = candidate
+    if (!fits(candidate, extent, codeSize)) continue
+    if (Math.abs(candidate - raw) < Math.abs(best - raw)) best = candidate
   }
   return best
 }
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 2 ** 31)
-}
-
-function sha256(value: string | Buffer): string {
-  return createHash('sha256').update(value).digest('hex')
-}
-
-function normalizedPath(path: string): string {
-  return isAbsolute(path) ? path : resolve(path)
-}
-
-async function ensureOutputsAvailable(outputDir: string, force: boolean): Promise<void> {
-  if (force)
-    return
-  const collisions: string[] = []
-  for (const name of Object.values(ARTIFACT_NAMES)) {
-    try {
-      await access(join(outputDir, name))
-      collisions.push(name)
-    }
-    catch {
-      // Missing is the expected state.
-    }
-  }
-  if (collisions.length > 0) {
-    throw new QrPosterError(
-      'OUTPUT_EXISTS',
-      `Refusing to overwrite existing output files: ${collisions.join(', ')}. Use --force to replace them.`,
-    )
-  }
 }

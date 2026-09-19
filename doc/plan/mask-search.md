@@ -1,6 +1,7 @@
 # Plan: Step 2 — Mask Search (3×4 grid + icons.grida.co)
 
 Status: draft for review — no code changed yet. Implements user request:
+
 > step 2, sidebar, Mask Letter turn into "Mask Search", allow me to input more in the input field and search, options keep 3x4. the last one is "more", click more can see all the icons searched from "https://icons.grida.co/api/search?q=". Front 3 still keeps first letter rule, last 9 show the search result if the search content length > 1
 
 ## 1. Current behavior (for diff)
@@ -31,9 +32,15 @@ Status: draft for review — no code changed yet. Implements user request:
 ### 2.2 Grid: strict 3×4 = 12 tiles
 
 Change `globals.css`:
+
 ```css
-.font-row { grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 10px; }
+.font-row {
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 10px;
+}
 ```
+
 12 tiles always rendered, no auto-fill.
 
 Layout proposal (to satisfy literal spec “front 3 letter, last 9 icons, last one more” — see §7 open question):
@@ -49,18 +56,21 @@ Layout proposal (to satisfy literal spec “front 3 letter, last 9 icons, last o
 This yields 3 letter-rule tiles (0 is blank — counts as letter-rule family, 1-2 are the “front 3” if you count blank), 8 icon tiles + 1 more = 9 slots devoted to search. If strict “front 3 = three letter fonts” is required without blank counting, shift to 3 letter fonts at 0-2 and move blank to a separate “Blank” affordance above grid — alternatives in §7.
 
 **Option B — 12 icon/content tiles + More outside grid (satisfies “last 9 are icons” literally):**
+
 - Grid = 3 + 9 =12 content tiles (0-2 letters, 3-11 icons = 9 icons)
 - `more` is a separate button/row below grid (`<button aria-label="More icons">More — see all N results</button>`) that opens gallery. Grid stays 3×4 pure content.
 
 Pick one; implementation keeps grid size fixed either way so `pnpm test:e2e` viewport math unchanged.
 
 Tiles:
+
 - Letter tile: `<span class="font-glyph" style="fontFamily: 'Fathead'">A</span>` + font name below. Selected state when `maskFontId` matches and query’s first char is active.
 - Icon tile: render `item.variants[0].download` or primary `download` SVG as `<img>` or inline `<svg>` (fetched). Use white-on-black preview? For grid thumbnail, show black bg with white icon centered (same as mask preview). Selected state highlights same as letter.
 - Empty/disabled icon tile: dashed border, hint text.
 - `more` tile: centered `⋯ more` + count; `aria-label="More icons"`.
 
 Click behavior:
+
 - Letter tile click → `setMaskFontId(fontId)` + `applyTextMask(fontId)` with `effectiveMask` char.
 - Icon tile click → `setMaskFontId('icon:'+iconId)` or new `maskIconId` state, then `applyIconMask(iconSvgUrl)` (see §4).
 - More click → open modal (see §5).
@@ -75,6 +85,7 @@ Click behavior:
 ### 2.4 Selection & mask preview
 
 Reuse existing `maskPreview` canvas (600×600). For preview:
+
 - If selected is letter/blank → current `drawTextMask` / `drawBlankMask` logic.
 - If selected is icon → new `drawIconMask(width, height, svgText, capPx)` draws white icon on black, centered, scaled to fit `width*0.94` × `capPx` (same cap as letters: `defaultTextMaskSize(width,height)`). Keep `largestWhiteSquare` check for too-small icon (same `maskTooSmall` warning).
 
@@ -94,8 +105,10 @@ Add proxy to avoid CORS and allow mocking in tests:
   ```ts
   export async function GET(req: Request) {
     const q = new URL(req.url).searchParams.get('q')?.trim() ?? ''
-    if (q.length <= 1) return Response.json({ total:0, count:0, items:[] })
-    const upstream = await fetch(`https://icons.grida.co/api/search?q=${encodeURIComponent(q)}`, { next: { revalidate: 60 } })
+    if (q.length <= 1) return Response.json({ total: 0, count: 0, items: [] })
+    const upstream = await fetch(`https://icons.grida.co/api/search?q=${encodeURIComponent(q)}`, {
+      next: { revalidate: 60 },
+    })
     // pass through JSON, handle errors, Cache-Control: no-store or short cache
   }
   ```
@@ -110,25 +123,34 @@ Consider caching: in-memory `Map<q, items>` on client for session, plus `SWR` st
 New helper in `src/lib/editor/text-mask.ts` or `src/components/editor/Editor.tsx`:
 
 ```ts
-async function drawIconMask(width:number, height:number, svgUrl:string, capPx:number): Promise<HTMLCanvasElement> {
-  const svgText = await fetch(svgUrl).then(r=>r.text())
+async function drawIconMask(width: number, height: number, svgUrl: string, capPx: number): Promise<HTMLCanvasElement> {
+  const svgText = await fetch(svgUrl).then((r) => r.text())
   // optionally sanitize, ensure viewBox
   const img = new Image()
-  const blob = new Blob([svgText], {type:'image/svg+xml'})
+  const blob = new Blob([svgText], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
-  await new Promise((res, rej)=>{ img.onload=res; img.onerror=rej; img.src=url })
-  const canvas = document.createElement('canvas'); canvas.width=width; canvas.height=height
+  await new Promise((res, rej) => {
+    img.onload = res
+    img.onerror = rej
+    img.src = url
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
   const ctx = canvas.getContext('2d')!
-  ctx.fillStyle='black'; ctx.fillRect(0,0,width,height)
+  ctx.fillStyle = 'black'
+  ctx.fillRect(0, 0, width, height)
   // compute fit: preserve aspect, cap by height and width*0.94
-  const maxW = width*0.94, maxH = capPx
-  const scale = Math.min(maxW/img.width, maxH/img.height, 1)
-  const drawW = img.width*scale, drawH = img.height*scale
-  ctx.fillStyle='white'
+  const maxW = width * 0.94,
+    maxH = capPx
+  const scale = Math.min(maxW / img.width, maxH / img.height, 1)
+  const drawW = img.width * scale,
+    drawH = img.height * scale
+  ctx.fillStyle = 'white'
   // For SVG-as-image, we need to draw white: easiest is to draw image then use globalCompositeOperation to tint white where opaque.
   // Approach: draw image to temp canvas, then fill white where alpha>0.
   // Simpler: if SVG is single-color currentColor, we can recolor by replacing `fill="currentColor"` with `white` in svgText before loading.
-  ctx.drawImage(img, (width-drawW)/2, (height-drawH)/2, drawW, drawH)
+  ctx.drawImage(img, (width - drawW) / 2, (height - drawH) / 2, drawW, drawH)
   URL.revokeObjectURL(url)
   return canvas
 }
@@ -158,10 +180,11 @@ Spec refined:
 - **Selection from gallery → sidebar “nearest 12” windowing:**
 
   Define:
+
   ```ts
-  const SIDEBAR_LETTER_COUNT = 3   // tiles 0-2 (blank + 2 fonts) — keep first-letter rule, fixed
-  const SIDEBAR_ICON_WINDOW = 8    // tiles 3-10 show a window of icons
-  const SIDEBAR_MORE_IDX = 11      // tile 11 = "more"
+  const SIDEBAR_LETTER_COUNT = 3 // tiles 0-2 (blank + 2 fonts) — keep first-letter rule, fixed
+  const SIDEBAR_ICON_WINDOW = 8 // tiles 3-10 show a window of icons
+  const SIDEBAR_MORE_IDX = 11 // tile 11 = "more"
   // sidebar display when in default mode:
   // [0 blank, 1 letter Fathead, 2 letter FatC, 3..10 iconWindow, 11 more]
   ```

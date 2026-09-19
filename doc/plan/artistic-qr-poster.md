@@ -145,12 +145,12 @@ The band is only needed where a decoder looks. Quiet zones exist for the finder 
 
 Measured on the bundled poster (`--seed 1`, version 5 at 6px/module): the default band is 42 light cells in a 1,411-module hole with 3 corner blocks handed back (108px), and 1,873 drawn modules (1,029 rim + 844 texture). Decode evidence, measured by rebuilding the poster at each setting and decoding at three scales (`ZXing`, falling back to `jsQR`):
 
-| Band | Hole | Full size | 50% | JPEG-80 |
-| --- | --- | --- | --- | --- |
-| **1 module beside the markers (default)** | **1,411** | **decodes** | **decodes** | **decodes** |
-| 1 module, corner blocks kept light (`--cut-radius 0`) | 1,414 | decodes | decodes | decodes |
-| 2 modules beside the markers (`--qr-margin 2`) | 1,453 | decodes | decodes | decodes |
-| 0 modules, a fraction, or more than 2 | rejected (exit 2) | — | — | — |
+| Band                                                  | Hole              | Full size   | 50%         | JPEG-80     |
+| ----------------------------------------------------- | ----------------- | ----------- | ----------- | ----------- |
+| **1 module beside the markers (default)**             | **1,411**         | **decodes** | **decodes** | **decodes** |
+| 1 module, corner blocks kept light (`--cut-radius 0`) | 1,414             | decodes     | decodes     | decodes     |
+| 2 modules beside the markers (`--qr-margin 2`)        | 1,453             | decodes     | decodes     | decodes     |
+| 0 modules, a fraction, or more than 2                 | rejected (exit 2) | —           | —           | —           |
 
 Giving up the quiet zone along the rest of the code edge costs nothing the local decoder notices: the finder patterns are what it locks onto, and they keep their band at every setting. That is a local-decoder result on one clean 688×566 render, not a qualification, so `phoneScan` stays `untested`, the three decode checks stay in `verification.skippedChecks`, and the run warns about the trade instead. `test/assemble.test.ts` asserts the 42-cell band, the hand-back blocks, the texture flush against the rest of the code edge, the two-module band, the rejected values, and the decode evidence; `test/module-cut.test.ts` covers the rectangle union, the hand-back blocks, and rectangles that share edges or reach past the canvas.
 
