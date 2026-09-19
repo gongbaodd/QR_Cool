@@ -16,6 +16,10 @@ describe('text mask fonts', () => {
     expect(TEXT_MASK_FONTS.length).toBeGreaterThan(0)
     for (const font of TEXT_MASK_FONTS) {
       expect(font.id.trim().length).toBeGreaterThan(0)
+      if (font.id === 'blank') {
+        expect(font.label).toBe('blank')
+        continue
+      }
       expect(font.family.trim().length).toBeGreaterThan(0)
       expect(font.file.startsWith('/fonts/')).toBe(true)
       expect(existsSync(`public${font.file}`)).toBe(true)

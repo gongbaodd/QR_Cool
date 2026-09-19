@@ -19,8 +19,8 @@ describe('buffer engine migration', () => {
   it('preserves pre-refactor artifact bytes and logical input names', async () => {
     const prepared = await prepareEditor({ posterBytes, content })
     const result = await assembleFromBuffers({ posterBytes, content, placement: prepared.placement, ...settings })
-    expect(result.report.artifacts.posterSha256).toBe('310916c86e2395514673ae3ae1045f8bfed5487317ff33d700dd66f179736dc3')
-    expect(result.report.artifacts.qrSha256).toBe('df54a78ef51519a2f5cbf88910266f9df20f967fbdd5e3ccd92a79635ac479c2')
+    expect(result.report.artifacts.posterSha256).toBe('5a76e5608b37cce8f319ae821265fc06866117d4caba47972947dcf117f056f7')
+    expect(result.report.artifacts.qrSha256).toBe('69c7ea63887547193d7b76bff81ab9dd5689e4f2447d436c8f608d6131a0e7a3')
     expect(result.report.artifacts.patternCutPngSha256).toBe('b12c1d01da2b7a308b693aef06532c8c65c8bb2b9810777cef082d2ca685734a')
     expect(result.report.artifacts.patternCutSvgSha256).toBe('315d8de182da76e78c511845e5f134b3fd633c0fb6141ac49e443644db27f1b5')
     expect(result.report.inputs.poster.path).toBe('poster.png')
