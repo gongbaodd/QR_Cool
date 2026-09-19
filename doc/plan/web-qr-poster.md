@@ -1,6 +1,6 @@
 # Web QR poster editor
 
-Status: proposed implementation plan, 2026-09-15. This document plans the replacement; it does not implement the web app or remove the CLI. Retire the CLI after the web acceptance gates below pass.
+Status: implemented; the web editor is the supported product interface and the CLI has been retired (see step 6). This document is the active design record.
 
 ## Product goal
 
@@ -144,9 +144,9 @@ The full normalized QR square is the placement constraint; the smaller module pl
 - Measure preparation/assembly latency and peak memory at upload limits on the target Node host. Use a host/container supporting Sharp and sufficient request duration; a static-only host cannot execute this architecture.
 - Gate: tests pass, limits are documented, and the core user journey works from a fresh checkout using web commands only. Deployment configuration belongs to implementation; this plan does not publish anything.
 
-### 6. Retire the CLI
+### 6. Retire the CLI (completed)
 
-- After the previous gates pass, remove `src/cli.ts`, Commander, the `qr-poster` bin entry, CLI-only scripts/options, and CLI-only tests.
+- Removed `src/cli.ts`, Commander, the `qr-poster` bin entry, CLI-only scripts/options, and CLI-only tests.
 - Remove the retired Qwen/generation/dry-run orchestration and standalone mode entry points after checking imports. Keep any shared mask, SVG, QR, or geometry helpers still used by web assembly; do not delete `pattern-cut.ts` wholesale while assembly imports `buildCutSvg`.
 - Keep engine tests and fixtures. Replace CLI end-to-end coverage with API/browser coverage before deleting it. Remove unused dependencies only after an import audit; retain Sharp, uqr, and both decoders.
 - Make `pnpm dev`, `pnpm build`, and `pnpm start` the web commands; retain `pnpm test` and `pnpm typecheck`, and add `pnpm test:e2e`.
