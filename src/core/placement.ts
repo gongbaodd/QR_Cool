@@ -1,6 +1,6 @@
-import { fitsMask } from '../lib/editor/schema.js'
-import { QrPosterError } from './errors.js'
-import type { QrBoxInput, QrPlacement, RegionMask } from './types.js'
+import { fitsMask } from '../lib/editor/schema'
+import { QrPosterError } from './errors'
+import type { QrBoxInput, QrPlacement, RegionMask } from './types'
 
 const MINIMUM_MODULE_PIXELS = 4
 

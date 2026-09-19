@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { QrPosterError } from '../src/core/errors.js'
+import { QrPosterError } from '../src/core/errors'
 import {
   buildModuleLattice,
   buildModulePath,
@@ -9,7 +9,7 @@ import {
   moduleBlock,
   moduleCellIndex,
   renderModuleCoverage,
-} from '../src/core/module-cut.js'
+} from '../src/core/module-cut'
 
 /** Rectangle of 1s inside a width x height grid, with a one-pixel border left outside. */
 function rectangle(width: number, height: number, x: number, y: number, size: number): Uint8Array {

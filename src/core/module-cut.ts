@@ -1,6 +1,6 @@
 import sharp from 'sharp'
-import { QrPosterError } from './errors.js'
-import type { BoundingBox } from './types.js'
+import { QrPosterError } from './errors'
+import type { BoundingBox } from './types'
 
 /**
  * The poster-space module lattice the assembled cut is built on. Cell (column, row) covers one

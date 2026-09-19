@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { extname } from 'node:path'
 import sharp from 'sharp'
-import { QrPosterError } from './errors.js'
+import { QrPosterError } from './errors'
 
 export interface LoadedPng {
   path: string

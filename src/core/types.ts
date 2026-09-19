@@ -1,5 +1,5 @@
-import type { LoadedPng } from './image.js'
-import type { DecodedQr } from './qr.js'
+import type { LoadedPng } from './image'
+import type { DecodedQr } from './qr'
 
 export interface ImageDimensions {
   width: number

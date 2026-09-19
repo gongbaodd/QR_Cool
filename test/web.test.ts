@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises'
 import { describe, it, expect } from 'vitest'
 import sharp from 'sharp'
-import { assembleFromBuffers, prepareEditor } from '../src/server/editor.js'
-import { handleEditorRequest } from '../src/server/http.js'
-import { initialState, reducer } from '../src/lib/editor/state.js'
-import { MAX_BODY_BYTES } from '../src/lib/editor/schema.js'
+import { assembleFromBuffers, prepareEditor } from '../src/server/editor'
+import { handleEditorRequest } from '../src/server/http'
+import { initialState, reducer } from '../src/lib/editor/state'
+import { MAX_BODY_BYTES } from '../src/lib/editor/schema'
 const posterBytes = await readFile('source/poster.png')
 const content = 'https://example.com/qr'
 const settings = { seed: 42, qrMargin: 1 as const, plateCorners: 'texture' as const, rimModules: 4 as const, rimRounded: false as const }

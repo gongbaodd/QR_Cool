@@ -3,11 +3,11 @@ import jsQR from 'jsqr'
 import type { QRCode as JsQrResult } from 'jsqr'
 import sharp from 'sharp'
 import { QrCodeDataType, encode } from 'uqr'
-import { renderRoundedPattern } from './pattern.js'
-import { QrPosterError } from './errors.js'
-import type { LoadedPng } from './image.js'
-import { decodePng, luma, rgbaToPng } from './image.js'
-import type { QrMetadata, QrSourceTrim, VerificationCheck } from './types.js'
+import { renderRoundedPattern } from './pattern'
+import { QrPosterError } from './errors'
+import type { LoadedPng } from './image'
+import { decodePng, luma, rgbaToPng } from './image'
+import type { QrMetadata, QrSourceTrim, VerificationCheck } from './types'
 
 const {
   BinaryBitmap,

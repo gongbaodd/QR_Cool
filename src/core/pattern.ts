@@ -4,8 +4,8 @@ import { isAbsolute, join, resolve } from 'node:path'
 import sharp from 'sharp'
 import { QrCodeDataType, encode } from 'uqr'
 import type { QrCodeGenerateResult } from 'uqr'
-import { QrPosterError } from './errors.js'
-import type { PatternPreviewOptions, PatternPreviewResult, PatternReport } from './types.js'
+import { QrPosterError } from './errors'
+import type { PatternPreviewOptions, PatternPreviewResult, PatternReport } from './types'
 
 /** qrcode.antfu.me defaults: ecc 'M', 2-module margin, rounded pixel style, auto mask. */
 export const PATTERN_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'

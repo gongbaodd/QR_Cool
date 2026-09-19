@@ -1,7 +1,7 @@
 import sharp from 'sharp'
 import { randomFillSync } from 'node:crypto'
-import { prepareEditor, assembleFromBuffers } from '../src/server/editor.js'
-import { MAX_PIXELS } from '../src/lib/editor/schema.js'
+import { prepareEditor, assembleFromBuffers } from '../src/server/editor'
+import { MAX_PIXELS } from '../src/lib/editor/schema'
 const side = Math.floor(Math.sqrt(MAX_PIXELS))
 const pixels = randomFillSync(Buffer.alloc(side * side * 3))
 const posterBytes = await sharp(pixels, { raw: { width: side, height: side, channels: 3 } }).composite([{ input: await sharp({ create: { width: Math.floor(side * .8), height: Math.floor(side * .8), channels: 4, background: 'black' } }).png().toBuffer(), left: Math.floor(side * .1), top: Math.floor(side * .1) }]).png().toBuffer()

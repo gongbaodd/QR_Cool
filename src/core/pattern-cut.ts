@@ -1,8 +1,8 @@
 import sharp from 'sharp'
-import { QrPosterError } from './errors.js'
-import { luma, rgbaToPng } from './image.js'
-import type { LoadedPng } from './image.js'
-import type { BoundingBox, Point } from './types.js'
+import { QrPosterError } from './errors'
+import { luma, rgbaToPng } from './image'
+import type { LoadedPng } from './image'
+import type { BoundingBox, Point } from './types'
 
 /** Default corner fillet radius in poster pixels; matches the placed module pitch. */
 export const CUT_RADIUS = 5

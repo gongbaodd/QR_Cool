@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
 import sharp from 'sharp'
-import { renderRegionMask } from './artifacts.js'
-import { QrPosterError } from './errors.js'
-import { decodePng, rgbaToPng } from './image.js'
+import { renderRegionMask } from './artifacts'
+import { QrPosterError } from './errors'
+import { decodePng, rgbaToPng } from './image'
 import {
   buildModuleLattice,
   buildModulePath,
@@ -12,7 +12,7 @@ import {
   computeSafeArea,
   moduleCellIndex,
   renderModuleCoverage,
-} from './module-cut.js'
+} from './module-cut'
 import {
   PATTERN_ALPHABET,
   PATTERN_ECC,
@@ -21,16 +21,16 @@ import {
   PATTERN_QUIET_ZONE_MODULES,
   buildPosterPattern,
   renderRoundedPattern,
-} from './pattern.js'
-import { buildCutSvg } from './pattern-cut.js'
-import { verifyQrVariant } from './qr.js'
+} from './pattern'
+import { buildCutSvg } from './pattern-cut'
+import { verifyQrVariant } from './qr'
 import type {
   AssembleReport,
   BoundingBox,
   QrPlacement,
   ResolvedLayout,
   VerificationCheck,
-} from './types.js'
+} from './types'
 
 /** Quiet-zone modules the QR input profile carries; the plate band is cut out of them. */
 const QUIET_ZONE_MODULES = PATTERN_QUIET_ZONE_MODULES

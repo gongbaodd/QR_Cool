@@ -8,8 +8,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "next build --webpack",
-    "dev": "next dev --webpack",
+    "build": "next build",
+    "dev": "next dev",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "start": "next start",

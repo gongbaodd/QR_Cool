@@ -1,7 +1,7 @@
-import type { LoadedPng } from './image.js'
-import { luma } from './image.js'
-import { QrPosterError } from './errors.js'
-import type { BoundingBox, Point, RegionMask } from './types.js'
+import type { LoadedPng } from './image'
+import { luma } from './image'
+import { QrPosterError } from './errors'
+import type { BoundingBox, Point, RegionMask } from './types'
 
 const STRONG_BLACK_THRESHOLD = 32
 const TOLERANT_LUMA_THRESHOLD = 96
