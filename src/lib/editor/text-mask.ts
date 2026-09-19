@@ -28,7 +28,26 @@ export const TEXT_MASK_FONTS: TextMaskFont[] = [
 ]
 
 export const TEXT_MASK_FILENAME = 'text-mask.png'
-export const TEXT_MASK_DEFAULT_TEXT = 'QR'
+export const TEXT_MASK_DEFAULT_TEXT = 'Q'
+export const TEXT_MASK_MAX_LENGTH = 1
+
+/**
+ * Derive the single-letter mask suggestion from encoded content.
+ * Website-like input yields the first letter of the host (scheme and a
+ * leading `www.` are ignored, uppercased): `http://ABCD.com` -> `A`,
+ * `www.XYZ.com` -> `X`. Anything else returns '' so the caller falls back
+ * to a blank full-canvas region.
+ */
+export function deriveMaskLetter(content: string): string {
+  const trimmed = content.trim()
+  if (!trimmed || /\s/.test(trimmed)) return ''
+  const withoutScheme = trimmed.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '')
+  const withoutWww = withoutScheme.replace(/^www\./i, '')
+  const host = withoutWww.split(/[\/?#:]/, 1)[0] ?? ''
+  if (!host.includes('.')) return ''
+  const match = host.match(/[A-Za-z]/)
+  return match ? match[0]!.toUpperCase() : ''
+}
 
 /**
  * Default cap height: fill the poster height, shrunk to fit the width by

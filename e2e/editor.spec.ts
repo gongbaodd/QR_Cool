@@ -2,11 +2,19 @@ import { test, expect } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import sharp from 'sharp'
 
+async function enterMaskStep(page: import('@playwright/test').Page) {
+  await page.goto('/')
+  await expect(page.getByLabel('Text or URL', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByLabel('Blank width', { exact: true })).toBeVisible()
+}
+
 async function uploadAndEnterAdjust(page: import('@playwright/test').Page) {
+  await enterMaskStep(page)
   await page.getByLabel('Poster PNG', { exact: true }).setInputFiles('source/poster.png')
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByLabel('Text or URL', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
 }
 
 test('upload, edit, assemble, download, and invalidate', async ({ page }) => {
@@ -43,34 +51,59 @@ test('upload, edit, assemble, download, and invalidate', async ({ page }) => {
   expect(await sharp(bytes).metadata()).toMatchObject({ width: 688, height: 566 })
   await page.getByRole('button', { name: 'Return to editing' }).click()
   await page.getByRole('button', { name: 'Back to adjust' }).click()
+  await page.getByRole('button', { name: 'Change text' }).click()
   await page.getByLabel('Text or URL', { exact: true }).fill('new content')
   await expect(page.getByRole('link', { name: 'Download poster.png' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByLabel('Mask text', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Change text' }).click()
   await page.getByLabel('Text or URL', { exact: true }).fill('line\nline')
   await expect(page.getByText('Use one line only.')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeDisabled()
+})
+
+test('step 1 derives the mask letter from website content', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Text or URL', { exact: true }).fill('http://ABCD.com')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByLabel('Mask text', { exact: true })).toHaveValue('A')
+  await page.getByRole('button', { name: 'Step 1 Input text' }).click()
+  await page.getByLabel('Text or URL', { exact: true }).fill('www.XYZ.com')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByLabel('Mask text', { exact: true })).toHaveValue('X')
+  await page.getByRole('button', { name: 'Step 1 Input text' }).click()
+  await page.getByLabel('Text or URL', { exact: true }).fill('just some words')
+  await expect(page.getByText('Plain text — step 2 starts from a blank full-canvas region.')).toBeVisible()
 })
 
 test('blank canvas starts an editable poster without an upload', async ({ page }) => {
   await page.goto('/')
+  await expect(page.getByLabel('Text or URL', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page.getByLabel('Blank width', { exact: true })).toHaveValue('1000')
   await expect(page.getByLabel('Blank height', { exact: true })).toHaveValue('1000')
   await page.getByLabel('Blank width', { exact: true }).fill('800')
   await page.getByRole('button', { name: 'Use blank canvas', exact: true }).click()
   await expect(page.getByText('blank-poster.png')).toBeVisible()
   await expect(page.getByText('Mask: blank-mask.png')).toBeVisible()
-  await expect(page.getByText('800 × 1000')).toBeVisible()
+  await expect(page.getByText('blank-poster.png · 800 × 1000 px')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByLabel('Text or URL', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
 })
 
-test('text mask draws the region from a display font word', async ({ page }) => {
+test('text mask draws the region from a single display-font letter', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.getByRole('button', { name: 'Use blank canvas', exact: true }).click()
   await expect(page.getByText('Mask: blank-mask.png')).toBeVisible()
   await page.getByLabel('Mask text', { exact: true }).fill('QR')
+  await expect(page.getByLabel('Mask text', { exact: true })).toHaveValue('Q')
   const bright = await page.getByLabel('Mask text preview').evaluate(node => {
     const canvas = node as HTMLCanvasElement
     const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
@@ -79,67 +112,28 @@ test('text mask draws the region from a display font word', async ({ page }) => 
     return count
   })
   expect(bright).toBeGreaterThan(100)
+  await expect(page.getByRole('radiogroup', { name: 'Mask font' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Mask font Fat Cat' }).click()
+  await expect(page.getByRole('radio', { name: 'Mask font Fat Cat' })).toHaveAttribute('aria-checked', 'true')
   await page.getByLabel('Mask text size', { exact: true }).fill('400')
-  await page.getByRole('button', { name: 'Use text as mask', exact: true }).click()
+  await page.getByRole('button', { name: 'Use letter as mask', exact: true }).click()
   await expect(page.getByText('Mask: text-mask.png')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
 })
 
-test('text mask defaults to full height and warns on words too small for the QR', async ({ page }) => {
+test('text mask defaults to full height and warns on letters too small for the QR', async ({ page }) => {
   await page.goto('/')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page.getByRole('button', { name: 'Use blank canvas', exact: true }).click()
   await expect(page.getByText('Mask: blank-mask.png')).toBeVisible()
   await expect(page.getByLabel('Mask text size', { exact: true })).toHaveValue('1000')
-  await page.getByRole('button', { name: 'Use text as mask', exact: true }).click()
+  await page.getByRole('button', { name: 'Use letter as mask', exact: true }).click()
   await expect(page.getByText('Mask: text-mask.png')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
-  await page.getByLabel('Mask text', { exact: true }).fill('EXTRAORDINARY')
-  await expect(page.getByText('even at full height')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Use text as mask', exact: true })).toBeDisabled()
-})
-
-test('blank canvas starts an editable poster without an upload', async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Use blank canvas', exact: true }).click()
-  await expect(page.getByText('blank-poster.png')).toBeVisible()
-  await page.getByText('Adjust region selection', { exact: true }).click()
-  await expect(page.getByText('Mask: blank-mask.png')).toBeVisible()
-  await expect(page.getByText('1000 × 1000')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeEnabled()
-})
-
-test('text mask draws the region from a display font word', async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Use blank canvas', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeEnabled()
-  await page.getByText('Adjust region selection', { exact: true }).click()
-  await page.getByLabel('Mask text', { exact: true }).fill('QR')
-  const bright = await page.getByLabel('Mask text preview').evaluate(node => {
-    const canvas = node as HTMLCanvasElement
-    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
-    let count = 0
-    for (let i = 0; i < pixels.length; i += 4) if (pixels[i]! > 128) count++
-    return count
-  })
-  expect(bright).toBeGreaterThan(100)
-  await page.getByLabel('Mask text size', { exact: true }).fill('400')
-  await page.getByRole('button', { name: 'Use text as mask', exact: true }).click()
-  await expect(page.getByText('Mask: text-mask.png')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeEnabled()
-})
-
-test('text mask defaults to full height and warns on words too small for the QR', async ({ page }) => {
-  await page.goto('/')
-  await page.getByRole('button', { name: 'Use blank canvas', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeEnabled()
-  await page.getByText('Adjust region selection', { exact: true }).click()
-  await expect(page.getByLabel('Mask text size', { exact: true })).toHaveValue('1000')
-  await page.getByRole('button', { name: 'Use text as mask', exact: true }).click()
-  await expect(page.getByText('Mask: text-mask.png')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeEnabled()
-  await page.getByLabel('Mask text', { exact: true }).fill('EXTRAORDINARY')
-  await expect(page.getByText('even at full height')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Use text as mask', exact: true })).toBeDisabled()
+  await page.getByLabel('Mask text', { exact: true }).fill('I')
+  await page.getByLabel('Mask text size', { exact: true }).fill('40')
+  await expect(page.getByText('leaves no room for the QR')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Use letter as mask', exact: true })).toBeDisabled()
 })
 
 test('invalid placement retains inputs and reset recovers', async ({ page }) => {
@@ -149,7 +143,7 @@ test('invalid placement retains inputs and reset recovers', async ({ page }) => 
   await page.getByLabel('QR X', { exact: true }).fill('0')
   await expect(page.getByRole('alert')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeDisabled()
-  await expect(page.getByLabel('Text or URL', { exact: true })).toHaveValue('https://example.com')
+  await expect(page.getByText('Encoding: https://example.com')).toBeVisible()
   await page.getByRole('button', { name: 'Reset to automatic placement' }).click()
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
 })

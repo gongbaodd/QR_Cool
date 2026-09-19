@@ -4,7 +4,9 @@ import {
   TEXT_MASK_DEFAULT_TEXT,
   TEXT_MASK_FILENAME,
   TEXT_MASK_FONTS,
+  TEXT_MASK_MAX_LENGTH,
   defaultTextMaskSize,
+  deriveMaskLetter,
   fitTextMaskSize,
   largestWhiteSquare,
 } from '../src/lib/editor/text-mask.js'
@@ -19,7 +21,20 @@ describe('text mask fonts', () => {
       expect(existsSync(`public${font.file}`)).toBe(true)
     }
     expect(TEXT_MASK_FILENAME).toBe('text-mask.png')
-    expect(TEXT_MASK_DEFAULT_TEXT.trim().length).toBeGreaterThan(0)
+    expect(TEXT_MASK_DEFAULT_TEXT.trim().length).toBe(1)
+    expect(TEXT_MASK_MAX_LENGTH).toBe(1)
+  })
+
+  it('derives a single mask letter from website content and blanks otherwise', () => {
+    expect(deriveMaskLetter('http://ABCD.com')).toBe('A')
+    expect(deriveMaskLetter('https://ABCD.com/page')).toBe('A')
+    expect(deriveMaskLetter('www.XYZ.com')).toBe('X')
+    expect(deriveMaskLetter('https://example.com/qr')).toBe('E')
+    expect(deriveMaskLetter('  https://example.com  ')).toBe('E')
+    expect(deriveMaskLetter('hello')).toBe('')
+    expect(deriveMaskLetter('not a site')).toBe('')
+    expect(deriveMaskLetter('123')).toBe('')
+    expect(deriveMaskLetter('')).toBe('')
   })
 
   it('defaults the cap to the poster height so words fill the region', () => {
