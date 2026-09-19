@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import * as stylex from '@stylexjs/stylex'
+import { ui } from '../styles/ui.stylex'
 import './globals.css'
 export const metadata: Metadata = {
   title: 'QR / COOL — Artistic poster editor',
@@ -7,7 +9,7 @@ export const metadata: Metadata = {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body {...stylex.props(ui.body)}>{children}</body>
     </html>
   )
 }

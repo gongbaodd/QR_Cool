@@ -34,6 +34,15 @@ Pattern settings provide a stable seed, **New pattern**, a fixed 1-module finder
 
 **Artistic margins can affect scanning. Test the downloaded poster with your phone.** The result is not scan-certified. The report deliberately skips poster/full-size, half-scale, and JPEG decoding checks; `phoneScan` remains `untested`.
 
+## Styling
+
+Component styles are authored in [StyleX](https://stylexjs.com). The browser receives one compiled atomic stylesheet; no CSS-in-JS runtime ships.
+
+- `src/styles/tokens.stylex.ts` is the single home for the palette, the hand-drawn border-radius/shadow set, and the type stack. `src/styles/ui.stylex.ts` holds the recipes shared by more than one surface (buttons, fields, hints, cards), and every component keeps its own layout styles next to its JSX.
+- `babel.config.json` compiles `stylex.create()`/`stylex.props()` calls and `postcss.config.mjs` replaces the `@stylex` directive in `src/app/globals.css` with the collected rules. Next.js 16.0.3 and later run both under Turbopack, so `pnpm dev`, `pnpm build`, and `pnpm start` are unchanged.
+- `src/app/globals.css` keeps only what StyleX cannot express: the `@font-face` declarations for the bundled mask fonts, an `@layer reset` block (box-sizing and text-size-adjust), and the `@stylex` slot. Generated rules land in StyleX's own `priority…` layers, which are declared after `reset`.
+- Styles that used to be inherited from global element or descendant selectors (`section h2 span`, the even-child tilted buttons, `.font-card .font-glyph`, `.konvajs-content`, the step-2 preview panel) are now explicit props on the elements they belong to.
+
 ## Renderer contract
 
 - `uqr`, M error correction, automatic mask selection, two locally drawn source margin modules, existing rounded module geometry.

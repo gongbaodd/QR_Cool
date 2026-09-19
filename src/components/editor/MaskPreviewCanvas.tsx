@@ -1,7 +1,36 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import * as stylex from '@stylexjs/stylex'
 import { fitTextMaskSize } from '../../lib/editor/text-mask'
 import type { IconItem } from '../../lib/editor/text-mask'
+import { tokens } from '../../styles/tokens.stylex'
+
+const styles = stylex.create({
+  wrap: {
+    display: 'flex',
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 18,
+    overflow: 'hidden',
+    backgroundColor: tokens.paper,
+    borderWidth: 2.5,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketchCard,
+    boxShadow: tokens.shadowLg,
+  },
+  canvas: {
+    width: '100%',
+    maxWidth: 560,
+    aspectRatio: '1 / 1',
+    backgroundColor: 'black',
+    borderWidth: 2,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketchAlt,
+  },
+})
 
 export interface MaskPreviewCanvasProps {
   effectiveMask: string
@@ -131,26 +160,13 @@ export default function MaskPreviewCanvas({
     }
   }, [effectiveMask, family, isBlank, isIconMode, selectedIconId, iconResults, galleryMode])
   return (
-    <div
-      className="mask-preview-wrap"
-      style={{
-        border: '2.5px solid var(--ink)',
-        borderRadius: 'var(--sketch-card)',
-        overflow: 'hidden',
-        background: 'var(--paper)',
-        boxShadow: 'var(--shadow-lg)',
-        padding: 18,
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}
-    >
+    <div {...stylex.props(styles.wrap)}>
       <canvas
+        {...stylex.props(styles.canvas)}
         ref={maskPreview}
         width={600}
         height={600}
         aria-label="Mask text preview"
-        style={{ width: '100%', maxWidth: 560, aspectRatio: '1 / 1', borderRadius: 12, background: 'black' }}
       />
     </div>
   )

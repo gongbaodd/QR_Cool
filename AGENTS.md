@@ -16,6 +16,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 - Tests never make paid calls: mock API responses, use local fixtures.
 - No request invokes a CLI or writes temporary files. `output/` and `dist/` are gitignored run products; schema-8 assembly reports are preserved, with web revision and response metadata in a separate version-1 API envelope.
 - The renderer lives in the `src/core/` engine modules; `src/server/` owns the stateless buffer services and HTTP adapters, `src/lib/editor/` holds schemas and reducer state, and `src/components/editor/` owns browser interaction.
+- Component styles are StyleX: tokens and shared recipes in `src/styles/`, layout styles beside their component. `src/app/globals.css` holds only `@font-face`, the `@layer reset` block, and the `@stylex` slot that `babel.config.json` + `postcss.config.mjs` compile into.
 
 ## QR pattern generation
 
@@ -30,3 +31,13 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 ## Docs
 
 - Behavior changes update `README.md` and `doc/plan/web-qr-poster.md`. `doc/plan/artistic-qr-poster.md` is historical design context.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

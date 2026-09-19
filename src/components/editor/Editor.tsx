@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useReducer, useRef, useState } from 'react'
+import * as stylex from '@stylexjs/stylex'
 import { initialState, reducer } from '../../lib/editor/state'
 import { canonicalPlacement, contentSchema, MAX_IMAGE_BYTES } from '../../lib/editor/schema'
 import {
@@ -24,6 +25,28 @@ import { useBlobUrls } from './hooks/use-blob-urls'
 import { useEditorRequest } from './hooks/use-editor-request'
 import { useIconSearch } from './hooks/use-icon-search'
 import { useMaskSelection } from './hooks/use-mask-selection'
+import { ui } from '../../styles/ui.stylex'
+
+const styles = stylex.create({
+  workspace: {
+    display: 'grid',
+    gridTemplateColumns: '360px minmax(0, 1fr)',
+    minHeight: 'calc(100vh - 88px)',
+    alignItems: 'start',
+    '@media (max-width: 1000px)': {
+      gridTemplateColumns: '300px minmax(0, 1fr)',
+    },
+    '@media (max-width: 700px)': {
+      display: 'flex',
+      flexDirection: 'column',
+    },
+  },
+  /** Step 2 centers the mask preview against the taller sidebar. */
+  workspaceStep2: {
+    alignItems: 'center',
+  },
+})
+
 const freshSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!
 const steps = ['Input text', 'Mask Search', 'Adjust QR', 'Generate']
 export default function Editor() {
@@ -184,11 +207,11 @@ export default function Editor() {
           onRetry={() => void request('prepare')}
         />
       ) : (
-        <div className={step === 2 ? 'workspace workspace-step2' : 'workspace'}>
-          <aside>
-            <div className="panel-heading">
-              <span className="eyebrow">POSTER STUDIO · STEP {step} OF 4</span>
-              <h1>
+        <div {...stylex.props(styles.workspace, step === 2 && styles.workspaceStep2)}>
+          <aside {...stylex.props(ui.aside, ui.asideCompact)}>
+            <div>
+              <span {...stylex.props(ui.eyebrow)}>POSTER STUDIO · STEP {step} OF 4</span>
+              <h1 {...stylex.props(ui.pageTitle)}>
                 Make the code
                 <br />
                 part of the art.

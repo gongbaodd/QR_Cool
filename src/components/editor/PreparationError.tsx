@@ -1,8 +1,13 @@
+import * as stylex from '@stylexjs/stylex'
+import { ui } from '../../styles/ui.stylex'
+
 export default function PreparationError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="error" role="alert">
+    <div {...stylex.props(ui.error)} role="alert">
       {message}
-      <button onClick={onRetry}>Retry preparation</button>
+      <button {...stylex.props(ui.button, ui.errorButton)} onClick={onRetry}>
+        Retry preparation
+      </button>
     </div>
   )
 }

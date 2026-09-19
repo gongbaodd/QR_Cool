@@ -1,7 +1,39 @@
+import * as stylex from '@stylexjs/stylex'
 import { TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH } from '../../../lib/editor/text-mask'
 import type { SearchControlState } from '../../../lib/editor/text-mask'
 import type { IconSearch } from '../hooks/use-icon-search'
 import type { MaskSelection } from '../hooks/use-mask-selection'
+import { ui } from '../../../styles/ui.stylex'
+
+const styles = stylex.create({
+  /** Kept for the legacy label that some hosts still look up by id. */
+  compat: {
+    display: 'none',
+  },
+  fontSizeRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 1fr)',
+    gap: 10,
+    margin: '14px 0',
+  },
+  glyphSmall: {
+    fontSize: 14,
+  },
+  glyphTight: {
+    fontSize: 16,
+  },
+  searchBlock: {
+    marginTop: 10,
+  },
+  searchButton: {
+    width: '100%',
+  },
+  nav: {
+    display: 'flex',
+    gap: 12,
+    marginTop: 18,
+  },
+})
 
 export default function StepMaskSearch({
   mask,
@@ -24,13 +56,14 @@ export default function StepMaskSearch({
   const { total, loading, error, fetchedQuery, galleryMode, results } = search
   const searchQuery = text.trim()
   return (
-    <section>
-      <h2>
-        <span>02</span> Mask Search
+    <section {...stylex.props(ui.section, ui.sectionFirst)}>
+      <h2 {...stylex.props(ui.sectionHeading)}>
+        <span {...stylex.props(ui.sectionNumber)}>02</span> Mask Search
       </h2>
-      <label htmlFor="maskSearch">
+      <label {...stylex.props(ui.label)} htmlFor="maskSearch">
         Mask Search
         <input
+          {...stylex.props(ui.field)}
           id="maskSearch"
           aria-label="Mask search"
           aria-describedby="mask-search-hint"
@@ -40,43 +73,45 @@ export default function StepMaskSearch({
           onChange={(e) => mask.setText(e.target.value.slice(0, TEXT_MASK_MAX_LENGTH))}
         />
       </label>
-      <span id="mask-search-compat" style={{ display: 'none' }}>
-        <label htmlFor="maskSearch">Mask text</label>
+      <span id="mask-search-compat" {...stylex.props(styles.compat)}>
+        <label {...stylex.props(ui.label)} htmlFor="maskSearch">
+          Mask text
+        </label>
       </span>
       {suggestedMask ? (
-        <p id="mask-search-hint" className="hint">
+        <p id="mask-search-hint" {...stylex.props(ui.hint)}>
           Suggested letter <strong>{suggestedMask}</strong> from your link.
           {!isBlank && !isIconMode && (text.trim()[0] ?? '') !== suggestedMask && (
-            <button className="text-button" onClick={() => mask.setText(suggestedMask)}>
+            <button {...stylex.props(ui.button, ui.textButton)} onClick={() => mask.setText(suggestedMask)}>
               Use suggested letter
             </button>
           )}
         </p>
       ) : (
-        <p id="mask-search-hint" className="hint">
+        <p id="mask-search-hint" {...stylex.props(ui.hint)}>
           Plain text uses a blank region — pick any letter or search icons.
         </p>
       )}
       {loading && (
-        <p className="hint" role="status">
+        <p {...stylex.props(ui.hint, ui.status)} role="status">
           Searching icons…
         </p>
       )}
       {error && fetchedQuery === searchQuery && (
-        <p className="error" role="alert">
+        <p {...stylex.props(ui.error)} role="alert">
           {error}
         </p>
       )}
       {!loading && !error && fetchedQuery === searchQuery && fetchedQuery && results.length === 0 && (
-        <p className="hint">No icons found for “{fetchedQuery}”. Try another term.</p>
+        <p {...stylex.props(ui.hint)}>No icons found for “{fetchedQuery}”. Try another term.</p>
       )}
       {!loading && fetchedQuery === searchQuery && fetchedQuery && results.length > 0 && (
-        <p className="hint">
+        <p {...stylex.props(ui.hint)}>
           Found {total || results.length} icons for “{fetchedQuery}”.
         </p>
       )}
-      <div className="font-row" role="radiogroup" aria-label="Mask options">
-        {TEXT_MASK_FONTS.map((entry) => {
+      <div {...stylex.props(styles.fontSizeRow)} role="radiogroup" aria-label="Mask options">
+        {TEXT_MASK_FONTS.map((entry, index) => {
           const isBlankEntry = entry.id === 'blank'
           const selected = !selectedIconId && fontId === entry.id
           const glyph = effectiveMask || 'A'
@@ -84,6 +119,12 @@ export default function StepMaskSearch({
           return (
             <button
               key={entry.id}
+              {...stylex.props(
+                ui.button,
+                ui.fontCard,
+                index % 2 === 1 && ui.buttonAlt,
+                selected && ui.fontCardSelected,
+              )}
               type="button"
               role="radio"
               aria-checked={selected}
@@ -91,29 +132,28 @@ export default function StepMaskSearch({
               title={entry.label}
               disabled={disabled}
               onClick={() => mask.selectFont(entry.id)}
-              className={selected ? 'font-card selected' : 'font-card'}
             >
               {isBlankEntry ? (
                 <>
-                  <span className="font-glyph" style={{ fontSize: 14 }}>
-                    blank
-                  </span>
-                  <span className="font-name">{entry.label}</span>
+                  <span {...stylex.props(ui.fontGlyph, styles.glyphSmall)}>blank</span>
+                  <span {...stylex.props(ui.fontName)}>{entry.label}</span>
                 </>
               ) : (
                 <>
-                  <span className="font-glyph" style={{ fontFamily: `"${entry.family}", sans-serif` }}>
+                  {/* The picked family is per-font data, so it stays an inline value. */}
+                  <span {...stylex.props(ui.fontGlyph)} style={{ fontFamily: `"${entry.family}", sans-serif` }}>
                     {glyph}
                   </span>
-                  <span className="font-name">{entry.label}</span>
+                  <span {...stylex.props(ui.fontName)}>{entry.label}</span>
                 </>
               )}
             </button>
           )
         })}
       </div>
-      <div style={{ marginTop: 10 }}>
+      <div {...stylex.props(styles.searchBlock)}>
         <button
+          {...stylex.props(ui.button, ui.fontCard, styles.searchButton, galleryMode && ui.fontCardSelected)}
           aria-label="More icons"
           title={
             searchState === 'idle'
@@ -124,10 +164,8 @@ export default function StepMaskSearch({
           }
           disabled={busy || loading}
           onClick={onSearch}
-          className={galleryMode ? 'font-card selected' : 'font-card'}
-          style={{ width: '100%' }}
         >
-          <span className="font-glyph" style={{ fontSize: 16 }}>
+          <span {...stylex.props(ui.fontGlyph, styles.glyphTight)}>
             {loading
               ? '⋯ searching…'
               : searchState === 'more'
@@ -136,29 +174,37 @@ export default function StepMaskSearch({
                   ? '⋯ search icons'
                   : `⋯ search ${searchQuery.slice(0, 10)}`}
           </span>
-          <span className="font-name">{loading ? 'searching' : searchState === 'more' ? 'more icons' : 'search'}</span>
+          <span {...stylex.props(ui.fontName)}>
+            {loading ? 'searching' : searchState === 'more' ? 'more icons' : 'search'}
+          </span>
         </button>
-        {searchState === 'idle' && !loading && <p className="hint">Type a letter or word to search icons.</p>}
+        {searchState === 'idle' && !loading && <p {...stylex.props(ui.hint)}>Type a letter or word to search icons.</p>}
       </div>
       {!isBlank && !isIconMode && font.note && (
-        <p className="hint">
+        <p {...stylex.props(ui.hint)}>
           {font.label}: {font.note}
         </p>
       )}
       {busy && (
-        <p className="hint" role="status">
+        <p {...stylex.props(ui.hint, ui.status)} role="status">
           Drawing mask…
         </p>
       )}
       {tooSmall && (
-        <p className="error" role="alert">
+        <p {...stylex.props(ui.error)} role="alert">
           This {isIconMode ? 'icon' : 'letter'} leaves no room for the QR even at full height. Use a wider{' '}
           {isIconMode ? 'icon' : 'letter'}.
         </p>
       )}
-      <div className="step-nav">
-        <button onClick={() => onGoto(1)}>Back</button>
-        <button className="primary" disabled={!prepared} onClick={() => onGoto(3)}>
+      <div {...stylex.props(styles.nav)}>
+        <button {...stylex.props(ui.button)} onClick={() => onGoto(1)}>
+          Back
+        </button>
+        <button
+          {...stylex.props(ui.button, ui.primary, ui.buttonAlt, ui.primaryStretch, ui.primaryShadow)}
+          disabled={!prepared}
+          onClick={() => onGoto(3)}
+        >
           Continue
         </button>
       </div>
