@@ -23,10 +23,10 @@ No credentials or accounts are needed. QR text is never fetched as a URL. Upload
 
 ## Editing
 
-1. Choose a **Poster PNG**. The editor detects the dense black shape and highlights it in green. If needed, upload an optional same-size **region mask PNG**: white selects the region, black excludes it.
-2. Enter one nonblank line of text or a URL. Surrounding spaces are preserved exactly.
-3. Drag the QR, resize a corner, or enter **X**, **Y**, and **Size** in original poster pixels. X/Y include the normalized QR's two-module source margin. Size snaps to whole modules, at least four pixels per module. Arrow keys move one pixel; Shift+arrow moves ten. On touch screens, use the direction buttons or drag. Zoom and scrolling change only the editing view.
-4. **Assemble poster** draws and verifies the full-resolution result. Download **poster.png**, or expand **Artifacts & verification** for the QR PNG, transparent cut PNG, cut SVG, region mask, and schema-8 report.
+1. **Step 1 — Blank size.** Set a white canvas width and height (up to 4 megapixels total) and choose **Use blank canvas** for a full-canvas region with no upload, or upload a **Poster PNG** instead.
+2. **Step 2 — Mask or poster.** The editor detects the dense black shape and highlights it in green. If needed, upload an optional same-size **region mask PNG**: white selects the region, black excludes it. Under this step you can also draw the mask from a word in a bundled display font (Fathead, personal use only) instead of uploading one: type the word, preview the letterforms, and apply it as the mask.
+3. **Step 3 — Adjust QR with the mask.** Enter one nonblank line of text or a URL. Surrounding spaces are preserved exactly. Drag the QR, resize a corner, or enter **X**, **Y**, and **Size** in original poster pixels. X/Y include the normalized QR's two-module source margin. Size snaps to whole modules, at least four pixels per module. Arrow keys move one pixel; Shift+arrow moves ten. On touch screens, use the direction buttons or drag. Zoom and scrolling change only the editing view.
+4. **Step 4 — Generate.** **Assemble poster** draws and verifies the full-resolution result. Download **poster.png**, or expand **Artifacts & verification** for the QR PNG, transparent cut PNG, cut SVG, region mask, and schema-8 report.
 
 Every input edit invalidates the previous output. Invalid manual placements are flagged and never silently moved. **Reset to automatic placement** finds a valid square with space left for texture. Longer content retains the previous center and module pitch when possible, then revalidates the enlarged QR.
 

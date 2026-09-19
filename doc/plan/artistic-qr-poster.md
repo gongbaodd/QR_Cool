@@ -2,6 +2,10 @@
 
 Next product direction: [Web QR poster editor](web-qr-poster.md). That plan reuses the offline assembly engine and replaces the CLI after the web workflow passes its acceptance gates. The notes below describe the existing implementation and its history.
 
+## Web wizard (2026-09-18)
+
+The browser editor runs in four steps: 1 blank size (custom white canvas dimensions or poster upload), 2 mask or poster (detection plus optional mask/text mask), 3 adjust QR with the mask (content, placement, pattern settings, canvas), 4 generate (assemble, verify, download). No engine or report change.
+
 ## Behavior
 
 - Keep the current QR size, position, and white margin.
