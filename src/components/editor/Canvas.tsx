@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { Stage, Layer, Image as CanvasImage, Transformer } from 'react-konva'
+import { Group, Stage, Layer, Image as CanvasImage, Rect, Transformer } from 'react-konva'
 import type Konva from 'konva'
 import { canonicalPlacement, fitsMask } from '../../lib/editor/schema'
 import type { Placement } from '../../lib/editor/schema'
@@ -163,7 +163,8 @@ export default function EditorCanvas({
     overlayImage = useImage(overlay),
     qrImage = useImage(qr)
   const wrapper = useRef<HTMLDivElement>(null),
-    node = useRef<Konva.Image>(null),
+    node = useRef<Konva.Group>(null),
+    border = useRef<Konva.Rect>(null),
     transformer = useRef<Konva.Transformer>(null)
   const [viewport, setViewport] = useState(800),
     [showMask, setShowMask] = useState(true)
@@ -178,11 +179,12 @@ export default function EditorCanvas({
   const fit = Math.min((viewport - 32) / width, 640 / height, 1)
   const scale = fit
   // Show the QR with a 1-module light margin: the normalized preview carries a
-  // 2-module quiet zone, so crop 1 module per side and inset the node.
+  // 2-module quiet zone, so render the inner (1-module) crop inset in a Group.
+  // The Group is the transform/drag target (full placement), the inner Image is
+  // offset by 1 pitch and cropped to the 1-module window. Scaling the Group
+  // keeps the pitch accurate (full placement maps 1:1 to stage coords).
   const pitch = modules ? placement.size / modules : 0
   const margin = pitch
-  const displayX = placement.x + margin
-  const displayY = placement.y + margin
   const displaySize = placement.size - 2 * margin
   function nudge(dx: number, dy: number) {
     onChange({ ...placement, x: Math.max(0, placement.x + dx), y: Math.max(0, placement.y + dy) })
@@ -225,41 +227,49 @@ export default function EditorCanvas({
             <Layer>
               <CanvasImage image={posterImage} width={width} height={height} listening={false} />
               {showMask && <CanvasImage image={overlayImage} width={width} height={height} listening={false} />}
-              <CanvasImage
+              <Group
                 ref={node}
-                image={qrImage}
-                x={displayX}
-                y={displayY}
-                width={displaySize}
-                height={displaySize}
-                crop={{ x: margin, y: margin, width: displaySize, height: displaySize }}
+                x={placement.x}
+                y={placement.y}
+                width={placement.size}
+                height={placement.size}
                 draggable
                 dragDistance={1}
                 onDragMove={(e) => {
-                  const box = canonicalPlacement(
-                    { ...placement, x: e.target.x() - margin, y: e.target.y() - margin },
-                    modules,
-                  )
-                  node.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? '#dd3748' : '#087f67')
+                  const box = canonicalPlacement({ ...placement, x: e.target.x(), y: e.target.y() }, modules)
+                  border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? '#dd3748' : '#087f67')
                 }}
-                stroke={invalid ? '#dd3748' : '#087f67'}
-                strokeWidth={2 / scale}
                 onDragEnd={(e) =>
-                  onChange(
-                    canonicalPlacement({ ...placement, x: e.target.x() - margin, y: e.target.y() - margin }, modules),
-                  )
+                  onChange(canonicalPlacement({ ...placement, x: e.target.x(), y: e.target.y() }, modules))
                 }
                 onTransformEnd={() => {
                   const n = node.current!
-                  const croppedSize = n.width() * n.scaleX()
-                  const nextPitch = modules > 2 ? croppedSize / (modules - 2) : pitch
-                  const fullSize = nextPitch * modules
-                  const fullX = n.x() - nextPitch
-                  const fullY = n.y() - nextPitch
+                  // Group width/height is the full placement size; scale is the live transform
+                  const fullSize = n.width() * n.scaleX()
+                  const fullX = n.x()
+                  const fullY = n.y()
                   n.scale({ x: 1, y: 1 })
                   onChange(canonicalPlacement({ x: fullX, y: fullY, size: fullSize }, modules))
                 }}
-              />
+              >
+                <CanvasImage
+                  image={qrImage}
+                  x={margin}
+                  y={margin}
+                  width={displaySize}
+                  height={displaySize}
+                  crop={{ x: margin, y: margin, width: displaySize, height: displaySize }}
+                  listening={false}
+                />
+                <Rect
+                  ref={border}
+                  width={placement.size}
+                  height={placement.size}
+                  stroke={invalid ? '#dd3748' : '#087f67'}
+                  strokeWidth={2 / scale}
+                  listening={false}
+                />
+              </Group>
               <Transformer
                 ref={transformer}
                 rotateEnabled={false}
@@ -269,7 +279,7 @@ export default function EditorCanvas({
                 anchorSize={14}
                 anchorCornerRadius={3}
                 borderStroke={invalid ? '#dd3748' : '#087f67'}
-                boundBoxFunc={(old, next) => (next.width < (modules - 2) * 4 * scale ? old : next)}
+                boundBoxFunc={(old, next) => (next.width < modules * 4 * scale ? old : next)}
               />
             </Layer>
           </Stage>
