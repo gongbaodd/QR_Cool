@@ -177,7 +177,7 @@ it('finds a smaller assembly-valid automatic placement on a small poster', async
     ])
     .png()
     .toBuffer()
-  const p = await prepareEditor({ posterBytes: small, maskBytes: mask, content })
+  const p = await prepareEditor({ posterBytes: small, maskBytes: mask, content, settings })
   expect(p.placement.size).toBeLessThan(203)
   const r = await assembleFromBuffers({
     posterBytes: small,

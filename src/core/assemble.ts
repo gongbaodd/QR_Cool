@@ -31,8 +31,8 @@ const QUIET_ZONE_MODULES = PATTERN_QUIET_ZONE_MODULES
 const BAND_MODULES = 1 as const
 /** Finder patterns are 7x7 modules; the band arms span that footprint along the code edge. */
 const MARKER_MODULES = 7 as const
-/** Default outer rings of drawn modules forced dark; configurable 0-5. */
-const DEFAULT_RIM_MODULES = 4 as const
+/** Default outer rings of drawn modules forced dark; configurable 0-5. UI exposes 0/1 via Add Rim checkbox. */
+const DEFAULT_RIM_MODULES = 1 as const
 /** A requested `--cut-radius` below this keeps the marker corner blocks light; any larger value cuts them. */
 const PLATE_CORNER_EPSILON = 0.01
 const SKIPPED_DECODE_CHECKS = ['poster', 'posterHalfScale', 'posterJpeg80'] as const

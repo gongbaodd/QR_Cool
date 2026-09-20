@@ -89,7 +89,7 @@ export function validatePlacement({
     )
   return p
 }
-const defaults: Settings = { seed: 0, qrMargin: 1, plateCorners: 'texture', rimModules: 4, rimRounded: false }
+const defaults: Settings = { seed: 0, qrMargin: 1, plateCorners: 'texture', rimModules: 1, rimRounded: false }
 async function resolveBuffers(input: BufferInput): Promise<{ layout: ResolvedLayout; validation: string | null }> {
   contentSchema.parse(input.content)
   const poster = await readImage(input.posterBytes, 'poster')
