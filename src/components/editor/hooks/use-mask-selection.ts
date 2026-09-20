@@ -69,9 +69,9 @@ async function drawIconMask(width: number, height: number, svgText: string, capP
   ctx.fillRect(0, 0, width, height)
   const naturalW = (img as unknown as { naturalWidth: number }).naturalWidth || img.width || 24
   const naturalH = (img as unknown as { naturalHeight: number }).naturalHeight || img.height || 24
-  const maxW = width * 0.94,
-    maxH = Math.min(capPx, height * 0.94)
-  const scale = Math.min(maxW / naturalW, maxH / naturalH, 1)
+  const maxW = width * 0.8,
+    maxH = Math.min(capPx, height) * 0.8
+  const scale = Math.min(maxW / naturalW, maxH / naturalH)
   const drawW = naturalW * scale,
     drawH = naturalH * scale
   ctx.drawImage(img, (width - drawW) / 2, (height - drawH) / 2, drawW, drawH)

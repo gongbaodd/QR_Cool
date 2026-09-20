@@ -113,7 +113,7 @@ export default function MaskPreviewCanvas({
           context.fillRect(0, 0, node.width, node.height)
           const nw = (img as unknown as { naturalWidth: number }).naturalWidth || img.width || 24
           const nh = (img as unknown as { naturalHeight: number }).naturalHeight || img.height || 24
-          const scale = Math.min((node.width * 0.9) / nw, (node.height * 0.92) / nh, 1)
+          const scale = Math.min((node.width * 0.8) / nw, (node.height * 0.8) / nh)
           const dw = nw * scale,
             dh = nh * scale
           context.drawImage(img, (node.width - dw) / 2, (node.height - dh) / 2, dw, dh)
