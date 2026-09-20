@@ -25,22 +25,22 @@ export interface EngineInput {
   settings?: Partial<Settings>
 }
 
-/** The step-2 payload: preview artifacts as base64 PNG strings (temporary until step 4's Blob transport). */
+/** The step-2 payload: preview artifacts as Blobs (built in the worker; Blobs cross postMessage by reference). */
 export interface PreparedPayload {
   width: number
   height: number
-  mask: string
-  overlay: string
-  qr: string
+  mask: Blob
+  overlay: Blob
+  qr: Blob
   qrMetadata: { totalModules: number; version: number }
   placement: { x: number; y: number; size: number }
   validation: string | null
 }
 
-/** The step-4 payload mirrors the schema-8 envelope: report plus base64 artifacts. */
+/** The step-4 payload mirrors the schema-8 envelope: report plus Blob artifacts. */
 export interface AssemblePayload {
   report: import('../../../core/types').AssembleReport
-  artifacts: Record<string, string>
+  artifacts: Record<string, Blob>
 }
 
 export type EngineOutcome<T> =

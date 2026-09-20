@@ -49,6 +49,11 @@ function countDecodes() {
   }
 }
 
+/** Hashes a Blob's bytes with the Node backend, so Blob payloads can be pinned to report hashes. */
+async function sessionDigest(blob: Blob): Promise<string> {
+  return nodeImaging.sha256Hex(new Uint8Array(await blob.arrayBuffer()))
+}
+
 describe('engine pipeline: artifact parity with the former server orchestration', () => {
   it('preserves pre-refactor artifact bytes and logical input names', async () => {
     const session = await makeEngine()
@@ -69,6 +74,25 @@ describe('engine pipeline: artifact parity with the former server orchestration'
     expect(result.report.inputs.poster.path).toBe('poster.png')
     expect(result.report.verification.checks.every((c) => c.passed)).toBe(true)
     expect(result.report.schemaVersion).toBe(8)
+  })
+
+  it('carries preview/result images as Blobs with the artifact-implied mime types', async () => {
+    const session = await makeEngine()
+    const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
+    expect(prepared.mask.type).toBe('image/png')
+    expect(prepared.overlay.type).toBe('image/png')
+    expect(prepared.qr.type).toBe('image/png')
+    expect(prepared.mask.size).toBeGreaterThan(0)
+    const result = assertOk(
+      await session.assemble({ posterBytes, content, placement: prepared.placement, ...settings }, 1),
+    )
+    expect(result.artifacts['poster.png']!.type).toBe('image/png')
+    expect(result.artifacts['pattern-cut.png']!.type).toBe('image/png')
+    expect(result.artifacts['pattern-cut.svg']!.type).toBe('image/svg+xml')
+    expect(result.artifacts['report.json']!.type).toBe('application/json')
+    // The artifact Blobs must encode the exact same bytes the report hashes describe.
+    const posterSha = await sessionDigest(result.artifacts['poster.png']!)
+    expect(posterSha).toBe(result.report.artifacts.posterSha256!)
   })
 
   it('preserves whitespace and refuses to move an invalid manual placement', async () => {

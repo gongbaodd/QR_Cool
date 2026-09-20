@@ -25,12 +25,10 @@ import { contentSchema } from '../schema'
 import type { Placement, Settings } from '../schema'
 import type { EngineInput, PreparedPayload, AssemblePayload } from './types'
 
-/** Standardizes base64 without touching Buffer (no client polyfill). */
-export function bytesToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  const chunk = 0x8000
-  for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
-  return btoa(binary)
+/** Builds a Blob with the mime type implied by the artifact name (PNG/SVG/JSON). */
+export function bytesToBlob(name: string, bytes: Uint8Array): Blob {
+  const type = name.endsWith('.svg') ? 'image/svg+xml' : name.endsWith('.json') ? 'application/json' : 'image/png'
+  return new Blob([new Uint8Array(bytes)], { type })
 }
 
 export const engineDefaults: Settings = {
@@ -252,9 +250,9 @@ export async function toPreparedPayload(
   return {
     width: poster.width,
     height: poster.height,
-    mask: bytesToBase64(await renderRegionMask(regionMask)),
-    overlay: bytesToBase64(await rgbaToPng(overlay, poster.width, poster.height)),
-    qr: bytesToBase64(await normalizedQr),
+    mask: bytesToBlob('mask.png', await renderRegionMask(regionMask)),
+    overlay: bytesToBlob('overlay.png', await rgbaToPng(overlay, poster.width, poster.height)),
+    qr: bytesToBlob('qr.png', await normalizedQr),
     qrMetadata: { totalModules: qrMetadata.totalModules, version: qrMetadata.version },
     placement: { x: placement.x, y: placement.y, size: placement.size },
     validation,
@@ -318,7 +316,7 @@ export async function assemblePayload(
   return {
     report: result.report as AssembleReport,
     artifacts: Object.fromEntries(
-      Object.entries(result.artifacts).map(([name, pngBytes]) => [name, bytesToBase64(pngBytes)]),
+      Object.entries(result.artifacts).map(([name, pngBytes]) => [name, bytesToBlob(name, pngBytes)]),
     ),
   }
 }

@@ -4,9 +4,9 @@ export interface Prepared {
   revision: number
   width: number
   height: number
-  mask: string
-  overlay: string
-  qr: string
+  mask: Blob
+  overlay: Blob
+  qr: Blob
   qrMetadata: { totalModules: number; version: number }
   placement: Placement
   validation: string | null
@@ -14,7 +14,7 @@ export interface Prepared {
 export interface Result {
   apiVersion: 1
   revision: number
-  artifacts: Record<string, string>
+  artifacts: Record<string, Blob>
 }
 export interface State {
   revision: number

@@ -24,7 +24,7 @@ import StepMaskSearch from './steps/StepMaskSearch'
 import StepAdjust from './steps/StepAdjust'
 import StepGenerate from './steps/StepGenerate'
 import { useBlobUrls } from './hooks/use-blob-urls'
-import { useEditorRequest } from './hooks/use-editor-request'
+import { useEngineRequest } from './hooks/use-engine-request'
 import { useIconSearch } from './hooks/use-icon-search'
 import { useMaskSelection } from './hooks/use-mask-selection'
 import { ui } from '../../styles/ui.stylex'
@@ -60,7 +60,7 @@ export default function Editor() {
     [posterUrl, setPosterUrl] = useState('')
   const searchQueryRef = useRef('')
   const iconSearch = useIconSearch(searchQueryRef)
-  const { request, cancel } = useEditorRequest({ state, dispatch, poster, mask })
+  const { request, cancel } = useEngineRequest({ state, dispatch, poster, mask })
   const contentCheck = contentSchema.safeParse(state.content)
   const contentError = !contentCheck.success
     ? contentCheck.error.issues[0]!.message
