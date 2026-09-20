@@ -1,6 +1,6 @@
 # Client-side rendering migration
 
-Status: planned. This document specifies moving the prepare/assemble pipeline out of the Node route handlers into the browser, and removing the render API once the client path is verified. When implemented it supersedes the server-rendering sections of `web-qr-poster.md` (Node route handlers, stateless multipart requests, base64 artifacts).
+Status: in progress — phase 1 (imaging seam) and phase 2 (browser imaging backend, upload guards, parity harness) are implemented; phases 3-6 pending. This document specifies moving the prepare/assemble pipeline out of the Node route handlers into the browser, and removing the render API once the client path is verified. When implemented it supersedes the server-rendering sections of `web-qr-poster.md` (Node route handlers, stateless multipart requests, base64 artifacts).
 
 ## Problem
 
@@ -49,16 +49,16 @@ flowchart LR
 
 ## Operation replacement map
 
-| Current sharp use                                                           | Browser replacement                                                                                                                                               | Notes                                                                                                                                                                                                                                                      |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `decodePng` (`src/core/image.ts`)                                           | `@jsquash/png` decode → RGBA                                                                                                                                      | Exact, lossless; replaces `ensureAlpha().raw()`.                                                                                                                                                                                                           |
-| `rgbaToPng`, `grayscaleToPng` (`src/core/image.ts`)                         | `@jsquash/png` encode; grayscale expands to RGBA first                                                                                                            | Export only.                                                                                                                                                                                                                                               |
-| SVG → raw (`pattern-cut.ts:484`, `module-cut.ts:404`, `pattern.ts:285`)     | Native raster: `Image`/`createImageBitmap` → `OffscreenCanvas` → `getImageData`                                                                                   | Simple shape SVGs (paths, circles, `fill-rule`, `clip-path`); no text or external refs. `rasterizeSvg` stays a swappable primitive with a main-thread `Image` fallback for engines where worker `createImageBitmap` from SVG blobs is unreliable (Safari). |
-| `composite(overlays)` (`src/core/qr.ts:89`)                                 | Pure-TS composite on raw pixels                                                                                                                                   | Shared by both backends.                                                                                                                                                                                                                                   |
-| flatten + nearest resize (`src/core/qr.ts:555`, `src/core/assemble.ts:211`) | Pure-TS flatten-over-white and integer nearest resample                                                                                                           | Exact; no resampling ambiguity.                                                                                                                                                                                                                            |
-| metadata / format / single-frame checks (`src/server/editor.ts:40`)         | Client-side PNG header parse: 8-byte signature, IHDR dimensions, `acTL` chunk scan (rejects APNG, parity with the `pages !== 1` check), byte and megapixel limits | Same `PNG_INVALID` / `UPLOAD_LIMIT` error codes.                                                                                                                                                                                                           |
-| `createHash('sha256')` (`src/core/image.ts`)                                | `crypto.subtle.digest` in the browser; `node:crypto` in the Node backend                                                                                          | Both async; feeds the cache key and reports.                                                                                                                                                                                                               |
-| `Buffer` in core signatures                                                 | Standardize core on `Uint8Array`                                                                                                                                  | `Buffer` extends `Uint8Array`, so Node callers keep working; no client `Buffer` polyfill.                                                                                                                                                                  |
+| Current sharp use                                                           | Browser replacement                                                                                                                                               | Notes                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `decodePng` (`src/core/image.ts`)                                           | `@jsquash/png` decode → RGBA                                                                                                                                      | Exact, lossless; replaces `ensureAlpha().raw()`.                                                                                                                                                                                                                                      |
+| `rgbaToPng`, `grayscaleToPng` (`src/core/image.ts`)                         | `@jsquash/png` encode; grayscale expands to RGBA first                                                                                                            | Export only.                                                                                                                                                                                                                                                                          |
+| SVG → raw (`pattern-cut.ts:484`, `module-cut.ts:404`, `pattern.ts:285`)     | `@resvg/resvg-wasm` (adopted over the canvas rasterizer)                                                                                                          | Deterministic across browsers, wasm-init in the worker, no OffscreenCanvas premultiply/color-management pitfalls, no Safari fallback needed. Simple shape SVGs (paths, circles, `fill-rule`, `clip-path`); no text or external refs. `rasterizeSvg` stays a swappable seam primitive. |
+| `composite(overlays)` (`src/core/qr.ts:89`)                                 | Pure-TS composite on raw pixels (browser); sharp keeps its own (Node, bit-identical)                                                                              | Libvips composite tie-arithmetic probed too fragile for pure TS; parity quantified instead.                                                                                                                                                                                           |
+| flatten + nearest resize (`src/core/qr.ts:555`, `src/core/assemble.ts:211`) | Pure-TS flatten-over-white and integer nearest resample (browser); sharp verbatim (Node)                                                                          | Probed vips mappings: expansion picks `floor(x·in/out)`, shrink picks `floor((x+0.5)·in/out)`; exact-tie scales may pick one pixel lower (documented).                                                                                                                                |
+| metadata / format / single-frame checks (`src/server/editor.ts:40`)         | Client-side PNG header parse: 8-byte signature, IHDR dimensions, `acTL` chunk scan (rejects APNG, parity with the `pages !== 1` check), byte and megapixel limits | Same `PNG_INVALID` / `UPLOAD_LIMIT` error codes; implemented in the step 2 `src/lib/editor/png-guard.ts`.                                                                                                                                                                             |
+| `createHash('sha256')` (`src/core/image.ts`)                                | `crypto.subtle.digest` in the browser; `node:crypto` in the Node backend                                                                                          | Both async; feeds the cache key and reports.                                                                                                                                                                                                                                          |     |
+| `Buffer` in core signatures                                                 | Standardize core on `Uint8Array`                                                                                                                                  | `Buffer` extends `Uint8Array`, so Node callers keep working; no client `Buffer` polyfill.                                                                                                                                                                                             |
 
 ## Sequenced implementation and gates
 
@@ -76,16 +76,59 @@ flowchart LR
 
 ### 3. Client engine in a Web Worker
 
-- Move `resolveBuffers`/`prepareEditor`/`assembleFromBuffers`, placement recentering, and error-to-field mapping into `src/lib/editor/engine/`, environment-agnostic and testable in Node with the sharp backend.
-- Add the worker host: transferable buffers, sha256-keyed decode/detect cache, single-flight queue, cancellation for superseded revisions, zod validation before each run.
-- Move `@zxing/library` and `jsqr` from `serverExternalPackages` into the worker bundle behind dynamic imports.
-- Gate: engine unit tests pass in Node (same assertions as today's `web.test.ts`/`blank.test.ts` route tests, minus multipart/HTTP concerns); a repeat edit with unchanged files skips decode and detection.
+- Move `resolveBuffers`, `prepareEditor`, `assembleFromBuffers`,
+  placement recentering, and error-to-field mapping into an
+  environment-agnostic `src/lib/editor/engine/`.
 
-### 4. Wire the UI to the worker
+- Keep the engine independent of Worker, React, HTTP, and Node.
+  Inject the existing `Imaging` implementation and QR detector
+  dependencies rather than introducing additional platform abstractions.
 
-- Replace the fetch in `use-editor-request` with worker RPC; keep the exact dispatch actions (`prepared`/`result`/`error` with revision guards), error codes, and field mapping. The `Prepared` payload switches from base64 PNG strings to Blob URLs/raw bitmaps; the version-1 API envelope is retained for reports.
-- Preview the actual assembled pixels for the result (no canvas re-export); revoke Blob URLs on replacement or unmount as today.
-- Gate: upload → content → mask search/fill → move/resize → assemble → download works end to end in the browser; stale-revision responses are ignored; per-edit latency no longer includes an upload round trip.
+- Run the browser engine in a dedicated Web Worker exposed directly
+  through Comlink. Use Comlink transfer helpers for large transferable
+  buffers where they avoid copies.
+
+- Keep decoded poster/mask/region state in worker memory, keyed by the
+  existing SHA-256 content identity. Start with the smallest cache needed
+  by the editor session; do not introduce a generic LRU/cache framework
+  unless profiling demonstrates a need.
+
+- Use revision IDs for stale-result suppression. Drop obsolete queued
+  work where practical, but do not build a custom cancellation,
+  scheduling, or single-flight framework around codecs/detectors.
+
+- Load browser-only codec/detector dependencies lazily inside the worker.
+  Keep worker RPC types shared through TypeScript/Comlink; do not add a
+  second RPC abstraction or runtime schema layer for internal messages.
+
+- Gate: existing route-level editor assertions are reproduced as engine
+  unit tests without multipart/HTTP concerns; repeated edits with
+  unchanged source files reuse decoded/detected state; stale revisions
+  cannot affect editor state.
+
+### 4. Wire the UI directly to the worker
+
+- Remove `use-editor-request` and the old client-side HTTP/fetch path entirely. The editor UI should call the Comlink worker client directly; do not introduce a replacement request abstraction unless it provides functionality not already covered by Comlink/browser APIs.
+
+- Keep the existing editor reducer/state machine and its exact `prepared` / `result` / `error` actions, revision guards, error codes, and field mapping. Worker execution is an implementation detail; editor state remains owned by the existing reducer.
+
+- Use the revision guard as the correctness mechanism for asynchronous work: responses from superseded revisions must never update editor state. Cancel or drop queued stale work where practical, but do not require third-party codecs/detectors to support cooperative cancellation.
+
+- Replace base64 image transport with browser-native values:
+
+  - use transferable `ArrayBuffer` / `ImageBitmap` for intermediate worker data where appropriate;
+  - return the final assembled image as a `Blob`;
+  - keep the version-1 API envelope only for report/metadata compatibility, not for image transport.
+
+- Preview the final result directly from the assembled `Blob`. Use that same `Blob` for download; do not redraw it to a canvas or re-encode/re-export it on the main thread.
+
+- Centralize object-URL lifecycle in a small reusable hook/helper. Create URLs only at the UI boundary and automatically revoke them when the underlying Blob changes or the component unmounts. Do not pass Blob URLs across the worker boundary.
+
+- Keep React components thin: UI → worker client → worker → engine. Do not add TanStack Query, a custom RPC layer, request cache, or another async-state library for functionality already handled by Comlink, the worker engine/cache, and the existing reducer.
+
+- Remove obsolete fetch/request code, base64 conversion helpers, HTTP-specific loading/error plumbing, and dependencies that become unused after the migration.
+
+**Gate:** upload → content → mask search/fill → move/resize → assemble → preview → download runs entirely in-browser through the worker; stale revisions cannot update UI state; preview and download use the exact same assembled Blob; no image base64 serialization, canvas re-export, or editor upload/API round trip remains.
 
 ### 5. Remove the render API (after the client path is verified)
 
@@ -105,6 +148,18 @@ flowchart LR
 
 - Pixels outside the region, partially covered modules, and QR-plate pixels stay bit-exact: PNG decode is lossless in both codecs, and those guarantees are enforced by the same schema-8 verification, now running client-side.
 - Accepted difference: librsvg and the browser rasterizer antialias SVG edges differently. The tolerance in the parity harness covers AA edges only; module geometry, rim forcing, and verification checks are unaffected.
+
+### Parity evidence (phase 2)
+
+`test/parity.test.ts` runs the full prepare+assemble pipeline in-process through both backends:
+
+- Bit-exact: PNG decode of `source/poster.png` and `test/fixtures/qr.png`, grayscale region mask, SHA-256 hashing, placement and metadata. Corruption throws `INVALID_INPUT` through both backends.
+- The browser pipeline fully qualifies the mandatory schema-8 checks (the harness asserts this directly — assembly throws `VERIFICATION_FAILED` otherwise).
+- SVG-rasterized artifact divergence (probed libvips nearest-shrink ties and resvg vs librsvg AA are the only sources; grounding asserts every differing pixel sits within a color discontinuity, ±3 px window, spread ≥ 12, and diffs of ≤ 3/255 are amnesty noise):
+  - `poster.png`: 4.85% differing pixels, max channel diff 191
+  - `qr.png`: 3.94% differing pixels, max channel diff 191
+  - `pattern-cut.png`: 4.16% differing pixels, max channel diff 29
+- Upload guards (`src/lib/editor/png-guard.ts`) parse signature/IHDR/`acTL`/limits only and reuse the exact codes (`PNG_INVALID`, `UPLOAD_LIMIT`); covered by `test/png-guard.test.ts`.
 - Poster pixels are never round-tripped through canvas: canvas is used solely as the SVG rasterizer, reading back via `getImageData` (unpremultiplied). The SVGs are opaque fills, so the premultiply cycle is lossless for them.
 - Upload limits keep their values and meaning: 10 MiB per image, 4 megapixels, PNG only, single frame (`acTL` scan replaces sharp's page count).
 - The poster is still deliberately not decode-verified; skipped checks and the phone-scan warning copy are unchanged.

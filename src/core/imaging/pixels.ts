@@ -50,25 +50,36 @@ export function compositeOver(base: RawImage, overlays: RawImage[]): Uint8Array 
 }
 
 /**
- * Integer nearest-neighbor resample. Exactly deterministic (no kernel ambiguity): the output
- * pixel picks `floor((x + 0.5) * input / output)` per axis, which is libvips' nearest rule
- * for fractional shrink factors.
+ * Integer nearest-neighbor resample, matching the probed libvips(nearest) mapping rules:
+ * expansion anchors left (`floor(x * in / out)`), shrink centers the sample
+ * (`floor((x + 0.5) * in / out)`). Residual tie cases (exact-integer or half-integer
+ * sample positions) may pick one pixel lower in libvips' internal two-stage shrink —
+ * a documented deviation absorbed by the parity tolerance, never affecting intra-run
+ * verification.
  */
 export function resizeNearest(raw: RawImage, width: number, height: number): Uint8Array {
   if (raw.width === width && raw.height === height) return Uint8Array.from(raw.data)
+  const pickX = createPicker(raw.width, width)
+  const pickY = createPicker(raw.height, height)
   const output = new Uint8Array(width * height * 4)
   for (let y = 0; y < height; y++) {
-    const sourceY = Math.floor(((y + 0.5) * raw.height) / height)
-    const sourceRow = sourceY * raw.width
+    const sourceRow = pickY(y) * raw.width
     const targetRow = y * width
     for (let x = 0; x < width; x++) {
-      const sourceX = Math.floor(((x + 0.5) * raw.width) / width)
-      const source = (sourceRow + sourceX) * 4
+      const source = (sourceRow + pickX(x)) * 4
       const target = (targetRow + x) * 4
       for (let channel = 0; channel < 4; channel++) output[target + channel] = raw.data[source + channel]!
     }
   }
   return output
+}
+
+function createPicker(inputSize: number, outputSize: number): (x: number) => number {
+  const scale = inputSize / outputSize
+  if (outputSize > inputSize) {
+    return (x) => Math.min(Math.max(Math.floor(x * scale), 0), inputSize - 1)
+  }
+  return (x) => Math.min(Math.max(Math.floor((x + 0.5) * scale), 0), inputSize - 1)
 }
 
 /** Copies a subrectangle without resampling. */

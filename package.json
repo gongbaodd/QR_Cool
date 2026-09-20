@@ -17,6 +17,8 @@
     "format:check": "oxfmt --check"
   },
   "dependencies": {
+    "@jsquash/png": "^3.1.1",
+    "@resvg/resvg-wasm": "^2.6.2",
     "@stylexjs/stylex": "^0.19.1",
     "@zxing/library": "^0.23.0",
     "jsqr": "^1.4.0",
