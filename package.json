@@ -11,6 +11,7 @@
     "test": "vitest run",
     "start": "next start",
     "test:e2e": "playwright test",
+    "test:bdd": "node --import tsx node_modules/@cucumber/cucumber/bin/cucumber.js --config cucumber.mjs",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",
@@ -32,6 +33,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@cucumber/cucumber": "^13.2.1",
     "@playwright/test": "^1.58.2",
     "@stylexjs/babel-plugin": "^0.19.1",
     "@stylexjs/postcss-plugin": "^0.19.1",
@@ -42,6 +44,7 @@
     "oxfmt": "^0.68.0",
     "oxlint": "^1.83.0",
     "sharp": "^0.35.4",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
   },

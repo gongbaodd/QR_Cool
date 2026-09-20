@@ -90,12 +90,15 @@ pnpm typecheck
 pnpm build
 pnpm exec playwright install chromium
 pnpm test:e2e
+pnpm test:bdd
 pnpm benchmark
 ```
 
 `pnpm lint` runs oxlint (`.oxlintrc.json`) over the TypeScript, TSX, and config files, and `pnpm lint:fix` applies its safe fixes. `pnpm format` rewrites files with oxfmt, and `pnpm format:check` reports differences without writing; `.oxfmtrc.json` sets the project style (single quotes, no semicolons, two spaces, 120 columns) and skips generated directories. Both tools are dev-only and play no part in the request path.
 
 Vitest covers engine geometry, the engine artifacts (with captured hash parity against the pre-refactor server output), the browser/sharp parity harness, decoder fixtures, pixel invariants, the client upload guards, blank-poster preparation, mask geometry, and the reducer's stale-response guards. Playwright runs production-server journeys in Chromium (`playwright.config.ts`, so `pnpm exec playwright install chromium` is the only browser install needed): the blank-canvas flow, the derived mask letter and example buttons, mask search with a mocked icon API, the icon gallery and its dismissal paths, the fill tool, pattern settings (error correction, pixel styles, marker options, seed and rim), canvas nudging and dragging, worker-driven assembly, preview/download sharing one Blob URL, download-byte checks, no-render-API-call assertions, and result invalidation.
+
+The same journeys also exist as plain-language Gherkin scenarios in `e2e/features/*.feature` with shared step definitions in `e2e/cucumber/`; `pnpm test:bdd` runs them with `@cucumber/cucumber` over the same Playwright Chromium (`cucumber.mjs` is the config). `@icons`-tagged scenarios use the mocked `/api/icons` proxy, the server lifecycle mirrors the Playwright config (starts `pnpm start`, reuses one already listening, kills the whole process group afterwards), and scenario screenshots attach to the HTML report in `reports/` on failure.
 
 The pipeline lives in `src/lib/editor/engine/` and runs in a Web Worker (`src/lib/editor/worker/`); `src/core/` holds the shared rendering algorithms behind the imaging seam, `src/lib/editor/` holds schemas and reducer state, and `src/components/editor/` owns browser interaction. The only server surface left is the `/api/icons` proxy. No request invokes a CLI or writes temporary files.
 
