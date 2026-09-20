@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { Dispatch } from 'react'
 import { BLANK_POSTER_HEIGHT, BLANK_POSTER_WIDTH } from '../../../lib/editor/blank'
 import {
@@ -7,7 +7,6 @@ import {
   TEXT_MASK_FONTS,
   defaultTextMaskSize,
   fitTextMaskSize,
-  largestWhiteSquare,
 } from '../../../lib/editor/text-mask'
 import type { IconItem, TextMaskFont } from '../../../lib/editor/text-mask'
 import type { Action, Prepared } from '../../../lib/editor/state'
@@ -82,7 +81,6 @@ async function drawIconMask(width: number, height: number, svgText: string, capP
 export interface MaskSelectionOptions {
   revision: number
   prepared: Prepared | null
-  iconResults: IconItem[]
   suggestedMask: string
   closeGallery: () => void
   onUploadMask: (file: File) => void
@@ -99,8 +97,6 @@ export interface MaskSelection {
   isBlank: boolean
   isIconMode: boolean
   busy: boolean
-  fit: number | null
-  tooSmall: boolean
   selectFont: (fontId: string) => void
   selectIcon: (item: IconItem) => void
 }
@@ -112,7 +108,6 @@ export interface MaskSelection {
 export function useMaskSelection({
   revision,
   prepared,
-  iconResults,
   suggestedMask,
   closeGallery,
   onUploadMask,
@@ -121,7 +116,6 @@ export function useMaskSelection({
   const [maskText, setMaskText] = useState(TEXT_MASK_DEFAULT_TEXT),
     [maskFontId, setMaskFontId] = useState('blank'),
     [maskBusy, setMaskBusy] = useState(false)
-  const [maskFit, setMaskFit] = useState<number | null>(null)
   const [selectedIconId, setSelectedIconId] = useState<string | null>(null)
   const maskFont = TEXT_MASK_FONTS.find((entry) => entry.id === maskFontId) ?? TEXT_MASK_FONTS[0]!
   const effectiveMask = (maskText.trim()[0] || suggestedMask).slice(0, 1).toUpperCase()
@@ -201,67 +195,6 @@ export function useMaskSelection({
     void applyIconMask(item)
     closeGallery()
   }
-  useEffect(() => {
-    if (isBlank) {
-      setMaskFit(null)
-      return
-    }
-    if (isIconMode) {
-      const item = iconResults.find((r) => r.id === selectedIconId)
-      const download = item?.download ?? item?.variants[0]?.download
-      if (!item || !download || !prepared) {
-        setMaskFit(null)
-        return
-      }
-      const current = prepared
-      const cap = defaultTextMaskSize(current.width, current.height)
-      let live = true
-      void fetch(download)
-        .then((r) => r.text())
-        .then(async (svgText) => {
-          if (!live) return
-          const canvas = await drawIconMask(current.width, current.height, svgText, cap)
-          if (!live) return
-          setMaskFit(
-            largestWhiteSquare(
-              canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data,
-              canvas.width,
-              canvas.height,
-            ),
-          )
-        })
-        .catch(() => {
-          if (live) setMaskFit(null)
-        })
-      return () => {
-        live = false
-      }
-    }
-    const text = effectiveMask
-    if (!prepared || !text) {
-      setMaskFit(null)
-      return
-    }
-    const current = prepared
-    const cap = defaultTextMaskSize(current.width, current.height)
-    let live = true
-    void document.fonts.load(`16px "${maskFont.family}"`).then(() => {
-      if (!live) return
-      const canvas = drawTextMask(current.width, current.height, text, maskFont.family, cap)
-      setMaskFit(
-        largestWhiteSquare(
-          canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data,
-          canvas.width,
-          canvas.height,
-        ),
-      )
-    })
-    return () => {
-      live = false
-    }
-  }, [prepared, effectiveMask, maskFontId, maskFont.family, isBlank, isIconMode, selectedIconId, iconResults])
-  const minMaskSquare = prepared ? prepared.qrMetadata.totalModules * 4 : 0
-  const maskTooSmall = !isBlank && maskFit !== null && maskFit < minMaskSquare
   return {
     text: maskText,
     setText: setMaskText,
@@ -272,8 +205,6 @@ export function useMaskSelection({
     isBlank,
     isIconMode,
     busy: maskBusy,
-    fit: maskFit,
-    tooSmall: maskTooSmall,
     selectFont,
     selectIcon,
   }

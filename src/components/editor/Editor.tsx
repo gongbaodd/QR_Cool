@@ -3,6 +3,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { initialState, reducer } from '../../lib/editor/state'
 import { canonicalPlacement, contentSchema, MAX_IMAGE_BYTES } from '../../lib/editor/schema'
+import { REGION_TOO_SMALL_MESSAGE } from '../../core/placement'
 import {
   BLANK_MASK_FILENAME,
   BLANK_POSTER_FILENAME,
@@ -70,7 +71,6 @@ export default function Editor() {
   const maskSelection = useMaskSelection({
     revision: state.revision,
     prepared: state.prepared,
-    iconResults: iconSearch.results,
     suggestedMask,
     closeGallery: iconSearch.closeGallery,
     onUploadMask: uploadMaskFile,
@@ -161,18 +161,45 @@ export default function Editor() {
     !state.error &&
     !state.busy &&
     contentCheck.success
+  const placementError =
+    preparationError && (state.field === 'placement' || state.field === 'mask') ? preparationError : null
+  // The minimum-fit failure is only revealed by clicking Continue; auto-prepare
+  // must not display it beforehand.
+  const isFitError = placementError === REGION_TOO_SMALL_MESSAGE
+  const [fitRevealed, setFitRevealed] = useState(false)
+  useEffect(() => {
+    setFitRevealed(false)
+  }, [state.revision, step])
+  const visiblePlacementError = isFitError && !fitRevealed ? null : placementError
+  const visiblePreparationError = isFitError && !fitRevealed ? null : preparationError
+  const hasFreshPrepared =
+    !!state.prepared && state.prepared.revision === state.revision && !state.error && !state.busy
+  const maskBusy = maskSelection.busy || iconSearch.loading || state.busy !== null
+  const canContinueFromMask = !maskBusy && (hasFreshPrepared || !!placementError)
   const move = (box: Placement) =>
     edit({ type: 'edit', patch: { placement: canonicalPlacement(box, state.prepared!.qrMetadata.totalModules) } })
   const canEnter = (index: number) => {
     if (index <= 1) return true
     if (index >= 2 && (!textConfirmed || !contentCheck.success)) return false
     if (index === 2) return true
-    if (index === 3) return !!poster
+    if (index === 3) return !!poster && hasFreshPrepared
     if (index === 4) return !!state.prepared && !!state.placement
     return !!state.prepared
   }
   function goto(index: number) {
     if (index >= 1 && index <= 4 && canEnter(index)) setStep(index)
+  }
+  function continueFromMask() {
+    if (maskBusy) return
+    if (placementError) {
+      if (isFitError) setFitRevealed(true)
+      return
+    }
+    if (!hasFreshPrepared) {
+      void request('prepare')
+      return
+    }
+    goto(3)
   }
   function continueFromText() {
     if (!contentCheck.success) return
@@ -202,7 +229,7 @@ export default function Editor() {
           contentError={contentError}
           canContinue={contentCheck.success}
           suggestedMask={suggestedMask}
-          preparationError={preparationError}
+          preparationError={visiblePreparationError}
           onContentChange={(value) => edit({ type: 'edit', patch: { content: value } })}
           onContinue={continueFromText}
           onRetry={() => void request('prepare')}
@@ -224,8 +251,10 @@ export default function Editor() {
                 search={iconSearch}
                 suggestedMask={suggestedMask}
                 searchState={searchState}
-                prepared={!!state.prepared}
+                blockedMessage={visiblePlacementError}
+                canContinue={canContinueFromMask}
                 onSearch={handleSearch}
+                onContinue={continueFromMask}
                 onGoto={goto}
               />
             )}
@@ -249,7 +278,7 @@ export default function Editor() {
               <StepGenerate
                 state={state}
                 ready={ready}
-                preparationError={preparationError}
+                preparationError={visiblePreparationError}
                 onAssemble={() => void request('assemble')}
                 onRetry={() => void request('prepare')}
                 onBack={() => {
@@ -258,8 +287,8 @@ export default function Editor() {
                 }}
               />
             )}
-            {preparationError && step !== 4 && (
-              <PreparationError message={preparationError} onRetry={() => void request('prepare')} />
+            {visiblePreparationError && step !== 4 && (
+              <PreparationError message={visiblePreparationError} onRetry={() => void request('prepare')} />
             )}
           </aside>
           <PreviewPanel

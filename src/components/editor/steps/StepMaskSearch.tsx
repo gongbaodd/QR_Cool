@@ -40,19 +40,23 @@ export default function StepMaskSearch({
   search,
   suggestedMask,
   searchState,
-  prepared,
+  blockedMessage,
+  canContinue,
   onSearch,
+  onContinue,
   onGoto,
 }: {
   mask: MaskSelection
   search: IconSearch
   suggestedMask: string
   searchState: SearchControlState
-  prepared: boolean
+  blockedMessage: string | null
+  canContinue: boolean
   onSearch: () => void
+  onContinue: () => void
   onGoto: (index: number) => void
 }) {
-  const { text, font, fontId, isBlank, isIconMode, busy, tooSmall, effectiveMask, selectedIconId } = mask
+  const { text, font, fontId, isBlank, isIconMode, busy, effectiveMask, selectedIconId } = mask
   const { total, loading, error, fetchedQuery, galleryMode, results } = search
   const searchQuery = text.trim()
   return (
@@ -191,10 +195,9 @@ export default function StepMaskSearch({
           Drawing mask…
         </p>
       )}
-      {tooSmall && (
+      {blockedMessage && (
         <p {...stylex.props(ui.error)} role="alert">
-          This {isIconMode ? 'icon' : 'letter'} leaves no room for the QR even at full height. Use a wider{' '}
-          {isIconMode ? 'icon' : 'letter'}.
+          {blockedMessage}
         </p>
       )}
       <div {...stylex.props(styles.nav)}>
@@ -203,8 +206,8 @@ export default function StepMaskSearch({
         </button>
         <button
           {...stylex.props(ui.button, ui.primary, ui.buttonAlt, ui.primaryStretch, ui.primaryShadow)}
-          disabled={!prepared}
-          onClick={() => onGoto(3)}
+          disabled={!canContinue}
+          onClick={onContinue}
         >
           Continue
         </button>

@@ -2,7 +2,9 @@ import { fitsMask } from '../lib/editor/schema'
 import { QrPosterError } from './errors'
 import type { QrBoxInput, QrPlacement, RegionMask } from './types'
 
-const MINIMUM_MODULE_PIXELS = 4
+export const MINIMUM_MODULE_PIXELS = 4
+
+export const REGION_TOO_SMALL_MESSAGE = `The painted region cannot fit the QR code at the minimum ${MINIMUM_MODULE_PIXELS}px module size. Supply a larger region or QR position.`
 
 export function placeQr(mask: RegionMask, totalModules: number, requested?: QrBoxInput): QrPlacement {
   if (requested) return validateManualPlacement(mask, totalModules, requested)
@@ -10,10 +12,7 @@ export function placeQr(mask: RegionMask, totalModules: number, requested?: QrBo
   const largestSquare = findLargestSquareSize(mask.data, mask.width, mask.height)
   const modulePixels = Math.floor(largestSquare / totalModules)
   if (modulePixels < MINIMUM_MODULE_PIXELS) {
-    throw new QrPosterError(
-      'QR_LAYOUT_INVALID',
-      `The painted region cannot fit the QR code at the minimum ${MINIMUM_MODULE_PIXELS}px module size. Supply a larger region or QR position.`,
-    )
+    throw new QrPosterError('QR_LAYOUT_INVALID', REGION_TOO_SMALL_MESSAGE)
   }
 
   const size = totalModules * modulePixels
