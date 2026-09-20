@@ -1,0 +1,49 @@
+/**
+ * Engine contracts shared by the Node test harness and the Comlink worker.
+ * Engine operations never throw across an API boundary: they settle to a
+ * discriminated {@link EngineOutcome}, so every consumer (React reducer, RPC
+ * client, tests) handles errors and stale runs the same way.
+ */
+
+import type { Placement, Settings } from '../schema'
+
+/** An editor-facing error: the exact codes/fields the old HTTP pipeline produced. */
+export interface EngineError {
+  code: string
+  message: string
+  /** Editor field the error maps to (`content`, `poster`, `mask`, `placement`). */
+  field?: string | undefined
+}
+
+/** Engine input: source bytes plus the current editor revision. */
+export interface EngineInput {
+  posterBytes: Uint8Array
+  content: string
+  maskBytes?: Uint8Array
+  placement?: Placement
+  previousTotalModules?: number | undefined
+  settings?: Partial<Settings>
+}
+
+/** The step-2 payload: preview artifacts as base64 PNG strings (temporary until step 4's Blob transport). */
+export interface PreparedPayload {
+  width: number
+  height: number
+  mask: string
+  overlay: string
+  qr: string
+  qrMetadata: { totalModules: number; version: number }
+  placement: { x: number; y: number; size: number }
+  validation: string | null
+}
+
+/** The step-4 payload mirrors the schema-8 envelope: report plus base64 artifacts. */
+export interface AssemblePayload {
+  report: import('../../../core/types').AssembleReport
+  artifacts: Record<string, string>
+}
+
+export type EngineOutcome<T> =
+  | { ok: true; revision: number; value: T }
+  | { ok: false; stale: true; revision: number }
+  | { ok: false; error: EngineError; revision: number }

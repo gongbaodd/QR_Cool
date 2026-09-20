@@ -44,13 +44,33 @@ export function installBrowserImaging(options: BrowserImagingOptions = {}): Prom
   return initialized
 }
 
+/**
+ * Turbopack emits the wasm binaries as assets and returns their URLs. The
+ * `@resvg/resvg-wasm` default auto-init cannot run under Turbopack: it relies on
+ * `import.meta.url`, which the bundler replaces with `void 0`, so its internal
+ * `new URL('index_bg.wasm', void 0)` throws Invalid URL. We import both assets
+ * explicitly and hand the URLs to the inits instead.
+ */
+async function defaultWasmInputs(): Promise<BrowserImagingOptions> {
+  const [resvgAsset, pngAsset] = await Promise.all([
+    import('@resvg/resvg-wasm/index_bg.wasm'),
+    import('@jsquash/png/codec/pkg/squoosh_png_bg.wasm'),
+  ])
+  const resvgUrl = (resvgAsset as { default: string }).default
+  const pngUrl = (pngAsset as unknown as { default: string }).default
+  return {
+    resvgWasm: fetch(resvgUrl) as unknown as ResvgWasmInput,
+    pngWasm: fetch(pngUrl) as unknown as PngWasmInput,
+  }
+}
+
 function ensureInit(): Promise<void> {
   if (!initialized) {
-    // Default wasm-URL resolution (browser builds).
-    initialized = Promise.all([
-      initWasm(undefined as unknown as ResvgWasmInput),
-      initPngCodec(undefined as unknown as PngWasmInput),
-    ]).then(() => undefined)
+    initialized = defaultWasmInputs()
+      .then((options) =>
+        Promise.all([initWasm(options.resvgWasm as ResvgWasmInput), initPngCodec(options.pngWasm as PngWasmInput)]),
+      )
+      .then(() => undefined)
   }
   return initialized
 }

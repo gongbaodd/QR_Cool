@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises'
-import { extname } from 'node:path'
 import { imaging } from './imaging'
 import { QrPosterError } from './errors'
 
@@ -13,11 +11,14 @@ export interface LoadedPng {
 }
 
 export async function loadPng(path: string, label: string): Promise<LoadedPng> {
-  if (extname(path).toLowerCase() !== '.png')
+  // The Node-only fs/path imports stay dynamic so browser bundles (the worker)
+  // never pull them in; scripts, tests, and the CLI are the only loadPng callers.
+  if (!path.toLowerCase().endsWith('.png'))
     throw new QrPosterError('INVALID_INPUT', `${label} must be a PNG file: ${path}`)
 
   let file: Uint8Array
   try {
+    const { readFile } = await import('node:fs/promises')
     file = await readFile(path)
   } catch (error) {
     throw new QrPosterError('INVALID_INPUT', `Could not read ${label}: ${path}`, 2, { cause: error })
