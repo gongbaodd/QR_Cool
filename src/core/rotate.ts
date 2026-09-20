@@ -29,6 +29,61 @@ export function placementCenter(box: RotatableBox): { x: number; y: number } {
 }
 
 /**
+ * The placement transform precomputed: centre, canonical half size, and the
+ * rotation's cos/sin. Tight per-pixel loops (field building, assembly sampling)
+ * reuse it instead of recomputing trigonometry for every pixel, and the fast
+ * mappers are the same math as the point helpers below.
+ */
+export interface PlacementInverse {
+  centerX: number
+  centerY: number
+  size: number
+  cos: number
+  sin: number
+}
+
+/** Precomputes the inverse placement transform of {@link posterToPlatePoint}. */
+export function placementInverse(box: RotatableBox): PlacementInverse {
+  const radians = (canonicalizeRotation(box.rotation) * Math.PI) / 180
+  const center = placementCenter(box)
+  return {
+    centerX: center.x,
+    centerY: center.y,
+    size: box.size,
+    cos: Math.cos(radians),
+    sin: Math.sin(radians),
+  }
+}
+
+/** Fast {@link plateToPosterPoint} over a precomputed {@link PlacementInverse}. */
+export function forwardMap(
+  inv: PlacementInverse,
+  localX: number,
+  localY: number,
+): { x: number; y: number } {
+  const dx = localX - inv.size / 2
+  const dy = localY - inv.size / 2
+  return {
+    x: inv.centerX + dx * inv.cos - dy * inv.sin,
+    y: inv.centerY + dx * inv.sin + dy * inv.cos,
+  }
+}
+
+/** Fast {@link posterToPlatePoint} over a precomputed {@link PlacementInverse}. */
+export function inverseMap(
+  inv: PlacementInverse,
+  posterX: number,
+  posterY: number,
+): { x: number; y: number } {
+  const dx = posterX - inv.centerX
+  const dy = posterY - inv.centerY
+  return {
+    x: inv.size / 2 + dx * inv.cos + dy * inv.sin,
+    y: inv.size / 2 - dx * inv.sin + dy * inv.cos,
+  }
+}
+
+/**
  * Maps a plate-local point (origin = the unrotated square's top-left) forward to
  * poster coordinates: the same centre and angle the Konva preview uses, so
  * preview, validation, and assembly cannot disagree about the footprint.
@@ -38,13 +93,7 @@ export function plateToPosterPoint(
   localY: number,
   box: RotatableBox,
 ): { x: number; y: number } {
-  const center = placementCenter(box)
-  const radians = (canonicalizeRotation(box.rotation) * Math.PI) / 180
-  const cos = Math.cos(radians)
-  const sin = Math.sin(radians)
-  const dx = localX - box.size / 2
-  const dy = localY - box.size / 2
-  return { x: center.x + dx * cos - dy * sin, y: center.y + dx * sin + dy * cos }
+  return forwardMap(placementInverse(box), localX, localY)
 }
 
 /**
@@ -57,13 +106,7 @@ export function posterToPlatePoint(
   posterY: number,
   box: RotatableBox,
 ): { x: number; y: number } {
-  const center = placementCenter(box)
-  const radians = (canonicalizeRotation(box.rotation) * Math.PI) / 180
-  const cos = Math.cos(radians)
-  const sin = Math.sin(radians)
-  const dx = posterX - center.x
-  const dy = posterY - center.y
-  return { x: box.size / 2 + dx * cos + dy * sin, y: box.size / 2 - dx * sin + dy * cos }
+  return inverseMap(placementInverse(box), posterX, posterY)
 }
 
 /** The four corners of the rotated plate square, in consistent clockwise order. */
