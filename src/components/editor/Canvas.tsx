@@ -177,6 +177,13 @@ export default function EditorCanvas({
   }, [qrImage])
   const fit = Math.min((viewport - 32) / width, 640 / height, 1)
   const scale = fit
+  // Show the QR with a 1-module light margin: the normalized preview carries a
+  // 2-module quiet zone, so crop 1 module per side and inset the node.
+  const pitch = modules ? placement.size / modules : 0
+  const margin = pitch
+  const displayX = placement.x + margin
+  const displayY = placement.y + margin
+  const displaySize = placement.size - 2 * margin
   function nudge(dx: number, dy: number) {
     onChange({ ...placement, x: Math.max(0, placement.x + dx), y: Math.max(0, placement.y + dy) })
   }
@@ -221,26 +228,36 @@ export default function EditorCanvas({
               <CanvasImage
                 ref={node}
                 image={qrImage}
-                x={placement.x}
-                y={placement.y}
-                width={placement.size}
-                height={placement.size}
+                x={displayX}
+                y={displayY}
+                width={displaySize}
+                height={displaySize}
+                crop={{ x: margin, y: margin, width: displaySize, height: displaySize }}
                 draggable
                 dragDistance={1}
                 onDragMove={(e) => {
-                  const box = canonicalPlacement({ ...placement, x: e.target.x(), y: e.target.y() }, modules)
+                  const box = canonicalPlacement(
+                    { ...placement, x: e.target.x() - margin, y: e.target.y() - margin },
+                    modules,
+                  )
                   node.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? '#dd3748' : '#087f67')
                 }}
                 stroke={invalid ? '#dd3748' : '#087f67'}
                 strokeWidth={2 / scale}
                 onDragEnd={(e) =>
-                  onChange(canonicalPlacement({ ...placement, x: e.target.x(), y: e.target.y() }, modules))
+                  onChange(
+                    canonicalPlacement({ ...placement, x: e.target.x() - margin, y: e.target.y() - margin }, modules),
+                  )
                 }
                 onTransformEnd={() => {
                   const n = node.current!
-                  const box = canonicalPlacement({ x: n.x(), y: n.y(), size: n.width() * n.scaleX() }, modules)
+                  const croppedSize = n.width() * n.scaleX()
+                  const nextPitch = modules > 2 ? croppedSize / (modules - 2) : pitch
+                  const fullSize = nextPitch * modules
+                  const fullX = n.x() - nextPitch
+                  const fullY = n.y() - nextPitch
                   n.scale({ x: 1, y: 1 })
-                  onChange(box)
+                  onChange(canonicalPlacement({ x: fullX, y: fullY, size: fullSize }, modules))
                 }}
               />
               <Transformer
@@ -252,7 +269,7 @@ export default function EditorCanvas({
                 anchorSize={14}
                 anchorCornerRadius={3}
                 borderStroke={invalid ? '#dd3748' : '#087f67'}
-                boundBoxFunc={(old, next) => (next.width < modules * 4 * scale ? old : next)}
+                boundBoxFunc={(old, next) => (next.width < (modules - 2) * 4 * scale ? old : next)}
               />
             </Layer>
           </Stage>
