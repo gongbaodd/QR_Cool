@@ -94,7 +94,7 @@ export class EditorEngine {
     }
   }
 
-  /** Step-4 payload: the schema-8 report plus base64 artifacts (temporary transport). */
+  /** Step-4 payload: the schema-8 report plus Blob artifacts. */
   async assemble(
     input: EngineInput & {
       placement: Placement

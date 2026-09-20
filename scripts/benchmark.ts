@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 import { randomFillSync } from 'node:crypto'
-import { prepareEditor, assembleFromBuffers } from '../src/server/editor'
+import { createEditorEngine } from '../src/lib/editor/engine'
+import { nodeImaging } from '../src/core/imaging/node'
 import { MAX_PIXELS } from '../src/lib/editor/schema'
 const side = Math.floor(Math.sqrt(MAX_PIXELS))
 const pixels = randomFillSync(Buffer.alloc(side * side * 3))
@@ -19,21 +20,30 @@ const posterBytes = await sharp(pixels, { raw: { width: side, height: side, chan
   .png()
   .toBuffer()
 const started = performance.now()
-const prepared = await prepareEditor({ posterBytes, content: 'https://example.com/qr' })
+const session = await createEditorEngine(nodeImaging)
+const prepareOutcome = await session.prepare({ posterBytes, content: 'https://example.com/qr' }, 1)
+if (!prepareOutcome.ok) throw new Error(`prepare failed: ${JSON.stringify(prepareOutcome)}`)
+const prepared = prepareOutcome.value
 const preparationMs = performance.now() - started
 const assemblyStarted = performance.now()
-const result = await assembleFromBuffers({
-  posterBytes,
-  content: 'https://example.com/qr',
-  placement: prepared.placement,
-  seed: 42,
-  qrMargin: 1,
-  plateCorners: 'texture',
-})
+const assembleOutcome = await session.assemble(
+  {
+    posterBytes,
+    content: 'https://example.com/qr',
+    placement: prepared.placement,
+    seed: 42,
+    qrMargin: 1,
+    plateCorners: 'texture',
+  },
+  1,
+)
+if (!assembleOutcome.ok) throw new Error(`assemble failed: ${JSON.stringify(assembleOutcome)}`)
+const result = assembleOutcome.value
+const artifacts: Record<string, string> = {}
+for (const [name, data] of Object.entries(result.artifacts))
+  artifacts[name] = Buffer.from(await data.arrayBuffer()).toString('base64')
 const envelope = JSON.stringify({
-  artifacts: Object.fromEntries(
-    Object.entries(result.artifacts).map(([name, data]) => [name, Buffer.from(data).toString('base64')]),
-  ),
+  artifacts,
   report: result.report,
 })
 console.log(

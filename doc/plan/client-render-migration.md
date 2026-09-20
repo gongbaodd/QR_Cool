@@ -1,6 +1,6 @@
 # Client-side rendering migration
 
-Status: in progress — phase 1 (imaging seam) and phase 2 (browser imaging backend, upload guards, parity harness) are implemented; phases 3-6 pending. This document specifies moving the prepare/assemble pipeline out of the Node route handlers into the browser, and removing the render API once the client path is verified. When implemented it supersedes the server-rendering sections of `web-qr-poster.md` (Node route handlers, stateless multipart requests, base64 artifacts).
+Status: implemented — phases 1–6 are shipped: the pipeline runs client-side in a Web Worker, the UI talks to it directly over Comlink with Blob transports, the server render API is removed, and the docs reflect the new architecture. `doc/plan/web-qr-poster.md`'s server-rendering sections are superseded by this document. This document specifies moving the prepare/assemble pipeline out of the Node route handlers into the browser, and removing the render API once the client path is verified. When implemented it supersedes the server-rendering sections of `web-qr-poster.md` (Node route handlers, stateless multipart requests, base64 artifacts).
 
 ## Problem
 

@@ -68,17 +68,25 @@ test('edit, assemble, download, and invalidate', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled({ timeout: 15000 })
   await page.getByRole('button', { name: 'Continue to generate', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeVisible()
-  const responsePromise = page.waitForResponse((r) => r.url().endsWith('/api/assemble'))
+  // The pipeline must run entirely in the worker; the render API no longer exists.
+  const apiCalls: string[] = []
+  page.on('request', (request) => {
+    if (/\/api\/(prepare|assemble)/.test(request.url())) apiCalls.push(request.url())
+  })
   await page.getByRole('button', { name: 'Assemble poster', exact: true }).click()
-  const response = await responsePromise
-  expect(response.status()).toBe(200)
-  const body = await response.json()
   await expect(page.getByText('Artistic margins can affect scanning.', { exact: false })).toBeVisible()
+  // Preview and download must share one object URL of the assembled Blob (no re-encode).
+  expect(
+    await page.evaluate(() => {
+      const image = document.querySelector<HTMLImageElement>('img[alt="Assembled artistic QR poster"]')
+      const link = document.querySelector<HTMLAnchorElement>('a[download="poster.png"]')
+      return !!image && !!link && image.src === link.href
+    }),
+  ).toBe(true)
   const downloaded = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Download poster.png' }).click()
   const file = await downloaded
   const bytes = await readFile((await file.path())!)
-  expect(bytes.equals(Buffer.from(body.artifacts['poster.png'], 'base64'))).toBe(true)
   expect(await sharp(bytes).metadata()).toMatchObject({ width: 1000, height: 1000 })
   await page.getByRole('button', { name: 'Return to editing' }).click()
   await page.getByRole('button', { name: 'Back to adjust' }).click()

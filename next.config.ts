@@ -11,6 +11,6 @@ const config: NextConfig = {
       },
     },
   },
-  serverExternalPackages: ['sharp', '@zxing/library', 'jsqr'],
+  serverExternalPackages: ['@zxing/library', 'jsqr'],
 }
 export default config

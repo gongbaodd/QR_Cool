@@ -11,12 +11,12 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 
 ## Invariants
 
-- Inputs are PNG only (10 MiB, 4 megapixels, one frame). Masks must match the poster dimensions; white selects the region.
+- Inputs are PNG only (10 MiB, 4 megapixels, one frame; guards run client-side in `src/lib/editor/png-guard.ts`). Masks must match the poster dimensions; white selects the region.
 - Pixels outside the selected region, pixels in modules the region covers only in part, and pixels inside the placed QR stay bit-exact. Mandatory verification failures reject export.
 - The painted region is auto-detected from the dense central black shape; an uploaded mask overrides detection.
 - Tests never make paid calls: mock API responses, use local fixtures.
-- No request invokes a CLI or writes temporary files. `output/` and `dist/` are gitignored run products; schema-8 assembly reports are preserved, with web revision and response metadata in a separate version-1 API envelope.
-- The renderer lives in the `src/core/` engine modules; `src/server/` owns the stateless buffer services and HTTP adapters, `src/lib/editor/` holds schemas and reducer state, and `src/components/editor/` owns browser interaction.
+- No request invokes a CLI or writes temporary files. `output/` and `dist/` are gitignored run products; schema-8 assembly reports are preserved.
+- The pipeline runs entirely client-side: `src/lib/editor/engine/` owns the renderer logic and runs in a Web Worker (`src/lib/editor/worker/`, Comlink) with a sha256 source cache and revision-based stale dropping; `src/core/` holds the shared rendering algorithms behind the imaging seam (`src/core/imaging/`: sharp = Node test backend, jSquash/resvg = browser); image artifacts cross the worker/UI boundary as Blobs with object-URL lifecycle managed in `useBlobUrls`. `src/lib/editor/` holds schemas and reducer state, `src/components/editor/` owns browser interaction. The only server surface is the `GET /api/icons` proxy. There is no render API and no base64 image transport.
 - Component styles are StyleX: tokens and shared recipes in `src/styles/`, layout styles beside their component. `src/app/globals.css` holds only `@font-face`, the `@layer reset` block, and the `@stylex` slot that `babel.config.json` + `postcss.config.mjs` compile into.
 
 ## QR pattern generation

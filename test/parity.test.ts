@@ -13,7 +13,7 @@ import { imaging, setImaging } from '../src/core/imaging'
 import { nodeImaging } from '../src/core/imaging/node'
 import { browserImaging, installBrowserImaging } from '../src/core/imaging/browser'
 import type { RawImage } from '../src/core/imaging/types'
-import { assembleFromBuffers, prepareEditor } from '../src/server/editor'
+import { createEditorEngine, type EngineOutcome } from '../src/lib/editor/engine'
 
 const require = createRequire(import.meta.url)
 const posterBytes = await readFile('source/poster.png')
@@ -160,31 +160,49 @@ describe('imaging backend parity', () => {
 
   it('runs the full pipeline through both backends with parity', async () => {
     const input = { posterBytes, content } as const
+    // Engine entry in both environments; the constructor installs its backend on the
+    // imaging seam, so this is the same injection point the old harness used.
+    const nodeSession = await createEditorEngine(nodeImaging)
+    const browserSession = await createEditorEngine(browserImaging)
+    /** Unwraps engine outcomes; the harness relies on mandatory verification never failing. */
+    const assertOk = <T>(outcome: EngineOutcome<T>): T => {
+      if (!outcome.ok) throw new Error(`engine run failed: ${JSON.stringify(outcome)}`)
+      return outcome.value
+    }
+    const toBytes = async (blob: Blob): Promise<Uint8Array> => new Uint8Array(await blob.arrayBuffer())
 
     setImaging(nodeImaging)
-    const nodePrepare = await prepareEditor(input)
-    const nodeResult = await assembleFromBuffers({ ...input, placement: nodePrepare.placement, ...settings })
+    const nodePrepare = assertOk(await nodeSession.prepare(input, 1))
+    const nodeResult = assertOk(
+      await nodeSession.assemble({ ...input, placement: nodePrepare.placement, ...settings }, 1),
+    )
 
     setImaging(browserImaging)
-    const browserPrepare = await prepareEditor(input)
+    const browserPrepare = assertOk(await browserSession.prepare(input, 2))
     expect(browserPrepare.placement).toEqual(nodePrepare.placement)
     expect(browserPrepare.qrMetadata).toEqual(nodePrepare.qrMetadata)
-    const browserResult = await assembleFromBuffers({ ...input, placement: browserPrepare.placement, ...settings })
+    const browserResult = assertOk(
+      await browserSession.assemble({ ...input, placement: browserPrepare.placement, ...settings }, 2),
+    )
     setImaging(nodeImaging)
 
-    // Same mandatory verification passes in the browser; assembleFromBuffers throws otherwise.
+    // Same mandatory verification passes in the browser; the engine throws VERIFICATION_FAILED otherwise.
     expect(browserResult.report.placement).toEqual(nodeResult.report.placement)
     expect(browserResult.report.verification.checks.every((check) => check.passed)).toBe(true)
 
     // The region mask is pure boolean coverage: no SVG rasterization, must be bit-exact.
-    const nodeMask = await decodeWith(nodeImaging, nodeResult.artifacts['region-mask.png']!, 'mask')
-    const browserMask = await decodeWith(browserImaging, browserResult.artifacts['region-mask.png']!, 'mask')
+    const nodeMask = await decodeWith(nodeImaging, await toBytes(nodeResult.artifacts['region-mask.png']!), 'mask')
+    const browserMask = await decodeWith(
+      browserImaging,
+      await toBytes(browserResult.artifacts['region-mask.png']!),
+      'mask',
+    )
     expect(Buffer.from(browserMask.data).equals(nodeMask.data), 'region-mask.png').toBe(true)
 
     // SVG-rasterized artifacts may differ on antialiased edges only.
     for (const name of ['poster.png', 'qr.png', 'pattern-cut.png'] as const) {
-      const nodeRun = await decodeWith(nodeImaging, nodeResult.artifacts[name]!, name)
-      const browserRun = await decodeWith(browserImaging, browserResult.artifacts[name]!, name)
+      const nodeRun = await decodeWith(nodeImaging, await toBytes(nodeResult.artifacts[name]!), name)
+      const browserRun = await decodeWith(browserImaging, await toBytes(browserResult.artifacts[name]!), name)
       const stats = expectAaEdgeTolerance(nodeRun, browserRun, name)
       console.info(
         `[parity] ${name}: ${((stats.different / stats.total) * 100).toFixed(3)}% differing, max channel diff ${stats.maxChannelDiff}`,

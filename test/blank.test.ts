@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { QrPosterError } from '../src/core/errors'
 import { decodePng, rgbaToPng } from '../src/core/image'
 import { buildManualRegionMask, detectRegionMask } from '../src/core/mask'
-import { prepareEditor, assembleFromBuffers } from '../src/server/editor'
+import { createEditorEngine, type EngineOutcome } from '../src/lib/editor/engine'
+import { nodeImaging } from '../src/core/imaging/node'
 import { MAX_IMAGE_BYTES, MAX_PIXELS } from '../src/lib/editor/schema'
 import {
   BLANK_POSTER_HEIGHT,
@@ -33,15 +34,17 @@ describe('blank canvas starter poster', () => {
     const posterBytes = await rgbaToPng(buildBlankPosterRgba(), BLANK_POSTER_WIDTH, BLANK_POSTER_HEIGHT)
     const maskBytes = await rgbaToPng(buildBlankMaskRgba(), BLANK_POSTER_WIDTH, BLANK_POSTER_HEIGHT)
     const content = 'https://example.com/qr'
-    const prepared = await prepareEditor({ posterBytes, maskBytes, content })
+    const session = await createEditorEngine(nodeImaging)
+    /** Same outcome unwrap as the parity harness. */
+    function assertOk<T>(outcome: EngineOutcome<T>): T {
+      if (!outcome.ok) throw new Error(`engine run failed: ${JSON.stringify(outcome)}`)
+      return outcome.value
+    }
+    const prepared = assertOk(await session.prepare({ posterBytes, maskBytes, content }, 1))
     expect(prepared.validation).toBeNull()
-    const result = await assembleFromBuffers({
-      posterBytes,
-      maskBytes,
-      content,
-      placement: prepared.placement,
-      ...settings,
-    })
+    const result = assertOk(
+      await session.assemble({ posterBytes, maskBytes, content, placement: prepared.placement, ...settings }, 1),
+    )
     expect(result.report.qualified).toBe(true)
   })
 })
