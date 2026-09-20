@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { assembleFromBuffers, prepareEditor } from '../src/server/editor'
 import { handleEditorRequest } from '../src/server/http'
 import { initialState, reducer } from '../src/lib/editor/state'
-import { MAX_BODY_BYTES } from '../src/lib/editor/schema'
+import { MAX_BODY_BYTES, requestSchema } from '../src/lib/editor/schema'
 const posterBytes = await readFile('source/poster.png')
 const content = 'https://example.com/qr'
 const settings = {
@@ -203,6 +203,42 @@ it('revalidates longer content around the previous center and never exports an o
     0,
   )
   expect(changed.validation).not.toBeNull()
+})
+
+it('keeps an error-correction resize on the canvas so the editor can send it back', async () => {
+  const blank = await sharp({ create: { width: 1000, height: 1000, channels: 4, background: 'white' } })
+    .png()
+    .toBuffer()
+  const input = { posterBytes: blank, maskBytes: blank, content: 'https://example.com' }
+  const medium = await prepareEditor({ ...input, settings: { ...settings, ecc: 'M' as const } })
+  const high = await prepareEditor({
+    ...input,
+    settings: { ...settings, ecc: 'H' as const },
+    placement: medium.placement,
+    previousTotalModules: medium.qrMetadata.totalModules,
+  })
+  // H needs more modules than M; the resized box stays on the canvas instead of
+  // rounding to a negative origin the request schema would reject as a 400.
+  expect(high.qrMetadata.totalModules).toBeGreaterThan(medium.qrMetadata.totalModules)
+  expect(high.placement.x).toBeGreaterThanOrEqual(0)
+  expect(high.placement.y).toBeGreaterThanOrEqual(0)
+  expect(
+    requestSchema.safeParse({
+      revision: 0,
+      content: input.content,
+      settings: { ...settings, ecc: 'H' },
+      placement: high.placement,
+    }).success,
+  ).toBe(true)
+  expect(high.validation).not.toBeNull()
+  // Returning to M recovers a valid placement instead of leaving the editor stranded.
+  const back = await prepareEditor({
+    ...input,
+    settings: { ...settings, ecc: 'M' as const },
+    placement: high.placement,
+    previousTotalModules: high.qrMetadata.totalModules,
+  })
+  expect(back.validation).toBeNull()
 })
 
 it('rejects pixel-limit and actual encoder capacity violations', async () => {

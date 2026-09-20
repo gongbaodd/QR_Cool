@@ -40,9 +40,11 @@ export type Settings = z.infer<typeof settingsSchema>
 export type EditorRequest = z.infer<typeof requestSchema>
 
 export function canonicalPlacement(box: Placement, totalModules: number): Placement {
+  // Dragging is clamped to the poster origin like the arrow-key nudges, so the editor
+  // never sends the request schema a negative coordinate it would reject with a 400.
   return {
-    x: Math.round(box.x),
-    y: Math.round(box.y),
+    x: Math.max(0, Math.round(box.x)),
+    y: Math.max(0, Math.round(box.y)),
     size: Math.max(4, Math.round(box.size / totalModules)) * totalModules,
   }
 }

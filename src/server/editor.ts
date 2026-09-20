@@ -124,14 +124,17 @@ async function resolveBuffers(input: BufferInput): Promise<{ layout: ResolvedLay
     throw new QrPosterError('QR_TEXT_MISMATCH', 'Generated QR did not preserve the entered text.')
   const qrMetadata = inspectAntfuQr(qrSource, input.content, generated.version)
   const settings = { ...defaults, ...input.settings }
-  let requested = input.placement
-  if (requested && input.previousTotalModules && input.previousTotalModules !== qrMetadata.totalModules) {
-    const size = Math.max(4, Math.round(requested.size / input.previousTotalModules)) * qrMetadata.totalModules
-    requested = {
-      x: Math.round(requested.x + (requested.size - size) / 2),
-      y: Math.round(requested.y + (requested.size - size) / 2),
-      size,
-    }
+  const previous = input.placement
+  let requested = previous
+  if (previous && input.previousTotalModules && input.previousTotalModules !== qrMetadata.totalModules) {
+    const size = Math.max(4, Math.round(previous.size / input.previousTotalModules)) * qrMetadata.totalModules
+    const offset = (previous.size - size) / 2
+    // Recentre on the previous box, then keep the resized box on the canvas: a QR that
+    // grows at an edge would otherwise round to a negative origin, which the editor's
+    // request schema rejects on the next round trip and strands the placement.
+    const origin = (value: number, limit: number) =>
+      Math.min(Math.max(0, Math.round(value + offset)), Math.max(0, limit - size))
+    requested = { x: origin(previous.x, regionMask.width), y: origin(previous.y, regionMask.height), size }
   }
   let validation: string | null = null
   let placement

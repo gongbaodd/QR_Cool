@@ -14,7 +14,8 @@ async function enterAdjust(page: import('@playwright/test').Page) {
   await enterMaskStep(page)
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({ timeout: 10000 })
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Adjust QR/i })).toBeVisible()
+  await expect(page.getByRole('group', { name: /Poster canvas/ })).toBeVisible()
 }
 
 const ICON_SVG =
@@ -45,24 +46,26 @@ async function mockIconSearch(page: import('@playwright/test').Page, queries: st
   })
 }
 
-test('upload, edit, assemble, download, and invalidate', async ({ page }) => {
+test('edit, assemble, download, and invalidate', async ({ page }) => {
   await page.goto('/')
   await enterAdjust(page)
-  const size = page.getByLabel('QR size', { exact: true })
-  const originalSize = Number(await size.inputValue())
-  await size.fill(String(originalSize - 29))
-  await size.blur()
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
-  const x = page.getByLabel('QR X', { exact: true })
-  const original = Number(await x.inputValue())
+  // nudge controls move the QR without needing numeric inputs
   await page.getByRole('button', { name: 'Move right', exact: true }).click()
-  await expect(x).toHaveValue(String(original + 1))
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
-  await page.getByLabel('Zoom', { exact: true }).selectOption('2')
+  // keyboard arrow moves via canvas focus
   await page.getByRole('group', { name: /Poster canvas/ }).focus()
   await page.keyboard.press('ArrowLeft')
-  await expect(x).toHaveValue(String(original))
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
+  // pattern settings are reachable in step 3 and keep the step valid
+  await expect(page.getByText('Pattern settings', { exact: true })).toBeVisible()
+  await page.getByRole('radiogroup', { name: 'Pixel style', exact: true }).getByText('Dot', { exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled({ timeout: 15000 })
+  // ecc change may enlarge the QR but keeps the step reachable; revert to M for stable assemble
+  await page.getByRole('radiogroup', { name: 'Error correction level' }).getByText('H', { exact: true }).click()
+  await expect(page.getByLabel('H High ~30%')).toBeChecked()
+  await page.getByRole('radiogroup', { name: 'Error correction level' }).getByText('M', { exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled({ timeout: 15000 })
   await page.getByRole('button', { name: 'Continue to generate', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeVisible()
   const responsePromise = page.waitForResponse((r) => r.url().endsWith('/api/assemble'))
@@ -79,16 +82,16 @@ test('upload, edit, assemble, download, and invalidate', async ({ page }) => {
   expect(await sharp(bytes).metadata()).toMatchObject({ width: 1000, height: 1000 })
   await page.getByRole('button', { name: 'Return to editing' }).click()
   await page.getByRole('button', { name: 'Back to adjust' }).click()
-  await page.getByRole('button', { name: 'Change text' }).click()
+  await page.getByRole('button', { name: 'Step 1 Input text' }).click()
   await page.getByLabel('Text or URL', { exact: true }).fill('new content')
   await expect(page.getByRole('link', { name: 'Download poster.png' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page.getByLabel('Mask search', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({ timeout: 10000 })
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Adjust QR/i })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
-  await page.getByRole('button', { name: 'Change text' }).click()
+  await page.getByRole('button', { name: 'Step 1 Input text' }).click()
   await page.getByLabel('Text or URL', { exact: true }).fill('line\nline')
   await expect(page.getByText('Use one line only.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeDisabled()
@@ -108,6 +111,17 @@ test('step 1 derives the mask letter from website content', async ({ page }) => 
   await expect(page.getByText('Plain text — step 2 starts from a blank full-canvas region.')).toBeVisible()
 })
 
+test('step 1 example buttons populate the input', async ({ page }) => {
+  await page.goto('/')
+  const input = page.getByLabel('Text or URL', { exact: true })
+  await page.getByRole('button', { name: 'Use example Hello' }).click()
+  await expect(input).toHaveValue('Hello QR / COOL')
+  await page.getByRole('button', { name: 'Use example Website' }).click()
+  await expect(input).toHaveValue('https://example.com')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByLabel('Mask search', { exact: true })).toHaveValue('E')
+})
+
 test('blank option starts an editable poster without an upload', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByLabel('Text or URL', { exact: true })).toBeVisible()
@@ -119,7 +133,8 @@ test('blank option starts an editable poster without an upload', async ({ page }
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({ timeout: 10000 })
   await expect(page.getByText('1000 × 1000')).toBeVisible()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Adjust QR/i })).toBeVisible()
+  await expect(page.getByRole('group', { name: /Poster canvas/ })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
 })
 
@@ -264,12 +279,12 @@ test('re-entering step 2 refreshes the search control from the input', async ({ 
   expect(queries).toEqual(['heart'])
   // The modal closes before leaving step 2, and re-entering keeps the cached term.
   await page.getByRole('button', { name: 'Close icon gallery' }).click()
-  await expect(page.getByTestId('icon-gallery')).toHaveCount(0)
+  await expect(page.getByTestId('icon-gallery')).not.toBeVisible()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(page.getByLabel('QR X', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /Adjust QR/i })).toBeVisible()
   await page.getByRole('button', { name: 'Step 2 Mask Search' }).click()
   await expect(page.getByLabel('Mask search', { exact: true })).toBeVisible()
-  await expect(page.getByTestId('icon-gallery')).toHaveCount(0)
+  await expect(page.getByTestId('icon-gallery')).not.toBeVisible()
   await expect(page.getByLabel('Mask text preview')).toBeVisible()
   await expect(control).toContainText('more — 20 icons')
   await expect(page.getByText('Found 20 icons for “heart”')).toBeVisible()
@@ -284,61 +299,119 @@ test('re-entering step 2 refreshes the search control from the input', async ({ 
   expect(queries).toEqual(['heart', 'star'])
 })
 
-test('invalid placement retains inputs and reset recovers', async ({ page }) => {
+test('fill tool toggles and can be dismissed', async ({ page }) => {
   await page.goto('/')
-  await enterAdjust(page)
-  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
-  await page.getByLabel('QR X', { exact: true }).fill('0')
-  await expect(page.getByRole('alert')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeDisabled()
-  await expect(page.getByText('Encoding: https://example.com')).toBeVisible()
-  await page.getByRole('button', { name: 'Reset to automatic placement' }).click()
-  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  const fill = page.getByRole('button', { name: 'Fill region' })
+  await expect(fill).toBeVisible()
+  // blank canvas fill is disabled until a letter mask is chosen
+  await expect(page.getByRole('radio', { name: 'Mask font blank' })).toHaveAttribute('aria-checked', 'true')
+  await expect(fill).toBeDisabled()
+  await page.getByRole('radio', { name: 'Mask font Fathead' }).click()
+  await expect(fill).toBeEnabled()
+  await expect(fill).toHaveAttribute('aria-pressed', 'false')
+  await fill.click()
+  await expect(fill).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByText('Click inside an enclosed area to fill it.')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(fill).toHaveAttribute('aria-pressed', 'false')
 })
 
-test('pointer coordinates and corner resizing follow the zoom transform', async ({ page }, info) => {
+test('pattern settings expose ecc, pixel style and marker options', async ({ page }) => {
+  await page.goto('/')
+  await enterAdjust(page)
+  await expect(page.getByText('Pattern settings', { exact: true })).toBeVisible()
+  // ecc
+  await expect(page.getByRole('radiogroup', { name: 'Error correction level' })).toBeVisible()
+  await page.getByRole('radiogroup', { name: 'Error correction level' }).getByText('H', { exact: true }).click()
+  await expect(page.getByLabel('H High ~30%')).toBeChecked()
+  // H may temporarily invalidate placement while preparing; wait for settle then return to M
+  await page.waitForTimeout(1500)
+  await page.getByRole('radiogroup', { name: 'Error correction level' }).getByText('M', { exact: true }).click()
+  await expect(page.getByLabel('M Medium ~15%')).toBeChecked()
+  // pixel style
+  await expect(page.getByRole('radiogroup', { name: 'Pixel style', exact: true })).toBeVisible()
+  await page.getByRole('radiogroup', { name: 'Pixel style', exact: true }).getByText('Dot', { exact: true }).click()
+  // marker shape
+  await expect(page.getByRole('radiogroup', { name: 'Marker shape' })).toBeVisible()
+  await page.getByRole('radiogroup', { name: 'Marker shape' }).locator('label').filter({ hasText: 'Octagon' }).click()
+  await expect(page.getByLabel('octagon Octagon')).toBeChecked()
+  // marker inner
+  await expect(page.getByRole('radiogroup', { name: 'Marker inner' })).toBeVisible()
+  await page.getByRole('radiogroup', { name: 'Marker inner' }).locator('label').filter({ hasText: 'Plus' }).click()
+  await expect(page.getByLabel('plus Plus')).toBeChecked()
+  // sub marker
+  await expect(page.getByRole('radiogroup', { name: 'Sub marker' })).toBeVisible()
+  const subMarker = page.getByRole('radiogroup', { name: 'Sub marker' })
+  await subMarker.locator('label').filter({ hasText: 'Round' }).first().click()
+  await expect(subMarker.getByLabel('circle Circle')).toBeChecked()
+  // rim and seed
+  const rim = page.getByLabel('Add Rim (1 module)')
+  await expect(rim).toBeVisible()
+  const seed = page.getByLabel('Seed', { exact: true })
+  await expect(seed).toBeVisible()
+  const before = await seed.inputValue()
+  await page.getByRole('button', { name: 'New pattern' }).click()
+  await expect(seed).not.toHaveValue(before)
+  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled({ timeout: 10000 })
+  // toggling rim keeps step valid
+  await rim.click()
+  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled({ timeout: 10000 })
+  await rim.click()
+  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled({ timeout: 10000 })
+})
+
+test('canvas nudges and keyboard move the QR', async ({ page }, info) => {
   await page.goto('/')
   await enterAdjust(page)
   const next = page.getByRole('button', { name: 'Continue to generate', exact: true })
   await expect(next).toBeEnabled()
-  const size = page.getByLabel('QR size', { exact: true })
-  await size.fill('203')
-  await expect(next).toBeEnabled()
-  for (const zoom of ['0.5', '1']) {
-    await page.getByLabel('Zoom', { exact: true }).selectOption(zoom)
-    const canvas = page.getByRole('group', { name: /Poster canvas/ }).locator('canvas')
-    await canvas.scrollIntoViewIfNeeded()
-    const bounds = (await canvas.boundingBox())!
-    const scale = bounds.width / 1000
-    const x = Number(await page.getByLabel('QR X', { exact: true }).inputValue())
-    const y = Number(await page.getByLabel('QR Y', { exact: true }).inputValue())
-    const qrSize = Number(await size.inputValue())
-    const startX = Math.round(bounds.x + (x + qrSize / 2) * scale),
-      startY = Math.round(bounds.y + (y + qrSize / 2) * scale)
-    const dx = Math.round(30 * scale),
-      dy = Math.round(30 * scale)
-    await page.mouse.move(startX, startY)
-    await page.mouse.down()
-    await page.mouse.move(startX + dx, startY + dy, { steps: 8 })
-    await page.mouse.up()
-    const gotX = Number(await page.getByLabel('QR X', { exact: true }).inputValue())
-    const gotY = Number(await page.getByLabel('QR Y', { exact: true }).inputValue())
-    // drag should move the QR; allow small tolerance due to rounding/scale
-    expect(gotX).not.toBe(x)
-    expect(gotY).not.toBe(y)
-    if (!(await next.isEnabled())) {
-      await page.getByRole('button', { name: 'Reset to automatic placement' }).click()
-      await expect(next).toBeEnabled()
-    }
-    // Verify corner resizing via numeric input remains valid at this zoom (mouse handle verified above via drag)
-    const currentSize = Number(await size.inputValue())
-    await size.fill(String(currentSize - 29))
-    await expect(size).toHaveValue(String(currentSize - 29))
-    await expect(next).toBeEnabled()
-    // restore size for next zoom iteration
-    await size.fill(String(qrSize))
-    await expect(next).toBeEnabled()
+  // show region toggle exists
+  const showRegion = page.getByLabel('Show region')
+  await expect(showRegion).toBeVisible()
+  await showRegion.click()
+  await expect(showRegion).not.toBeChecked()
+  await showRegion.click()
+  await expect(showRegion).toBeChecked()
+  // nudge buttons
+  for (const label of ['Move left', 'Move up', 'Move down', 'Move right'] as const) {
+    await expect(page.getByRole('button', { name: label })).toBeVisible()
   }
+  await page.getByRole('button', { name: 'Move right' }).click()
+  await expect(next).toBeEnabled()
+  await page.getByRole('button', { name: 'Move left' }).click()
+  await expect(next).toBeEnabled()
+  // keyboard arrows on the canvas group
+  const canvas = page.getByRole('group', { name: /Poster canvas/ })
+  await canvas.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(next).toBeEnabled()
+  await page.keyboard.press('ArrowLeft')
+  await expect(next).toBeEnabled()
+  await page.keyboard.press('ArrowUp')
+  await expect(next).toBeEnabled()
+  await page.keyboard.press('ArrowDown')
+  await expect(next).toBeEnabled()
+  // drag via mouse on the stage canvas
+  const stageCanvas = page
+    .getByRole('group', { name: /Poster canvas/ })
+    .locator('canvas')
+    .first()
+  await stageCanvas.scrollIntoViewIfNeeded()
+  const box = (await stageCanvas.boundingBox())!
+  const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down()
+  await page.mouse.move(center.x + 20, center.y + 20, { steps: 6 })
+  await page.mouse.up()
+  // The QR only fits the region in its placed spot, so dragging it away is
+  // reported and dragging it back restores a valid fit.
+  await expect(page.getByRole('alert')).toBeVisible()
+  await page.mouse.move(center.x, center.y)
+  await page.mouse.down()
+  await page.mouse.move(center.x - 20, center.y - 20, { steps: 6 })
+  await page.mouse.up()
+  await expect(next).toBeEnabled({ timeout: 15000 })
   await page.screenshot({ path: info.outputPath('editor.png'), fullPage: true })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
