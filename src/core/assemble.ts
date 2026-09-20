@@ -1,7 +1,6 @@
-import { createHash } from 'node:crypto'
-import sharp from 'sharp'
 import { renderRegionMask } from './artifacts'
 import { QrPosterError } from './errors'
+import { imaging } from './imaging'
 import { decodePng, rgbaToPng } from './image'
 import {
   buildModuleLattice,
@@ -208,7 +207,12 @@ export async function assembleResolved(
   // so the arms carry the QR's own quiet zone and the corner blocks keep the texture the drawn
   // modules put underneath. The rest of the code edge is texture, so the poster stays unverified and
   // the report warns about it.
-  const qrRaw = await sharp(normalizedQr).flatten({ background: '#ffffff' }).ensureAlpha().raw().toBuffer()
+  // The normalized QR is copied verbatim where the plate is: the code grid and the light arms beside
+  // the three finder markers. Every plate pixel maps to the same position inside the placement box,
+  // so the arms carry the QR's own quiet zone and the corner blocks keep the texture the drawn
+  // modules put underneath. The rest of the code edge is texture, so the poster stays unverified and
+  // the report warns about it. decodePng alone suffices: normalizeQr is always flattened opaque.
+  const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
   const output = Uint8Array.from(poster.data)
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
@@ -309,6 +313,13 @@ export async function assembleResolved(
   }
 
   const regionMaskPng = await renderRegionMask(regionMask)
+  const [posterSha, qrSha, cutPngSha, cutSvgSha, textSha] = await Promise.all([
+    imaging().sha256Hex(assembled),
+    imaging().sha256Hex(normalizedQr),
+    imaging().sha256Hex(cutPng),
+    imaging().sha256Hex(cutSvg),
+    imaging().sha256Hex(pattern.text),
+  ])
   const report: AssembleReport = {
     schemaVersion: 8,
     mode: 'assemble',
@@ -360,7 +371,7 @@ export async function assembleResolved(
       seed: pattern.seed,
       alphabet: PATTERN_ALPHABET,
       textLength: pattern.text.length,
-      textSha256: sha256(pattern.text),
+      textSha256: textSha,
       ecc: PATTERN_ECC,
       version: pattern.version,
       qrModules: pattern.qrModules,
@@ -409,32 +420,29 @@ export async function assembleResolved(
     },
     artifacts: {
       poster: ARTIFACT_NAMES.poster,
-      posterSha256: sha256(assembled),
+      posterSha256: posterSha,
       regionMask: ARTIFACT_NAMES.regionMask,
       qr: ARTIFACT_NAMES.qr,
-      qrSha256: sha256(normalizedQr),
+      qrSha256: qrSha,
       patternCutPng: ARTIFACT_NAMES.patternCutPng,
-      patternCutPngSha256: sha256(cutPng),
+      patternCutPngSha256: cutPngSha,
       patternCutSvg: ARTIFACT_NAMES.patternCutSvg,
-      patternCutSvgSha256: sha256(cutSvg),
+      patternCutSvgSha256: cutSvgSha,
     },
     verification: { expectedText: decoded.text, checks, qualified, skippedChecks: [...SKIPPED_DECODE_CHECKS] },
     phoneScan: 'untested',
     warnings,
   }
-  const artifacts: Record<string, Buffer> = {
+  const encoder = new TextEncoder()
+  const artifacts: Record<string, Uint8Array> = {
     'poster.png': assembled,
     'region-mask.png': regionMaskPng,
     'qr.png': normalizedQr,
     'pattern-cut.png': cutPng,
-    'pattern-cut.svg': Buffer.from(cutSvg),
-    'report.json': Buffer.from(`${JSON.stringify(report, null, 2)}\n`),
+    'pattern-cut.svg': encoder.encode(cutSvg),
+    'report.json': encoder.encode(`${JSON.stringify(report, null, 2)}\n`),
   }
   return { report, artifacts }
-}
-
-function sha256(value: string | Buffer): string {
-  return createHash('sha256').update(value).digest('hex')
 }
 
 /**

@@ -1,4 +1,4 @@
-import sharp from 'sharp'
+import { imaging } from './imaging'
 import { QrPosterError } from './errors'
 import { luma, rgbaToPng } from './image'
 import type { LoadedPng } from './image'
@@ -424,10 +424,10 @@ export function buildCutSvg(
   pathData: string,
   width: number,
   height: number,
-  pattern: Buffer,
+  pattern: Uint8Array,
   options: CutSvgOptions = {},
 ): string {
-  const encoded = pattern.toString('base64')
+  const encoded = Buffer.from(pattern).toString('base64')
   const borderWidth = options.borderWidth ?? 0
   // A centered stroke of twice the width, clipped to the shape, leaves a band of exactly
   // `borderWidth` pixels along the inside of the edge.
@@ -454,7 +454,7 @@ export async function renderCutCoverage(pathData: string, width: number, height:
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"` +
     ` viewBox="0 0 ${width} ${height}">` +
     `<path fill="#ffffff" fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></svg>`
-  return rasterizeCoverage(svg, width, height, 'Cut rasterization')
+  return rasterizeCoverage(svg, width, height)
 }
 
 /**
@@ -477,20 +477,13 @@ export async function renderCutBorderCoverage(
     `<path fill-rule="evenodd" clip-rule="evenodd" d="${pathData}"/></clipPath></defs>` +
     `<path fill="none" stroke="#ffffff" stroke-width="${format(borderWidth * 2)}"` +
     ` fill-rule="evenodd" clip-rule="evenodd" clip-path="url(#${SVG_CLIP_ID})" d="${pathData}"/></svg>`
-  return rasterizeCoverage(svg, width, height, 'Border rasterization')
+  return rasterizeCoverage(svg, width, height)
 }
 
-async function rasterizeCoverage(svg: string, width: number, height: number, label: string): Promise<Uint8Array> {
-  const { data, info } = await sharp(Buffer.from(svg)).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-  if (info.width !== width || info.height !== height) {
-    throw new QrPosterError(
-      'IMAGE_PROCESSING_FAILED',
-      `${label} produced ${info.width}x${info.height} instead of ${width}x${height}.`,
-      3,
-    )
-  }
+async function rasterizeCoverage(svg: string, width: number, height: number): Promise<Uint8Array> {
+  const raster = await imaging().rasterizeSvg(svg, width, height)
   const coverage = new Uint8Array(width * height)
-  for (let index = 0; index < coverage.length; index++) coverage[index] = data[index * 4 + 3]!
+  for (let index = 0; index < coverage.length; index++) coverage[index] = raster.data[index * 4 + 3]!
   return coverage
 }
 
@@ -498,7 +491,7 @@ async function rasterizeCoverage(svg: string, width: number, height: number, lab
  * Applies the cut coverage without resampling the source. An optional black band is composited
  * inside the outline; pixels beyond it stay bit-exact and everything outside is transparent.
  */
-export async function renderCutPng(pattern: LoadedPng, pathData: string, borderWidth = 0): Promise<Buffer> {
+export async function renderCutPng(pattern: LoadedPng, pathData: string, borderWidth = 0): Promise<Uint8Array> {
   const [coverage, borderCoverage] = await Promise.all([
     renderCutCoverage(pathData, pattern.width, pattern.height),
     renderCutBorderCoverage(pathData, pattern.width, pattern.height, borderWidth),

@@ -100,7 +100,7 @@ describe('stateless routes', () => {
     expect(r.status).toBe(200)
     const result = await r.json()
     const engine = await assembleFromBuffers({ posterBytes, content, placement: body.placement, ...settings })
-    expect(result.artifacts['poster.png']).toBe(engine.artifacts['poster.png']!.toString('base64'))
+    expect(result.artifacts['poster.png']).toBe(Buffer.from(engine.artifacts['poster.png']!).toString('base64'))
   })
   it.each(['', ' \t ', 'line\nline', 'x'.repeat(9000)])('rejects invalid content', async (value) => {
     const r = await handleEditorRequest(request({ revision: 3, content: value, settings }), 'prepare')

@@ -1,8 +1,9 @@
 import * as zxing from '@zxing/library'
 import jsQR from 'jsqr'
 import type { QRCode as JsQrResult } from 'jsqr'
-import sharp from 'sharp'
 import { QrCodeDataType, encode } from 'uqr'
+import { imaging } from './imaging'
+import { cropRgba } from './imaging/pixels'
 import { renderPattern } from './pattern'
 import type { PixelStyle } from './pattern'
 import { QrPosterError } from './errors'
@@ -78,15 +79,15 @@ export async function generateQrFromContent(
     },
   })
 
-  const overlays: { input: Buffer }[] = []
+  const overlays: string[] = []
   const finderSvg = buildFinderSvg(size, pitch, marginModules, markerShape, markerInner, markerStyle)
-  if (finderSvg) overlays.push({ input: Buffer.from(finderSvg) })
+  if (finderSvg) overlays.push(finderSvg)
   if (markerSub === 'circle') {
     const alignmentSvg = buildAlignmentSvg(encoded, pitch, marginModules)
-    if (alignmentSvg) overlays.push({ input: Buffer.from(alignmentSvg) })
+    if (alignmentSvg) overlays.push(alignmentSvg)
   }
 
-  const file = await sharp(basePng).composite(overlays).png().toBuffer()
+  const file = await imaging().composeQrPng(basePng, overlays)
   return {
     image: await decodePng(file, GENERATED_QR_PATH, 'generated QR'),
     version: encoded.version,
@@ -262,7 +263,7 @@ function buildAlignmentSvg(encoded: ReturnType<typeof encode>, pitch: number, ma
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}">${parts.join('')}</svg>`
 }
 
-export async function decodeQrBuffer(buffer: Buffer): Promise<string> {
+export async function decodeQrBuffer(buffer: Uint8Array): Promise<string> {
   return (await decodeQrBufferDetailed(buffer)).text
 }
 
@@ -272,9 +273,9 @@ export interface DecodedQr {
   version?: number
 }
 
-async function decodeQrBufferDetailed(buffer: Buffer): Promise<DecodedQr> {
-  const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-  return decodeQrRawDetailed(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), info.width, info.height)
+async function decodeQrBufferDetailed(buffer: Uint8Array): Promise<DecodedQr> {
+  const { data, width, height } = await imaging().decodePng(buffer)
+  return decodeQrRawDetailed(data, width, height)
 }
 
 export function decodeQrRaw(data: Uint8Array, width: number, height: number): string {
@@ -551,17 +552,13 @@ async function rebuildQuietZone(image: LoadedPng, grid: CodeGrid): Promise<Loade
   return decodePng(await rgbaToPng(output, size, size), image.path, 'QR input')
 }
 
-export async function normalizeQr(image: LoadedPng, targetSize: number): Promise<Buffer> {
-  return sharp(image.file)
-    .flatten({ background: '#ffffff' })
-    .resize(targetSize, targetSize, { fit: 'fill', kernel: sharp.kernel.nearest })
-    .png()
-    .toBuffer()
+export async function normalizeQr(image: LoadedPng, targetSize: number): Promise<Uint8Array> {
+  return imaging().normalizeQrPng(image.file, targetSize)
 }
 
 export async function verifyQrVariant(
   name: VerificationCheck['name'],
-  buffer: Buffer,
+  buffer: Uint8Array,
   expectedText: string,
 ): Promise<VerificationCheck> {
   try {
@@ -609,11 +606,11 @@ function quietZoneLightRatio(data: Uint8Array, width: number, height: number, ma
 }
 
 /** Crop whole modules from the central third, away from the corner finder markers. */
-export async function cropQrPattern(qr: Buffer, totalModules: number, modulePixels: number): Promise<Buffer> {
+export async function cropQrPattern(qr: Uint8Array, totalModules: number, modulePixels: number): Promise<Uint8Array> {
   const modules = Math.min(Math.floor(totalModules / 3), totalModules - 20)
   const start = Math.floor((totalModules - modules) / 2) * modulePixels
-  return sharp(qr)
-    .extract({ left: start, top: start, width: modules * modulePixels, height: modules * modulePixels })
-    .png()
-    .toBuffer()
+  const raw = await imaging().decodePng(qr)
+  const size = modules * modulePixels
+  const cropped = cropRgba(raw, start, start, size, size)
+  return imaging().encodePngRgba(cropped, size, size)
 }

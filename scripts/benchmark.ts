@@ -32,7 +32,7 @@ const result = await assembleFromBuffers({
 })
 const envelope = JSON.stringify({
   artifacts: Object.fromEntries(
-    Object.entries(result.artifacts).map(([name, data]) => [name, data.toString('base64')]),
+    Object.entries(result.artifacts).map(([name, data]) => [name, Buffer.from(data).toString('base64')]),
   ),
   report: result.report,
 })

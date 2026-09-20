@@ -80,7 +80,7 @@ export interface ResolvedLayout {
   decoded: DecodedQr
   qrMetadata: QrMetadata
   placement: QrPlacement
-  normalizedQr: Buffer
+  normalizedQr: Uint8Array
 }
 
 export interface VerificationCheck {
@@ -172,10 +172,10 @@ export interface PrepareResult {
 }
 
 export interface CompositePosterInputs {
-  original: Buffer
-  generated: Buffer
+  original: Uint8Array
+  generated: Uint8Array
   regionMask: RegionMask
-  qr: Buffer
+  qr: Uint8Array
   placement: QrPlacement
 }
 

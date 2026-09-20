@@ -1,4 +1,4 @@
-import sharp from 'sharp'
+import { imaging } from './imaging'
 import { QrPosterError } from './errors'
 import type { BoundingBox } from './types'
 
@@ -401,17 +401,10 @@ export async function renderModuleCoverage(
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"` +
     ` viewBox="0 0 ${width} ${height}"><path fill="#ffffff" d="${pathData}"/></svg>`
-  const { data, info } = await sharp(Buffer.from(svg)).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-  if (info.width !== width || info.height !== height) {
-    throw new QrPosterError(
-      'IMAGE_PROCESSING_FAILED',
-      `Module rasterization produced ${info.width}x${info.height} instead of ${width}x${height}.`,
-      3,
-    )
-  }
+  const raster = await imaging().rasterizeSvg(svg, width, height)
   const coverage = new Uint8Array(width * height)
   for (let index = 0; index < coverage.length; index++) {
-    const alpha = data[index * 4 + 3]!
+    const alpha = raster.data[index * 4 + 3]!
     if (!allowAntialias && alpha !== 0 && alpha !== 255) {
       throw new QrPosterError(
         'IMAGE_PROCESSING_FAILED',

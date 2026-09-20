@@ -1,6 +1,8 @@
 import sharp from 'sharp'
 import { assembleResolved, markerBandRects } from '../core/assemble'
 import { renderRegionMask } from '../core/artifacts'
+import { setImaging } from '../core/imaging'
+import { nodeImaging } from '../core/imaging/node'
 import { decodePng, rgbaToPng } from '../core/image'
 import { buildManualRegionMask, detectRegionMask } from '../core/mask'
 import { placeQr, findClosestSquare } from '../core/placement'
@@ -13,10 +15,12 @@ import type { Placement, Settings } from '../lib/editor/schema'
 import type { QrMetadata, RegionMask } from '../core/types'
 import type { ResolvedLayout } from '../core/types'
 
+setImaging(nodeImaging)
+
 export interface BufferInput {
-  posterBytes: Buffer
+  posterBytes: Uint8Array
   content: string
-  maskBytes?: Buffer
+  maskBytes?: Uint8Array
   placement?: Placement
   previousTotalModules?: number | undefined
   settings?: Settings
@@ -31,10 +35,11 @@ export class InputError extends Error {
     super(message)
   }
 }
-export async function readImage(bytes: Buffer, name: string) {
+export async function readImage(bytes: Uint8Array, name: string) {
   if (bytes.length > MAX_IMAGE_BYTES)
     throw new InputError('UPLOAD_LIMIT', 'Each PNG must be 10 MiB or smaller.', 413, name)
-  if (!bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+  if (!Buffer.from(bytes.subarray(0, 8)).equals(signature) || bytes.length < 8)
     throw new InputError('PNG_INVALID', 'Choose a valid PNG image.', 422, name)
   try {
     const meta = await sharp(bytes, { limitInputPixels: MAX_PIXELS, animated: true }).metadata()
@@ -194,9 +199,9 @@ export async function prepareEditor(input: BufferInput) {
   return {
     width: poster.width,
     height: poster.height,
-    mask: (await renderRegionMask(regionMask)).toString('base64'),
-    overlay: (await rgbaToPng(overlay, poster.width, poster.height)).toString('base64'),
-    qr: normalizedQr.toString('base64'),
+    mask: Buffer.from(await renderRegionMask(regionMask)).toString('base64'),
+    overlay: Buffer.from(await rgbaToPng(overlay, poster.width, poster.height)).toString('base64'),
+    qr: Buffer.from(normalizedQr).toString('base64'),
     qrMetadata,
     placement: { x: placement.x, y: placement.y, size: placement.size },
     validation,

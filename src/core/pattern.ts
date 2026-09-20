@@ -1,6 +1,6 @@
-import sharp from 'sharp'
 import { QrCodeDataType, encode } from 'uqr'
 import type { QrCodeGenerateResult } from 'uqr'
+import { imaging } from './imaging'
 import { QrPosterError } from './errors'
 
 /** qrcode.antfu.me defaults: ecc 'M', 2-module margin, rounded pixel style, auto mask. */
@@ -62,7 +62,7 @@ export interface PosterPatternOptions {
 }
 
 export interface PosterPattern {
-  png: Buffer
+  png: Uint8Array
   seed: number
   version: number
   text: string
@@ -155,7 +155,7 @@ export async function renderPattern(
   modulePixels: number,
   pixelStyle: PixelStyle = PATTERN_PIXEL_STYLE,
   options: PatternRenderOptions = {},
-): Promise<Buffer> {
+): Promise<Uint8Array> {
   if (!Number.isInteger(modulePixels) || modulePixels < 1)
     throw new QrPosterError('INVALID_INPUT', 'modulePixels must be a positive integer.')
   if (!PATTERN_PIXEL_STYLES.includes(pixelStyle))
@@ -282,17 +282,15 @@ export async function renderPattern(
     foreground +
     '</svg>'
 
-  const raster = sharp(Buffer.from(svg))
-  const png = await (include === undefined ? raster.flatten({ background: '#ffffff' }) : raster).png().toBuffer()
-  const metadata = await sharp(png).metadata()
-  if (metadata.width !== window.width || metadata.height !== window.height) {
+  const rendered = await imaging().renderSvgToPng(svg, { flatten: include === undefined })
+  if (rendered.width !== window.width || rendered.height !== window.height) {
     throw new QrPosterError(
       'IMAGE_PROCESSING_FAILED',
-      `Pattern rasterization produced ${metadata.width}x${metadata.height} instead of ${window.width}x${window.height}.`,
+      `Pattern rasterization produced ${rendered.width}x${rendered.height} instead of ${window.width}x${window.height}.`,
       3,
     )
   }
-  return png
+  return rendered.png
 }
 
 /**
@@ -304,7 +302,7 @@ export async function renderRoundedPattern(
   matrix: boolean[][],
   modulePixels: number,
   options: PatternRenderOptions = {},
-): Promise<Buffer> {
+): Promise<Uint8Array> {
   return renderPattern(matrix, modulePixels, 'rounded', options)
 }
 

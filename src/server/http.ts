@@ -82,7 +82,7 @@ export async function handleEditorRequest(request: Request, mode: 'prepare' | 'a
         revision,
         placement: result.report.placement,
         artifacts: Object.fromEntries(
-          Object.entries(result.artifacts).map(([name, bytes]) => [name, bytes.toString('base64')]),
+          Object.entries(result.artifacts).map(([name, bytes]) => [name, Buffer.from(bytes).toString('base64')]),
         ),
         report: result.report,
       },
