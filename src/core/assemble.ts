@@ -11,8 +11,13 @@ import {
   moduleCellIndex,
   renderModuleCoverage,
 } from './module-cut'
-import { computeRotatedPlateModules } from './module-cut'
-import { localPointInPlate, posterToPlatePoint, rotatedFootprintBounds } from './rotate'
+import {
+  posterToPlatePoint,
+  qrWorkingFrame,
+  regionPixelBounds,
+  sampleMaskIntoQrFrame,
+} from './rotate'
+import type { PixelBounds, QrFrame } from './rotate'
 import {
   PATTERN_ALPHABET,
   PATTERN_ECC,
@@ -49,14 +54,37 @@ const ARTIFACT_NAMES = {
 } as const
 
 /**
- * Assembles the finished poster offline in whole modules: the generator's marker-free matrix is
- * sampled against the painted region on the placed QR's own lattice, only modules that sit entirely
- * inside the region are drawn, and the QR plate is cut out as a hole on that same lattice. Pixels
- * outside the region, pixels in modules the region only partly covers, and the whole alpha channel
- * are preserved, so nothing is ever punched transparent and no drawn edge crosses a module.
+ * Assembles the finished poster offline in whole modules. Upright placements take the golden
+ * 0° path, where the generator's marker-free matrix is sampled against the painted region on
+ * the placed QR's own lattice. A rotated placement instead validates and paints in the QR's
+ * upright frame: the region mask is inverse-rotated into that frame, the same whole-module
+ * pipeline generates the fill and plate there, and the finished overlay rides the placement
+ * transform back onto the poster (doc/plan/rotated-mask-fill.md).
  */
-
 export async function assembleResolved(
+  layout: ResolvedLayout,
+  options: {
+    seed?: number
+    qrMargin?: 1
+    radius?: number
+    rimModules?: number
+    rimRounded?: boolean
+    pixelStyle?: PixelStyle
+  },
+) {
+  if ((layout.placement.rotation ?? 0) !== 0) return assembleRotated(layout, options)
+  return assembleUpright(layout, options)
+}
+
+/**
+ * The 0° golden path, byte-for-byte the former `assembleResolved` body: the generator's
+ * marker-free matrix is sampled against the painted region on the placed QR's own lattice,
+ * only modules that sit entirely inside the region are drawn, and the QR plate is cut out
+ * as a hole on that same lattice. Pixels outside the region, pixels in modules the region
+ * only partly covers, and the whole alpha channel are preserved, so nothing is ever punched
+ * transparent and no drawn edge crosses a module.
+ */
+async function assembleUpright(
   layout: ResolvedLayout,
   options: {
     seed?: number
@@ -97,21 +125,11 @@ export async function assembleResolved(
   }
   const { arms, cornerBlocks } = markerBandRects(codeGrid, qrMetadata.qrModules, pitch, marginModules)
   const plateCornersCut = radius >= PLATE_CORNER_EPSILON
-  /**
-   * Rotation keeps QR generation upright: placement code rotates the complete finished plate once.
-   * For a rotated placement the plate is the whole normalized QR square, the plate hole is every
-   * lattice module the rotated footprint covers in full, and nearest-neighbour sampling copies
-   * each destination pixel from the upright plate through the inverse transform — no anti-aliased
-   * module edges, no decode/resample round trip through PNG.
-   */
-  const rotated = placement.rotation !== 0
-  const plate = rotated
-    ? computeRotatedPlateModules(lattice, placement, [{ x: 0, y: 0, width: placement.size, height: placement.size }])
-    : computePlateModules(
-        lattice,
-        [codeGrid, ...arms, ...(plateCornersCut ? [] : cornerBlocks)],
-        plateCornersCut ? cornerBlocks : [],
-      )
+  const plate = computePlateModules(
+    lattice,
+    [codeGrid, ...arms, ...(plateCornersCut ? [] : cornerBlocks)],
+    plateCornersCut ? cornerBlocks : [],
+  )
   const bandCells = plate.holeModules - qrMetadata.qrModules * qrMetadata.qrModules
 
   const drawn = new Uint8Array(lattice.columns * lattice.rows)
@@ -220,26 +238,13 @@ export async function assembleResolved(
   // modules put underneath. The rest of the code edge is texture, so the poster stays unverified and
   // the report warns about it.
   const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
-  /** Sample one plate pixel: same NN inverse-map helper validation uses. */
-  const plateSampleOffset = (column: number, row: number): number | null => {
-    const local = posterToPlatePoint(column + 0.5, row + 0.5, placement)
-    if (!localPointInPlate(local.x, local.y, placement.size)) return null
-    const sourceX = Math.min(placement.size - 1, Math.floor(local.x))
-    const sourceY = Math.min(placement.size - 1, Math.floor(local.y))
-    return (sourceY * placement.size + sourceX) * 4
-  }
   const output = Uint8Array.from(poster.data)
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
       const index = row * width + column
       const offset = index * 4
       const cell = moduleCellIndex(lattice, column, row)
-      const source =
-        rotated
-          ? plateSampleOffset(column, row)
-          : cell >= 0 && plate.cells[cell] === 1
-          ? qrSourceOffset(placement, column, row)
-          : null
+      const source = cell >= 0 && plate.cells[cell] === 1 ? qrSourceOffset(placement, column, row) : null
       if (source !== null && source >= 0) {
         for (let channel = 0; channel < 4; channel++) output[offset + channel] = qrRaw[source + channel]!
         continue
@@ -270,13 +275,9 @@ export async function assembleResolved(
       const index = row * width + column
       const offset = index * 4
       const cell = moduleCellIndex(lattice, column, row)
+      const isPlate = cell >= 0 && plate.cells[cell] === 1
+      const plateSource = isPlate ? qrSourceOffset(placement, column, row) : -1
       const isCorner = cell >= 0 && plate.corners[cell] === 1
-      const isPlate = rotated ? plateSampleOffset(column, row) !== null : cell >= 0 && plate.cells[cell] === 1
-      const plateSource = rotated
-        ? (plateSampleOffset(column, row) ?? -1)
-        : cell >= 0 && plate.cells[cell] === 1
-        ? qrSourceOffset(placement, column, row)
-        : -1
       const isDrawn = cell >= 0 && drawn[cell] === 1
       const hasCoverage = coverage[index]! > 0
       if (isCorner) cornerTexturePixels++
@@ -468,6 +469,480 @@ export async function assembleResolved(
     'report.json': encoder.encode(`${JSON.stringify(report, null, 2)}\n`),
   }
   return { report, artifacts }
+}
+
+/**
+ * The rotated assembly path (doc/plan/rotated-mask-fill.md). QR generation, marker bands, rim,
+ * and module rendering stay rotation-unaware: the painted region mask is inverse-rotated into
+ * the QR's upright frame, the whole-module pipeline generates the texture plus the 0° plate
+ * there, and the finished overlay is rotated back onto the poster with one nearest-neighbour
+ * inverse-map pass clipped to the original region. Rotation is placement state, not pattern
+ * settings; `rotation = 0` never reaches this path and the golden bytes stay untouched.
+ */
+async function assembleRotated(
+  layout: ResolvedLayout,
+  options: {
+    seed?: number
+    qrMargin?: 1
+    radius?: number
+    rimModules?: number
+    rimRounded?: boolean
+    pixelStyle?: PixelStyle
+  },
+) {
+  const startedAt = Date.now()
+  const { poster, qrSource, maskInput, regionMask, decoded, qrMetadata, placement, normalizedQr } = layout
+  const { width, height } = poster
+  const pitch = placement.modulePixels
+
+  // The working canvas covers the inverse-rotated selected region, not the whole poster: assembly
+  // only paints inside the region, so a small painted area stays a small buffer even at 45deg.
+  const regionBounds = regionPixelBounds(regionMask)
+  const frame = qrWorkingFrame(placement, regionBounds)
+  const selection = Uint8Array.from(regionMask.data, (value) => (value ? 1 : 0))
+  const workingMask = sampleMaskIntoQrFrame(selection, width, height, frame, placement)
+
+  // Everything below is the 0° whole-module pipeline on the working canvas, with the QR box at
+  // the plate origin: lattice, safe modules, rim, plate hole, phase-locked pattern crop.
+  const lattice = buildModuleLattice(frame.width, frame.height, pitch, frame.qr)
+  const safeArea = computeSafeArea(workingMask, frame.width, frame.height, lattice)
+
+  const marginModules = options.qrMargin ?? BAND_MODULES
+  const marginPixels = marginModules * pitch
+  const radius = options.radius ?? 2 * pitch
+  const rimModulesCount = options.rimModules ?? DEFAULT_RIM_MODULES
+  const rimRounded = options.rimRounded ?? false
+  if (!Number.isInteger(rimModulesCount) || rimModulesCount < 0 || rimModulesCount > 5)
+    throw new QrPosterError('INVALID_INPUT', 'rimModules must be an integer between 0 and 5.')
+  const codeGrid: BoundingBox = {
+    x: frame.qr.x + QUIET_ZONE_MODULES * pitch,
+    y: frame.qr.y + QUIET_ZONE_MODULES * pitch,
+    width: qrMetadata.qrModules * pitch,
+    height: qrMetadata.qrModules * pitch,
+  }
+  const { arms, cornerBlocks } = markerBandRects(codeGrid, qrMetadata.qrModules, pitch, marginModules)
+  const plateCornersCut = radius >= PLATE_CORNER_EPSILON
+  // Generation is upright, so the plate regains the 0° hole semantics at every angle: the code
+  // grid plus the finder arms, with the corner hand-back restored for rotated placements too.
+  const plate = computePlateModules(
+    lattice,
+    [codeGrid, ...arms, ...(plateCornersCut ? [] : cornerBlocks)],
+    plateCornersCut ? cornerBlocks : [],
+  )
+  const bandCells = plate.holeModules - qrMetadata.qrModules * qrMetadata.qrModules
+
+  const drawn = new Uint8Array(lattice.columns * lattice.rows)
+  let drawnModules = 0
+  for (let index = 0; index < drawn.length; index++) {
+    if (!safeArea.safe[index] || plate.cells[index]) continue
+    drawn[index] = 1
+    drawnModules++
+  }
+  const rim = computeRimModules(safeArea.safe, lattice, rimModulesCount)
+  let rimModuleCount = 0
+  let textureModules = 0
+  for (let index = 0; index < drawn.length; index++) {
+    if (!drawn[index]) continue
+    if (rim[index]) rimModuleCount++
+    else textureModules++
+  }
+  if (textureModules === 0 && rimModulesCount > 0) {
+    throw new QrPosterError(
+      'QR_LAYOUT_INVALID',
+      `The rotated painted region leaves no texture module once the ${rimModulesCount}-module rim and ` +
+        'the QR plate are removed. Use a larger region, a smaller QR box, or a smaller rotation.',
+    )
+  }
+
+  // The texture stays phase-locked to the placed QR's lattice, now in the QR's frame: the crop
+  // residual versus the pitch must be 0 for both axes in working space.
+  const pattern = await buildPosterPattern({
+    width: frame.width,
+    height: frame.height,
+    modulePixels: pitch,
+    alignTo: { x: frame.qr.x, y: frame.qr.y },
+    ...(options.seed !== undefined ? { seed: options.seed } : {}),
+  })
+  const phaseX = (pattern.crop.left + frame.qr.x) % pitch
+  const phaseY = (pattern.crop.top + frame.qr.y) % pitch
+  if (phaseX !== 0 || phaseY !== 0) {
+    throw new QrPosterError(
+      'IMAGE_PROCESSING_FAILED',
+      `The texture window at ${pattern.crop.left},${pattern.crop.top} is not phase-locked to the ${pitch}px ` +
+        `QR lattice (residual ${phaseX},${phaseY}); whole-module drawing needs both on one grid.`,
+      3,
+    )
+  }
+  const moduleOffsetX = (pattern.crop.left + (frame.qr.x % pitch)) / pitch
+  const moduleOffsetY = (pattern.crop.top + (frame.qr.y % pitch)) / pitch
+  const matrixOffsetX = moduleOffsetX - pattern.marginModules
+  const matrixOffsetY = moduleOffsetY - pattern.marginModules
+  const effective = pattern.matrix.map((row) => row.slice())
+  for (let row = 0; row < lattice.rows; row++) {
+    for (let column = 0; column < lattice.columns; column++) {
+      const index = row * lattice.columns + column
+      if (!drawn[index]) continue
+      const matrixRow = row + matrixOffsetY
+      const matrixColumn = column + matrixOffsetX
+      if (matrixRow < 0 || matrixColumn < 0 || matrixRow >= effective.length || matrixColumn >= effective.length)
+        continue
+      if (rim[index]) effective[matrixRow]![matrixColumn] = true
+    }
+  }
+  const include = (moduleX: number, moduleY: number): boolean => {
+    const column = moduleX - moduleOffsetX
+    const row = moduleY - moduleOffsetY
+    if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows) return false
+    return drawn[row * lattice.columns + column] === 1
+  }
+  const pixelStyle: PixelStyle = options.pixelStyle ?? PATTERN_PIXEL_STYLE
+  const texturePng = await renderPattern(effective, pitch, pixelStyle, {
+    marginModules: pattern.marginModules,
+    window: { ...pattern.crop, width: frame.width, height: frame.height },
+    include,
+  })
+  const render = await decodePng(texturePng, 'pattern.png', 'rendered pattern')
+
+  // The working cut layer is the same whole-module geometry as the upright path: drawn modules
+  // carry the texture, the plate hole stays transparent, and antialiasing lives on the same
+  // module-aligned path. It is rotated back with the same NN map, never retessellated.
+  const unitPath = buildModulePath(drawn, lattice)
+  const coverage = await renderModuleCoverage(unitPath, frame.width, frame.height, rimRounded)
+  const cutLayer = new Uint8Array(frame.width * frame.height * 4)
+  for (let index = 0; index < coverage.length; index++) {
+    const alpha = coverage[index]!
+    if (alpha === 0) continue
+    const offset = index * 4
+    if (alpha === 255 || !rimRounded) {
+      cutLayer[offset] = render.data[offset]!
+      cutLayer[offset + 1] = render.data[offset + 1]!
+      cutLayer[offset + 2] = render.data[offset + 2]!
+      cutLayer[offset + 3] = 255
+    } else {
+      const srcA = alpha / 255
+      cutLayer[offset] = Math.round(render.data[offset]! * srcA + 255 * (1 - srcA))
+      cutLayer[offset + 1] = Math.round(render.data[offset + 1]! * srcA + 255 * (1 - srcA))
+      cutLayer[offset + 2] = Math.round(render.data[offset + 2]! * srcA + 255 * (1 - srcA))
+      cutLayer[offset + 3] = alpha
+    }
+  }
+  const workingCutSvg = buildCutSvg(unitPath, frame.width, frame.height, texturePng)
+  // The cut artifact for a rotated placement is the working cut rotated back with the same NN
+  // inverse map, and the SVG keeps the same working geometry wrapped in the placement transform
+  // — rotated quads are never retessellated in a second geometry path.
+  const rotatedCutPng = await rotateBackCutPng(cutLayer, frame, placement, width, height, regionMask)
+  const posterCutSvg = buildRotatedCutSvg(workingCutSvg, placement, frame, width, height)
+
+  // The working overlay is the whole finished composite ready to be rotated: the upright QR plate
+  // copied verbatim over the plate cells, the texture over the drawn cells, and the alpha that
+  // lets the rounded rim blend onto the original artwork during the rotate-back.
+  const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
+  const overlay = new Uint8Array(frame.width * frame.height * 4)
+  for (let row = 0; row < frame.height; row++) {
+    for (let column = 0; column < frame.width; column++) {
+      const index = row * frame.width + column
+      const offset = index * 4
+      const cell = moduleCellIndex(lattice, column, row)
+      const plateSource = cell >= 0 && plate.cells[cell] === 1 ? workingQrSourceOffset(frame, column, row) : -1
+      if (plateSource >= 0) {
+        for (let channel = 0; channel < 4; channel++) overlay[offset + channel] = qrRaw[plateSource + channel]!
+        continue
+      }
+      const alpha = coverage[index]!
+      if (alpha === 0) continue
+      for (let channel = 0; channel < 3; channel++) overlay[offset + channel] = render.data[offset + channel]!
+      overlay[offset + 3] = alpha === 255 || !rimRounded ? 255 : alpha
+    }
+  }
+
+  // Rotate back: destination-driven nearest-neighbour inverse-map pass, clipped to the original
+  // region so the artistic margin never paints outside the mask and the alpha channel survives.
+  const output = Uint8Array.from(poster.data)
+  let outsidePassed = true
+  let qrPassed = true
+  let plateCornersPassed = true
+  let moduleCutPassed = true
+  let alphaPassed = true
+  let cornerTexturePixels = 0
+  for (let row = 0; row < height; row++) {
+    for (let column = 0; column < width; column++) {
+      const index = row * width + column
+      const offset = index * 4
+      const local = posterToPlatePoint(column + 0.5, row + 0.5, placement)
+      const wx = Math.floor(local.x - frame.left)
+      const wy = Math.floor(local.y - frame.top)
+      const inFrame = wx >= 0 && wy >= 0 && wx < frame.width && wy < frame.height
+      const cell = inFrame ? moduleCellIndex(lattice, wx, wy) : -1
+      const isPlate = cell >= 0 && plate.cells[cell] === 1
+      const isCorner = cell >= 0 && plate.corners[cell] === 1
+      const isDrawn = cell >= 0 && drawn[cell] === 1
+      const overlayOffset = inFrame ? (wy * frame.width + wx) * 4 : -1
+      const srcA = inFrame ? overlay[overlayOffset! + 3]! / 255 : 0
+      let changed = false
+      // Only original-region pixels may be written, and only where the inverse map lands on a
+      // drawn module or the plate: moduleCut judges writes through the inverse map, not the
+      // poster lattice.
+      if (regionMask.data[index] && inFrame) {
+        if (isPlate) {
+          const plateSource = workingQrSourceOffset(frame, wx, wy)
+          for (let channel = 0; channel < 4; channel++) {
+            const value = qrRaw[plateSource + channel]!
+            if (value !== poster.data[offset + channel]!) changed = true
+            output[offset + channel] = value
+          }
+        } else if (srcA > 0) {
+          for (let channel = 0; channel < 3; channel++) {
+            const dst = output[offset + channel]!
+            const value = srcA === 1 ? overlay[overlayOffset! + channel]! : Math.round(overlay[overlayOffset! + channel]! * srcA + dst * (1 - srcA))
+            if (value !== poster.data[offset + channel]!) changed = true
+            output[offset + channel] = value
+          }
+        }
+      }
+      for (let channel = 0; channel < 4; channel++) {
+        const value = output[offset + channel]!
+        if (!regionMask.data[index] && value !== poster.data[offset + channel]!) outsidePassed = false
+        if (isPlate && value !== qrRaw[workingQrSourceOffset(frame, wx, wy) + channel]!) qrPassed = false
+        if (isCorner && value !== overlay[overlayOffset! + channel]!) plateCornersPassed = false
+      }
+      // Square rim: whole modules or nothing. Rounded rim: antialiased coverage may change pixels
+      // where coverage is partial, so allow any pixel whose sample has coverage.
+      const allowed = rimRounded ? srcA > 0 || isPlate : isDrawn || isPlate
+      if (changed && !allowed) moduleCutPassed = false
+      if (output[offset + 3] !== poster.data[offset + 3]!) alphaPassed = false
+      if (isCorner) cornerTexturePixels++
+    }
+  }
+
+  const assembled = await rgbaToPng(output, width, height)
+
+  // The quiet zone is trimmed to one module, so the assembled poster is deliberately not
+  // decode-verified; only the QR input, the geometry, and the untouched alpha channel are checked.
+  // phoneScan stays untested.
+  const checks: VerificationCheck[] = [
+    {
+      name: 'sourceQr',
+      passed: true,
+      decodedText: decoded.text,
+      decoder: decoded.decoder,
+      ...(decoded.version !== undefined ? { version: decoded.version } : {}),
+    },
+    await verifyQrVariant('normalizedQr', normalizedQr, decoded.text),
+    { name: 'outsideRegionPixels', passed: outsidePassed },
+    { name: 'qrPixels', passed: qrPassed },
+    { name: 'qrPlateCorners', passed: plateCornersPassed },
+    { name: 'moduleCut', passed: moduleCutPassed },
+    { name: 'alphaPreserved', passed: alphaPassed },
+  ]
+  const qualified = checks.every((check) => check.passed)
+
+  const warnings: string[] = []
+  warnings.push(
+    `The light band is kept beside the three finder markers only: ${bandCells} cell(s) ` +
+      `${formatNumber(marginModules)} module deep (${marginPixels}px at ${pitch}px modules), with the ` +
+      `plate's ${plate.cornerModules} corner block module(s) handed back to the texture. The code's other ` +
+      `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not ` +
+      'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
+  )
+  if (safeArea.partialModules > 0) {
+    warnings.push(
+      `${safeArea.partialModules} module(s) crossed the painted region's edge in the QR's frame and kept the ` +
+        `original artwork (${safeArea.droppedPartialPixels} region pixels); the cut draws whole modules only.`,
+    )
+  }
+  if (pitch < 6) warnings.push(`The normalized QR uses ${pitch}px modules; 6px or larger is preferred.`)
+  for (const check of checks) {
+    if (!check.passed) warnings.push(`${check.name} verification failed${check.error ? `: ${check.error}` : '.'}`)
+  }
+
+  const regionMaskPng = await renderRegionMask(regionMask)
+  const [posterSha, qrSha, cutPngSha, cutSvgSha, textSha] = await Promise.all([
+    imaging().sha256Hex(assembled),
+    imaging().sha256Hex(normalizedQr),
+    imaging().sha256Hex(rotatedCutPng),
+    imaging().sha256Hex(posterCutSvg),
+    imaging().sha256Hex(pattern.text),
+  ])
+  const report: AssembleReport = {
+    schemaVersion: 8,
+    mode: 'assemble',
+    status: qualified ? 'generated' : 'verification_failed',
+    qualified,
+    createdAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAt,
+    inputs: {
+      poster: {
+        path: poster.path,
+        sha256: poster.sha256,
+        width: poster.width,
+        height: poster.height,
+      },
+      qr: {
+        path: qrSource.path,
+        sha256: qrSource.sha256,
+        width: qrSource.width,
+        height: qrSource.height,
+      },
+      ...(maskInput ? { mask: { path: maskInput.path, sha256: maskInput.sha256 } } : {}),
+    },
+    region: {
+      source: regionMask.source,
+      area: regionMask.area,
+      bounds: regionMask.bounds,
+      centroid: regionMask.centroid,
+      ...(regionMask.detection ? { detection: regionMask.detection } : {}),
+    },
+    qr: {
+      ...qrMetadata,
+      normalizedSize: placement.size,
+      normalizedModulePixels: pitch,
+      overlay: {
+        band: 'markers',
+        quietZoneModules: marginModules,
+        markerModules: MARKER_MODULES,
+        crop: {
+          left: QUIET_ZONE_MODULES * pitch,
+          top: QUIET_ZONE_MODULES * pitch,
+          size: codeGrid.width,
+        },
+        x: codeGrid.x,
+        y: codeGrid.y,
+      },
+    },
+    placement,
+    pattern: {
+      seed: pattern.seed,
+      alphabet: PATTERN_ALPHABET,
+      textLength: pattern.text.length,
+      textSha256: textSha,
+      ecc: PATTERN_ECC,
+      version: pattern.version,
+      qrModules: pattern.qrModules,
+      quietZoneModules: QUIET_ZONE_MODULES,
+      totalModules: pattern.totalModules,
+      modulePixels: pitch,
+      pixelStyle,
+      alignment: { alignedToQr: true, phase: { x: phaseX, y: phaseY } },
+      removedTypes: [...REMOVED_TYPES],
+      markerRefill: PATTERN_MARKER_REFILL,
+      refilledModules: pattern.refilledModules,
+      codeSize: pattern.codeSize,
+      canvas: { width: frame.width, height: frame.height },
+      crop: pattern.crop,
+    },
+    cut: {
+      modulePixels: pitch,
+      lattice: { x: lattice.x, y: lattice.y },
+      radius,
+      safeModules: safeArea.safeModules,
+      droppedPartialModules: safeArea.partialModules,
+      droppedPartialPixels: safeArea.droppedPartialPixels,
+      drawnModules,
+      rim: { modules: rimModulesCount, style: rimRounded ? 'rounded-antialiased' : 'cell' },
+      plateCornerModules: plate.cornerModules,
+      keep: 'region-mask',
+      edgeBlend: rimRounded ? 'antialiased' : 'cell-aligned-over-original',
+    },
+    qrPlate: {
+      band: 'markers',
+      marginModules,
+      marginPixels,
+      markerModules: MARKER_MODULES,
+      bandCells,
+      box: codeGrid,
+      holeModules: plate.holeModules,
+      cornerModules: plate.cornerModules,
+      cornerTexturePixels,
+    },
+    shape: {
+      bounds: safeArea.bounds,
+      area: drawnModules * pitch * pitch,
+      modules: drawnModules,
+      rimModules: rimModuleCount,
+      textureModules,
+    },
+    artifacts: {
+      poster: ARTIFACT_NAMES.poster,
+      posterSha256: posterSha,
+      regionMask: ARTIFACT_NAMES.regionMask,
+      qr: ARTIFACT_NAMES.qr,
+      qrSha256: qrSha,
+      patternCutPng: ARTIFACT_NAMES.patternCutPng,
+      patternCutPngSha256: cutPngSha,
+      patternCutSvg: ARTIFACT_NAMES.patternCutSvg,
+      patternCutSvgSha256: cutSvgSha,
+    },
+    verification: { expectedText: decoded.text, checks, qualified, skippedChecks: [...SKIPPED_DECODE_CHECKS] },
+    phoneScan: 'untested',
+    warnings,
+  }
+  const encoder = new TextEncoder()
+  const artifacts: Record<string, Uint8Array> = {
+    'poster.png': assembled,
+    'region-mask.png': regionMaskPng,
+    'qr.png': normalizedQr,
+    'pattern-cut.png': rotatedCutPng,
+    'pattern-cut.svg': encoder.encode(posterCutSvg),
+    'report.json': encoder.encode(`${JSON.stringify(report, null, 2)}\n`),
+  }
+  return { report, artifacts }
+}
+
+/** Plate-local coordinates of the working overlay's QR pixels: the working plate IS the QR. */
+function workingQrSourceOffset(frame: QrFrame, workingX: number, workingY: number): number {
+  return ((workingY - frame.qr.y) * frame.qr.size + (workingX - frame.qr.x)) * 4
+}
+
+/**
+ * The poster-space cut SVG for a rotated placement: the working cut rides the same centre/angle
+ * transform as the PNG rotate-back, so the vector artifact matches the rasterized one instead of
+ * retessellating rotated quads in a second geometry path.
+ */
+function buildRotatedCutSvg(
+  workingCutSvg: string,
+  placement: QrPlacement,
+  frame: QrFrame,
+  posterWidth: number,
+  posterHeight: number,
+): string {
+  const body = workingCutSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
+  const centerX = placement.x + placement.size / 2
+  const centerY = placement.y + placement.size / 2
+  const transform =
+    `translate(${centerX},${centerY}) rotate(${placement.rotation}) translate(${frame.left - centerX},${frame.top - centerY})`
+  const header =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${posterWidth}" height="${posterHeight}" viewBox="0 0 ${posterWidth} ${posterHeight}">`
+  return `${header}\n  <g transform="${transform}">${body}</g>\n</svg>\n`
+}
+
+/**
+ * Nearest-neighbour rotate-back of the working cut: each poster pixel maps into the working
+ * frame and keeps the cut layer's RGBA, so transparent stays transparent and no decode loop
+ * crosses PNG boundaries.
+ */
+async function rotateBackCutPng(
+  cutLayer: Uint8Array,
+  frame: QrFrame,
+  placement: QrPlacement,
+  posterWidth: number,
+  posterHeight: number,
+  regionMask: { data: Uint8Array; width: number; height: number },
+): Promise<Uint8Array> {
+  const output = new Uint8Array(posterWidth * posterHeight * 4)
+  for (let row = 0; row < posterHeight; row++) {
+    for (let column = 0; column < posterWidth; column++) {
+      if (!regionMask.data[row * regionMask.width + column]) continue
+      const local = posterToPlatePoint(column + 0.5, row + 0.5, placement)
+      const wx = Math.floor(local.x - frame.left)
+      const wy = Math.floor(local.y - frame.top)
+      if (wx < 0 || wy < 0 || wx >= frame.width || wy >= frame.height) continue
+      const offset = (wy * frame.width + wx) * 4
+      if (cutLayer[offset + 3]! === 0) continue
+      const outOffset = (row * posterWidth + column) * 4
+      for (let channel = 0; channel < 4; channel++) output[outOffset + channel] = cutLayer[offset + channel]!
+    }
+  }
+  return rgbaToPng(output, posterWidth, posterHeight)
 }
 
 /**

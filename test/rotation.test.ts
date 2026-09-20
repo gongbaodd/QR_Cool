@@ -1,6 +1,15 @@
 import { readFile } from 'node:fs/promises'
 import { describe, it, expect } from 'vitest'
-import { canonicalizeRotation, localPointInPlate, plateToPosterPoint, posterToPlatePoint, rotatedSquareCorners } from '../src/core/rotate'
+import {
+  canonicalizeRotation,
+  localPointInPlate,
+  plateToPosterPoint,
+  posterToPlatePoint,
+  qrWorkingFrame,
+  regionPixelBounds,
+  rotatedSquareCorners,
+  sampleMaskIntoQrFrame,
+} from '../src/core/rotate'
 import { QrPosterError } from '../src/core/errors'
 import { canonicalPlacement, fitsMask, placementSchema } from '../src/lib/editor/schema'
 import { boxIsInsideMask, placeQr } from '../src/core/placement'
@@ -161,6 +170,100 @@ describe('fitsMask with a rotated footprint', () => {
   })
 })
 
+describe('qrWorkingFrame', () => {
+  it('at 0° with a full-poster region the frame is the poster with the QR at placement x/y', () => {
+    for (const rotation of [0, 30, 45, 90, 135, 315, 359] as const) {
+      const box = { x: 12, y: 7, size: 84, rotation }
+      const frame = qrWorkingFrame(box, { x0: 0, y0: 0, x1: 200, y1: 200 })
+      // Every inverse-mapped poster corner sample stays inside the frame...
+      for (const [px, py] of [
+        [0, 0],
+        [200, 0],
+        [200, 200],
+        [0, 200],
+      ] as const) {
+        const local = posterToPlatePoint(px, py, box)
+        expect(local.x).toBeGreaterThanOrEqual(frame.left)
+        expect(local.y).toBeGreaterThanOrEqual(frame.top)
+        expect(local.x).toBeLessThanOrEqual(frame.left + frame.width)
+        expect(local.y).toBeLessThanOrEqual(frame.top + frame.height)
+      }
+      // ...and the pixel centre round trip through the working helpers is stable.
+      const posterPoint = plateToPosterPoint(posterToPlatePoint(100, 100, box).x, posterToPlatePoint(100, 100, box).y, box)
+      expect(posterPoint.x).toBeCloseTo(100, 9)
+      expect(posterPoint.y).toBeCloseTo(100, 9)
+      expect(frame.qr.size).toBe(84)
+      expect(frame.width).toBeGreaterThan(0)
+      expect(frame.height).toBeGreaterThan(0)
+    }
+    // 0° specific: the working frame is exactly the poster, QR box at the placement origin.
+    const upright = qrWorkingFrame({ x: 12, y: 7, size: 84, rotation: 0 }, { x0: 0, y0: 0, x1: 200, y1: 200 })
+    expect(upright).toEqual({
+      left: 0,
+      top: 0,
+      width: 200,
+      height: 200,
+      qr: { x: 0, y: 0, size: 84 },
+    })
+    const shifted = qrWorkingFrame({ x: 12, y: 7, size: 84, rotation: 0 }, { x0: 20, y0: 15, x1: 60, y1: 55 })
+    expect(shifted).toEqual({
+      left: 8,
+      top: 8,
+      width: 40,
+      height: 40,
+      qr: { x: -8, y: -8, size: 84 },
+    })
+  })
+
+  it('at 45° the working frame covers the inverse-mapped region with the sqrt(2) width', () => {
+    const size = 100
+    const box = { x: 150, y: 150, size, rotation: 45 }
+    // A region the placement sits in; its inverse map is a 100 * sqrt(2) diagonal AABB.
+    const frame = qrWorkingFrame(box, { x0: 100, y0: 100, x1: 300, y1: 300 })
+    expect(frame.width).toBeGreaterThan(size)
+    for (const [px, py] of [
+      [100, 100],
+      [300, 100],
+      [300, 300],
+      [100, 300],
+    ] as const) {
+      const local = posterToPlatePoint(px, py, box)
+      expect(local.x - frame.left).toBeGreaterThanOrEqual(0)
+      expect(local.y - frame.top).toBeGreaterThanOrEqual(0)
+      expect(local.x - frame.left).toBeLessThanOrEqual(frame.width)
+      expect(local.y - frame.top).toBeLessThanOrEqual(frame.height)
+    }
+  })
+})
+
+describe('sampleMaskIntoQrFrame', () => {
+  it('samples each poster region pixel into its inverse map and leaves off-poster 0', () => {
+    const posterWidth = 100
+    const posterHeight = 100
+    const mask = new Uint8Array(posterWidth * posterHeight)
+    for (let y = 30; y < 60; y++) for (let x = 30; x < 60; x++) mask[y * posterWidth + x] = 255
+    for (const rotation of [0, 45] as const) {
+      const box = { x: 20, y: 20, size: 100, rotation }
+      const frame = qrWorkingFrame(box, regionPixelBounds({ data: mask, width: posterWidth, height: posterHeight }))
+      const working = sampleMaskIntoQrFrame(mask, posterWidth, posterHeight, frame, box)
+      // Every sample point of a set poster pixel is set in the working mask...
+      let total = 0
+      for (let wy = 0; wy < frame.height; wy++) {
+        for (let wx = 0; wx < frame.width; wx++) {
+          if (!working[wy * frame.width + wx]) continue
+          total++
+          const poster = plateToPosterPoint(wx + frame.left + 0.5, wy + frame.top + 0.5, box)
+          const px = Math.floor(poster.x)
+          const py = Math.floor(poster.y)
+          const inside = px >= 0 && py >= 0 && px < posterWidth && py < posterHeight
+          if (inside) expect(mask[py * posterWidth + px]).toBe(255)
+        }
+      }
+      expect(total).toBeGreaterThan(0)
+    }
+  })
+})
+
 describe('placeQr rotation rules', () => {
   it('auto-place stays upright and emits rotation 0', () => {
     const mask = rectangularMask(300, 300, 10, 10, 280, 280)
@@ -221,6 +324,18 @@ describe('engine rotation end to end', () => {
     expect(result.report.qualified).toBe(true)
     expect(result.report.verification.checks.every((check) => check.passed)).toBe(true)
     expect(result.report.schemaVersion).toBe(8)
+    // The fill rotates with the QR: the texture stays phase-locked to the QR's lattice in its
+    // own frame (crop residual 0), and rotated placements regain the marker-corner hand-back
+    // that the old poster-lattice hole skipped.
+    expect(result.report.pattern.alignment.phase).toEqual({ x: 0, y: 0 })
+    expect(result.report.pattern.alignment.alignedToQr).toBe(true)
+    expect(result.report.qrPlate.cornerModules).toBeGreaterThan(0)
+    expect(result.report.shape.textureModules).toBeGreaterThan(0)
+    expect(result.report.shape.rimModules).toBeGreaterThan(0)
+    // Cut artifacts follow the form, and the poster artifact is produced by this path itself.
+    expect(result.report.artifacts.patternCutPngSha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(result.report.artifacts.patternCutSvgSha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(result.report.artifacts.posterSha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
   it('flags an invalid rotated placement instead of moving it', async () => {

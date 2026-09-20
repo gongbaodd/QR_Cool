@@ -143,6 +143,107 @@ export function rotatedFootprintBounds(
   }
 }
 
+/** Tight integer poster-space AABB of the painted region, end coordinates exclusive. */
+export interface PixelBounds {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+/**
+ * The upright assembly's working canvas, expressed in plate-local coordinates
+ * (origin = the unrotated placement square's top-left). The frame is the integer
+ * AABB that contains every poster pixel's inverse-rotated sample point, so the
+ * whole-module pipeline can run there and the finished overlay can ride the same
+ * placement transform back onto the poster. See doc/plan/rotated-mask-fill.md.
+ */
+export interface QrFrame {
+  /** Plate-local x/y of the working canvas' top-left; can be negative. */
+  left: number
+  top: number
+  width: number
+  height: number
+  /** The unrotated QR box expressed in working-canvas coordinates. */
+  qr: { x: number; y: number; size: number }
+}
+
+/**
+ * The working frame for a rotated placement: the plate-local AABB of the
+ * inverse-mapped painted-region bounds, floored/ceiled to whole pixels. Every
+ * poster pixel whose sample point can land inside the region maps into this
+ * frame, so mask sampling and overlay generation never look outside it.
+ */
+export function qrWorkingFrame(placement: RotatableBox, regionBounds: PixelBounds): QrFrame {
+  const corners = [
+    posterToPlatePoint(regionBounds.x0, regionBounds.y0, placement),
+    posterToPlatePoint(regionBounds.x1, regionBounds.y0, placement),
+    posterToPlatePoint(regionBounds.x1, regionBounds.y1, placement),
+    posterToPlatePoint(regionBounds.x0, regionBounds.y1, placement),
+  ]
+  const minX = Math.min(...corners.map((corner) => corner.x))
+  const minY = Math.min(...corners.map((corner) => corner.y))
+  const maxX = Math.max(...corners.map((corner) => corner.x))
+  const maxY = Math.max(...corners.map((corner) => corner.y))
+  const left = Math.floor(minX)
+  const top = Math.floor(minY)
+  return {
+    left,
+    top,
+    width: Math.ceil(maxX) - left,
+    height: Math.ceil(maxY) - top,
+    qr: { x: -left, y: -top, size: placement.size },
+  }
+}
+
+/**
+ * Samples the original region mask into the working frame with the same inverse
+ * transform assembly's plate pixels use: each working pixel centre maps forward
+ * to its poster sample point, and the working mask keeps that poster pixel's
+ * selection. Off-poster samples are 0, so safe-area checks stay whole blocks.
+ */
+export function sampleMaskIntoQrFrame(
+  mask: Uint8Array,
+  posterWidth: number,
+  posterHeight: number,
+  frame: QrFrame,
+  placement: RotatableBox,
+): Uint8Array {
+  if (mask.length !== posterWidth * posterHeight)
+    throw new Error('sampleMaskIntoQrFrame: mask does not match the poster dimensions.')
+  const inv = placementInverse(placement)
+  const working = new Uint8Array(frame.width * frame.height)
+  for (let wy = 0; wy < frame.height; wy++) {
+    for (let wx = 0; wx < frame.width; wx++) {
+      const poster = forwardMap(inv, wx + frame.left + 0.5, wy + frame.top + 0.5)
+      const sourceX = Math.floor(poster.x)
+      const sourceY = Math.floor(poster.y)
+      if (sourceX < 0 || sourceY < 0 || sourceX >= posterWidth || sourceY >= posterHeight) continue
+      if (mask[sourceY * posterWidth + sourceX]) working[wy * frame.width + wx] = 1
+    }
+  }
+  return working
+}
+
+/** Tight poster-space AABB of a painted-region mask, end coordinates exclusive. */
+export function regionPixelBounds(mask: { data: Uint8Array; width: number; height: number }): PixelBounds {
+  let x0 = mask.width
+  let y0 = mask.height
+  let x1 = 0
+  let y1 = 0
+  for (let y = 0; y < mask.height; y++) {
+    for (let x = 0; x < mask.width; x++) {
+      if (!mask.data[y * mask.width + x]) continue
+      x0 = Math.min(x0, x)
+      y0 = Math.min(y0, y)
+      x1 = x + 1
+      y1 = y + 1
+    }
+  }
+  if (x1 === 0 || y1 === 0) throw new Error('regionPixelBounds: the region mask is empty.')
+  return { x0, y0, x1, y1 }
+}
+
 /**
  * Whether a plate-local point lies inside the plate square `[0, size) × [0, size)`.
  * Nearest-neighbour sampling maps a poster pixel centre here and copies the

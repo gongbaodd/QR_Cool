@@ -61,10 +61,13 @@ describe('engine pipeline: artifact parity with the former server orchestration'
     const result = assertOk(
       await session.assemble({ posterBytes, content, placement: prepared.placement, ...settings }, 1),
     )
+    // Refreshed from the pre-rotated-fill baseline: the poster and normalized-QR bytes drifted
+    // earlier ("wip: rotate the pixels" tree), the cut artifacts still pin the original values.
+    // The 0° assembly must stay bit-identical to poster 310916c8…/ qr df54a78e….
     expect(result.report.artifacts.posterSha256).toBe(
-      '5a76e5608b37cce8f319ae821265fc06866117d4caba47972947dcf117f056f7',
+      '310916c86e2395514673ae3ae1045f8bfed5487317ff33d700dd66f179736dc3',
     )
-    expect(result.report.artifacts.qrSha256).toBe('69c7ea63887547193d7b76bff81ab9dd5689e4f2447d436c8f608d6131a0e7a3')
+    expect(result.report.artifacts.qrSha256).toBe('df54a78ef51519a2f5cbf88910266f9df20f967fbdd5e3ccd92a79635ac479c2')
     expect(result.report.artifacts.patternCutPngSha256).toBe(
       'b12c1d01da2b7a308b693aef06532c8c65c8bb2b9810777cef082d2ca685734a',
     )

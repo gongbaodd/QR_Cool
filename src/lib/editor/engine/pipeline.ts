@@ -16,7 +16,8 @@ import { placeQr, findClosestSquare } from '../../../core/placement'
 import { generateQrFromContent, decodeQrRawDetailed, inspectAntfuQr, normalizeQr } from '../../../core/qr'
 import { buildModuleLattice, computeSafeArea, computePlateModules, computeRimModules } from '../../../core/module-cut'
 import { selectPatternVersion } from '../../../core/pattern'
-import { computeRotatedPlateModules } from '../../../core/module-cut'
+import { qrWorkingFrame, sampleMaskIntoQrFrame } from '../../../core/rotate'
+import { regionPixelBounds } from '../../../core/rotate'
 import { QrPosterError } from '../../../core/errors'
 import type { Imaging } from '../../../core/imaging/types'
 import type { LoadedPng } from '../../../core/image'
@@ -72,28 +73,34 @@ export function validatePlacement({
 }) {
   const p = placeQr(regionMask, qrMetadata.totalModules, placement)
   const pitch = p.modulePixels
-  selectPatternVersion(pitch, regionMask.width, regionMask.height, pitch)
-  const lattice = buildModuleLattice(regionMask.width, regionMask.height, pitch, p)
-  const safe = computeSafeArea(regionMask.data, regionMask.width, regionMask.height, lattice)
+  /**
+   * A rotated placement is validated in the QR's upright frame: the region mask is sampled into
+   * the working frame, and the lattice, safe area, rim, upright plate, and pattern version all
+   * see that size (doc/plan/rotated-mask-fill.md). The upright path keeps the poster canvas.
+   */
+  const rotated = p.rotation !== 0
+  const frame = rotated ? qrWorkingFrame(p, regionPixelBounds(regionMask)) : undefined
+  const canvasWidth = frame?.width ?? regionMask.width
+  const canvasHeight = frame?.height ?? regionMask.height
+  const origin = frame?.qr ?? { x: p.x, y: p.y }
+  const mask = frame
+    ? sampleMaskIntoQrFrame(regionMask.data, regionMask.width, regionMask.height, frame, p)
+    : regionMask.data
+  selectPatternVersion(pitch, canvasWidth, canvasHeight, pitch)
+  const lattice = buildModuleLattice(canvasWidth, canvasHeight, pitch, origin)
+  const safe = computeSafeArea(mask, canvasWidth, canvasHeight, lattice)
   const rim = computeRimModules(safe.safe, lattice, settings.rimModules)
   const grid = {
-    x: p.x + 2 * pitch,
-    y: p.y + 2 * pitch,
+    x: origin.x + 2 * pitch,
+    y: origin.y + 2 * pitch,
     width: qrMetadata.qrModules * pitch,
     height: qrMetadata.qrModules * pitch,
   }
   const { arms, cornerBlocks } = markerBandRects(grid, qrMetadata.qrModules, pitch, settings.qrMargin)
   const corners = settings.plateCorners === 'texture'
-  /**
-   * A rotated placement carves its plate hole as the whole rotated footprint: the complete
-   * upright plate (the normalized QR square) is rotated once during compositing, so every
-   * module the rotated plate covers in full leaves the cut. Corner hand-backs are an
-   * upright-plate concept and do not apply.
-   */
-  const rotated = p.rotation !== 0
-  const plate = rotated
-    ? computeRotatedPlateModules(lattice, p, [{ x: 0, y: 0, width: p.size, height: p.size }])
-    : computePlateModules(lattice, [grid, ...arms, ...(corners ? [] : cornerBlocks)], corners ? cornerBlocks : [])
+  // Generation is upright, so rotated placements keep the 0° plate semantics: code grid plus
+  // finder arms, with the corner hand-back applied in the QR's frame instead of being skipped.
+  const plate = computePlateModules(lattice, [grid, ...arms, ...(corners ? [] : cornerBlocks)], corners ? cornerBlocks : [])
   if (!safe.safe.some((cell, i) => cell && !rim[i] && !plate.cells[i]))
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
