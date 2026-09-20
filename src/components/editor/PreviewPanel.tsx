@@ -3,9 +3,10 @@ import dynamic from 'next/dynamic'
 import * as stylex from '@stylexjs/stylex'
 import MaskPreviewCanvas from './MaskPreviewCanvas'
 import ResultPanel from './ResultPanel'
+import PatternSettings from './PatternSettings'
 import type { IconItem } from '../../lib/editor/text-mask'
 import type { Result } from '../../lib/editor/state'
-import type { Placement } from '../../lib/editor/schema'
+import type { Placement, Settings } from '../../lib/editor/schema'
 import { tokens } from '../../styles/tokens.stylex'
 import { ui } from '../../styles/ui.stylex'
 const Canvas = dynamic(() => import('./Canvas'), { ssr: false })
@@ -118,6 +119,28 @@ const styles = stylex.create({
       marginBottom: 24,
     },
   },
+  adjustLayout: {
+    display: 'flex',
+    gap: 20,
+    alignItems: 'flex-start',
+    '@media (max-width: 1200px)': {
+      flexDirection: 'column',
+    },
+  },
+  canvasCell: {
+    flex: '1 1 0',
+    minWidth: 0,
+  },
+  settingsCell: {
+    flex: '0 0 360px',
+    width: 360,
+    maxWidth: '100%',
+    minWidth: 0,
+    '@media (max-width: 1200px)': {
+      flex: '1 1 auto',
+      width: '100%',
+    },
+  },
   note: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -156,6 +179,12 @@ export interface PreviewPanelProps {
   onMove: (box: Placement) => void
   onReturnToEditing: () => void
   onFillCommit?: ((preview: HTMLCanvasElement) => void) | undefined
+  pattern?: {
+    content: string
+    settings: Settings
+    onSettings: (patch: Partial<Settings>) => void
+    onNewSeed: () => void
+  } | null
 }
 
 /** Right-hand preview pane: result, step-2 mask preview or gallery, or the placement canvas. */
@@ -174,6 +203,7 @@ export default function PreviewPanel({
   onMove,
   onReturnToEditing,
   onFillCommit,
+  pattern,
 }: PreviewPanelProps) {
   return (
     <div {...stylex.props(styles.panel, step === 2 && styles.panelStep2)}>
@@ -209,18 +239,32 @@ export default function PreviewPanel({
           onFillCommit={onFillCommit}
         />
       ) : dimensions && placement && posterUrl ? (
-        <Canvas
-          mask={previews['region.png'] ?? ''}
-          poster={posterUrl}
-          overlay={previews['mask.png'] ?? ''}
-          qr={previews['qr.png'] ?? ''}
-          width={dimensions.width}
-          height={dimensions.height}
-          placement={placement}
-          modules={modules}
-          onChange={onMove}
-          invalid={invalid}
-        />
+        <div {...stylex.props(styles.adjustLayout)}>
+          <div {...stylex.props(styles.canvasCell)}>
+            <Canvas
+              mask={previews['region.png'] ?? ''}
+              poster={posterUrl}
+              overlay={previews['mask.png'] ?? ''}
+              qr={previews['qr.png'] ?? ''}
+              width={dimensions.width}
+              height={dimensions.height}
+              placement={placement}
+              modules={modules}
+              onChange={onMove}
+              invalid={invalid}
+            />
+          </div>
+          {pattern && step === 3 && !showingResult && (
+            <div {...stylex.props(styles.settingsCell)}>
+              <PatternSettings
+                content={pattern.content}
+                settings={pattern.settings}
+                onSettings={pattern.onSettings}
+                onNewSeed={pattern.onNewSeed}
+              />
+            </div>
+          )}
+        </div>
       ) : (
         <div {...stylex.props(styles.empty)}>
           <div {...stylex.props(styles.emptyIcon)}>＋</div>

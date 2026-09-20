@@ -172,8 +172,7 @@ export default function Editor() {
   }, [state.revision, step])
   const visiblePlacementError = isFitError && !fitRevealed ? null : placementError
   const visiblePreparationError = isFitError && !fitRevealed ? null : preparationError
-  const hasFreshPrepared =
-    !!state.prepared && state.prepared.revision === state.revision && !state.error && !state.busy
+  const hasFreshPrepared = !!state.prepared && state.prepared.revision === state.revision && !state.error && !state.busy
   const maskBusy = maskSelection.busy || iconSearch.loading || state.busy !== null
   const canContinueFromMask = !maskBusy && (hasFreshPrepared || !!placementError)
   const move = (box: Placement) =>
@@ -278,8 +277,6 @@ export default function Editor() {
               <StepAdjust
                 state={state}
                 ready={ready}
-                onSettings={(patch) => edit({ type: 'edit', patch: { settings: { ...state.settings, ...patch } } })}
-                onNewSeed={() => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } })}
                 onAssemble={() => {
                   void request('assemble')
                   setStep(4)
@@ -326,6 +323,12 @@ export default function Editor() {
             onMove={move}
             onReturnToEditing={() => dispatch({ type: 'view', result: false })}
             onFillCommit={handleFillCommit}
+            pattern={{
+              content: state.content,
+              settings: state.settings,
+              onSettings: (patch) => edit({ type: 'edit', patch: { settings: { ...state.settings, ...patch } } }),
+              onNewSeed: () => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } }),
+            }}
           />
         </div>
       )}
