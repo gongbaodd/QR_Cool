@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { IconItem } from '../../lib/editor/text-mask'
 import { tokens } from '../../styles/tokens.stylex'
@@ -49,29 +49,43 @@ const styles = stylex.create({
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(78px, 1fr))',
+    gridTemplateColumns: 'repeat(3, 1fr)',
     gap: 10,
     marginTop: 6,
   },
-  card: {
-    minHeight: 92,
-  },
-  glyph: {
-    width: 44,
-    height: 44,
-    color: 'white',
-    backgroundColor: 'black',
-    borderRadius: 6,
-  },
-  glyphInitial: {
-    fontSize: 20,
+  glyphFallback: {
+    fontSize: 34,
+    lineHeight: 1.25,
   },
   thumb: {
-    marginTop: -34,
-    filter: 'invert(1)',
+    width: 34,
+    height: 34,
     objectFit: 'contain',
   },
 })
+
+function GalleryGlyph({ item }: { item: IconItem }) {
+  const thumb = item.download || item.variants[0]?.download
+  const [failed, setFailed] = useState(false)
+  if (!thumb || failed) {
+    return (
+      <span aria-hidden="true" {...stylex.props(styles.glyphFallback)}>
+        {(item.name || '?').slice(0, 1).toUpperCase()}
+      </span>
+    )
+  }
+  return (
+    <img
+      {...stylex.props(styles.thumb)}
+      src={thumb}
+      alt=""
+      width={34}
+      height={34}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  )
+}
 
 /**
  * Step 2's icon picker. Opens as a native modal `<dialog>`: the browser owns the
@@ -148,32 +162,18 @@ export default function IconGallery({
       </p>
       <div {...stylex.props(styles.grid)} data-testid="icon-gallery">
         {items.map((item, idx) => {
-          const thumb = item.download || item.variants[0]?.download
           const selected = selectedIconId === item.id
           return (
             <button
               key={item.id}
-              {...stylex.props(ui.button, ui.fontCard, styles.card, selected && ui.fontCardSelected)}
+              {...stylex.props(ui.button, ui.fontCard, selected && ui.fontCardSelected)}
               type="button"
               aria-label={`Gallery icon ${item.name}`}
               title={`${item.vendor}/${item.name}`}
               onClick={() => onSelect(idx)}
             >
-              <span {...stylex.props(ui.fontGlyph, styles.glyph)}>
-                <span aria-hidden="true" {...stylex.props(styles.glyphInitial)}>
-                  {(item.name || '?').slice(0, 1).toUpperCase()}
-                </span>
-                <img
-                  {...stylex.props(styles.thumb)}
-                  src={thumb}
-                  alt=""
-                  width={28}
-                  height={28}
-                  loading="lazy"
-                  onError={(e) => {
-                    ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                  }}
-                />
+              <span {...stylex.props(ui.fontGlyph)}>
+                <GalleryGlyph item={item} />
               </span>
               <span {...stylex.props(ui.fontName)}>{item.name}</span>
             </button>
