@@ -155,6 +155,7 @@ export interface PreviewPanelProps {
   maskPreview: MaskPreviewView
   onMove: (box: Placement) => void
   onReturnToEditing: () => void
+  onFillCommit?: ((preview: HTMLCanvasElement) => void) | undefined
 }
 
 /** Right-hand preview pane: result, step-2 mask preview or gallery, or the placement canvas. */
@@ -172,6 +173,7 @@ export default function PreviewPanel({
   maskPreview,
   onMove,
   onReturnToEditing,
+  onFillCommit,
 }: PreviewPanelProps) {
   return (
     <div {...stylex.props(styles.panel, step === 2 && styles.panelStep2)}>
@@ -204,6 +206,7 @@ export default function PreviewPanel({
           isIconMode={maskPreview.isIconMode}
           iconResults={maskPreview.iconResults}
           selectedIconId={maskPreview.selectedIconId}
+          onFillCommit={onFillCommit}
         />
       ) : dimensions && placement && posterUrl ? (
         <Canvas

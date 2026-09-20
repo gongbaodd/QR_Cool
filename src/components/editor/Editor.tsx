@@ -12,7 +12,7 @@ import {
   buildBlankMaskRgba,
   buildBlankPosterRgba,
 } from '../../lib/editor/blank'
-import { TEXT_MASK_FONTS, deriveMaskLetter, searchControlState } from '../../lib/editor/text-mask'
+import { TEXT_MASK_FILENAME, TEXT_MASK_FONTS, deriveMaskLetter, searchControlState } from '../../lib/editor/text-mask'
 import type { Placement } from '../../lib/editor/schema'
 import EditorHeader from './EditorHeader'
 import StepRail from './StepRail'
@@ -216,6 +216,22 @@ export default function Editor() {
     if (!item) return
     maskSelection.selectIcon(item)
   }
+  /** Scales a fill-edited 600x600 preview up to the poster mask and uploads it. */
+  function handleFillCommit(preview: HTMLCanvasElement) {
+    const width = state.prepared?.width ?? BLANK_POSTER_WIDTH
+    const height = state.prepared?.height ?? BLANK_POSTER_HEIGHT
+    const full = document.createElement('canvas')
+    full.width = width
+    full.height = height
+    const context = full.getContext('2d')!
+    context.imageSmoothingEnabled = false
+    context.fillStyle = 'black'
+    context.fillRect(0, 0, width, height)
+    context.drawImage(preview, 0, 0, width, height)
+    full.toBlob((blob) => {
+      if (blob) uploadMaskFile(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' }))
+    }, 'image/png')
+  }
   useEffect(() => {
     if (state.showingResult) setStep(4)
   }, [state.showingResult])
@@ -312,6 +328,7 @@ export default function Editor() {
             }}
             onMove={move}
             onReturnToEditing={() => dispatch({ type: 'view', result: false })}
+            onFillCommit={handleFillCommit}
           />
         </div>
       )}
