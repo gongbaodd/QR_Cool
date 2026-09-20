@@ -30,7 +30,7 @@ No credentials or accounts are needed. QR text is never fetched as a URL. Upload
 
 Every input edit invalidates the previous output. Invalid manual placements are flagged and never silently moved. **Reset to automatic placement** finds a valid square with space left for texture. Longer content retains the previous center and module pitch when possible, then revalidates the enlarged QR.
 
-Pattern settings provide a stable seed, **New pattern**, pixel style (`square`, `rounded`, `dot` matching [qrcode.antfu.me](https://qrcode.antfu.me)), a fixed 1-module finder margin, marker corners that continue the texture or stay light, a rim thickness of 0–5 modules, and a rounded rim with antialiasing. The corner setting affects the QR plate, not the poster's silhouette.
+Pattern settings provide a stable seed, **New pattern**, pixel style (`square`, `rounded`, `dot` matching [qrcode.antfu.me](https://qrcode.antfu.me)), a fixed 1-module finder margin, marker pixel style (`square`, `round`), marker shape (`square`, `round`, `octagon`), marker inner (`square`, `round`, `plus`, `diamond`), sub marker (`square`, `round`), marker corners that continue the texture or stay light, a rim thickness of 0–5 modules, and a rounded rim with antialiasing. Step 1 also offers example QR codes to pick from. The corner setting affects the QR plate, not the poster's silhouette.
 
 **Artistic margins can affect scanning. Test the downloaded poster with your phone.** The result is not scan-certified. The report deliberately skips poster/full-size, half-scale, and JPEG decoding checks; `phoneScan` remains `untested`.
 

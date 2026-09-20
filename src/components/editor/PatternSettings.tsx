@@ -18,6 +18,29 @@ const PIXEL_OPTIONS = [
   { value: 'dot' as const, label: 'Dot', hint: 'Circles' },
 ] as const
 
+const MARKER_STYLE_OPTIONS = [
+  { value: 'square' as const, label: 'Square', hint: 'Sharp' },
+  { value: 'rounded' as const, label: 'Round', hint: 'Rounded' },
+] as const
+
+const MARKER_SHAPE_OPTIONS = [
+  { value: 'square' as const, label: 'Square', hint: 'Square' },
+  { value: 'circle' as const, label: 'Round', hint: 'Circle' },
+  { value: 'octagon' as const, label: 'Octagon', hint: 'Octagon' },
+] as const
+
+const MARKER_INNER_OPTIONS = [
+  { value: 'square' as const, label: 'Square', hint: 'Square' },
+  { value: 'circle' as const, label: 'Round', hint: 'Circle' },
+  { value: 'plus' as const, label: 'Plus', hint: 'Plus' },
+  { value: 'diamond' as const, label: 'Diamond', hint: 'Diamond' },
+] as const
+
+const MARKER_SUB_OPTIONS = [
+  { value: 'square' as const, label: 'Square', hint: 'Square' },
+  { value: 'circle' as const, label: 'Round', hint: 'Circle' },
+] as const
+
 const styles = stylex.create({
   panel: {
     padding: 18,
@@ -299,6 +322,143 @@ function MiniPixelQrPreview({
   )
 }
 
+function MiniMarkerShapePreview({ shape }: { shape: 'square' | 'circle' | 'octagon' }) {
+  // 7x7 finder preview normalized to 64px
+  const ox = 0,
+    oy = 0,
+    cx = 3.5,
+    cy = 3.5
+  if (shape === 'square') {
+    return (
+      <svg
+        viewBox="0 0 7 7"
+        width={48}
+        height={48}
+        role="img"
+        aria-label={`marker ${shape}`}
+        style={{ display: 'block' }}
+      >
+        <rect width={7} height={7} fill="white" />
+        <rect x={ox} y={oy} width={7} height={7} fill="black" />
+        <rect x={1} y={1} width={5} height={5} fill="white" />
+        <rect x={2} y={2} width={3} height={3} fill="black" />
+      </svg>
+    )
+  }
+  if (shape === 'circle') {
+    return (
+      <svg
+        viewBox="0 0 7 7"
+        width={48}
+        height={48}
+        role="img"
+        aria-label={`marker ${shape}`}
+        style={{ display: 'block' }}
+      >
+        <rect width={7} height={7} fill="white" />
+        <circle cx={cx} cy={cy} r={3.5} fill="black" />
+        <circle cx={cx} cy={cy} r={2.5} fill="white" />
+        <circle cx={cx} cy={cy} r={1.5} fill="black" />
+      </svg>
+    )
+  }
+  // octagon: For small preview we approximate with precomputed points for size 3.5 and 2.5
+  const outerPts = `${cx + 1.07},${cy + 3.5} ${cx - 1.07},${cy + 3.5} ${cx - 3.5},${cy + 1.07} ${cx - 3.5},${cy - 1.07} ${cx - 1.07},${cy - 3.5} ${cx + 1.07},${cy - 3.5} ${cx + 3.5},${cy - 1.07} ${cx + 3.5},${cy + 1.07}`
+  const innerPts = `${cx + 0.76},${cy + 2.5} ${cx - 0.76},${cy + 2.5} ${cx - 2.5},${cy + 0.76} ${cx - 2.5},${cy - 0.76} ${cx - 0.76},${cy - 2.5} ${cx + 0.76},${cy - 2.5} ${cx + 2.5},${cy - 0.76} ${cx + 2.5},${cy + 0.76}`
+  return (
+    <svg
+      viewBox="0 0 7 7"
+      width={48}
+      height={48}
+      role="img"
+      aria-label={`marker ${shape}`}
+      style={{ display: 'block' }}
+    >
+      <rect width={7} height={7} fill="white" />
+      <polygon points={outerPts} fill="black" />
+      <polygon points={innerPts} fill="white" />
+      <circle cx={cx} cy={cy} r={1.5} fill="black" />
+    </svg>
+  )
+}
+
+function MiniMarkerInnerPreview({ inner }: { inner: 'square' | 'circle' | 'plus' | 'diamond' }) {
+  const cx = 3.5,
+    cy = 3.5
+  return (
+    <svg viewBox="0 0 7 7" width={48} height={48} role="img" aria-label={`inner ${inner}`} style={{ display: 'block' }}>
+      <rect width={7} height={7} fill="white" />
+      <rect x={0} y={0} width={7} height={7} fill="black" />
+      <rect x={1} y={1} width={5} height={5} fill="white" />
+      {inner === 'square' && <rect x={2} y={2} width={3} height={3} fill="black" />}
+      {inner === 'circle' && <circle cx={cx} cy={cy} r={1.5} fill="black" />}
+      {inner === 'plus' && (
+        <>
+          <rect x={cx - 0.5} y={cy - 1.5} width={1} height={3} fill="black" />
+          <rect x={cx - 1.5} y={cy - 0.5} width={3} height={1} fill="black" />
+        </>
+      )}
+      {inner === 'diamond' && (
+        <polygon points={`${cx},${cy - 1.5} ${cx + 1.5},${cy} ${cx},${cy + 1.5} ${cx - 1.5},${cy}`} fill="black" />
+      )}
+    </svg>
+  )
+}
+
+function MiniSubMarkerPreview({ sub }: { sub: 'square' | 'circle' }) {
+  const cx = 2.5,
+    cy = 2.5
+  if (sub === 'square') {
+    return (
+      <svg viewBox="0 0 5 5" width={48} height={48} role="img" aria-label={`sub ${sub}`} style={{ display: 'block' }}>
+        <rect width={5} height={5} fill="white" />
+        <rect x={0} y={0} width={5} height={5} fill="black" />
+        <rect x={1} y={1} width={3} height={3} fill="white" />
+        <rect x={2} y={2} width={1} height={1} fill="black" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 5 5" width={48} height={48} role="img" aria-label={`sub ${sub}`} style={{ display: 'block' }}>
+      <rect width={5} height={5} fill="white" />
+      <circle cx={cx} cy={cy} r={2.5} fill="black" />
+      <circle cx={cx} cy={cy} r={1.5} fill="white" />
+      <circle cx={cx} cy={cy} r={0.5} fill="black" />
+    </svg>
+  )
+}
+
+function MiniMarkerPixelPreview({ style }: { style: 'square' | 'rounded' }) {
+  // Show two adjacent modules to illustrate pixel join
+  if (style === 'square') {
+    return (
+      <svg
+        viewBox="0 0 2 1"
+        width={48}
+        height={32}
+        role="img"
+        aria-label={`pixel ${style}`}
+        style={{ display: 'block' }}
+      >
+        <rect width={2} height={1} fill="white" />
+        <rect x={0} y={0} width={1} height={1} fill="black" />
+        <rect x={1} y={0} width={1} height={1} fill="black" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 2 1" width={48} height={32} role="img" aria-label={`pixel ${style}`} style={{ display: 'block' }}>
+      <rect width={2} height={1} fill="white" />
+      <circle cx={0.5} cy={0.5} r={0.5} fill="black" />
+      <circle cx={1.5} cy={0.5} r={0.5} fill="black" />
+      <path
+        d="M0,0 L0,0.5 A0.5,0.5 0 0 1 0.5,0 Z M1.5,0 A0.5,0.5 0 0 0 2,0.5 L2,0 Z M0,1 L0,0.5 A0.5,0.5 0 0 0 0.5,1 Z M1.5,1 A0.5,0.5 0 0 1 2,0.5 L2,1 Z"
+        fill="black"
+      />
+    </svg>
+  )
+}
+
 export default function PatternSettings({
   content,
   settings,
@@ -312,6 +472,10 @@ export default function PatternSettings({
 }) {
   const ecc = (settings.ecc ?? 'M') as 'L' | 'M' | 'Q' | 'H'
   const pixelStyle = (settings.pixelStyle ?? 'rounded') as 'square' | 'rounded' | 'dot'
+  const markerStyle = (settings.markerStyle ?? 'rounded') as 'square' | 'rounded'
+  const markerShape = (settings.markerShape ?? 'circle') as 'square' | 'circle' | 'octagon'
+  const markerInner = (settings.markerInner ?? 'circle') as 'square' | 'circle' | 'plus' | 'diamond'
+  const markerSub = (settings.markerSub ?? 'square') as 'square' | 'circle'
   return (
     <div {...stylex.props(styles.panel)}>
       <div {...stylex.props(styles.heading)}>Pattern settings</div>
@@ -381,6 +545,154 @@ export default function PatternSettings({
                 />
                 <span {...stylex.props(styles.eccPreviewBox)}>
                   <MiniPixelQrPreview content={content} ecc={ecc} pixelStyle={opt.value} />
+                </span>
+                <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
+                <span {...stylex.props(styles.eccRecovery)}>{opt.hint}</span>
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
+
+      <fieldset {...stylex.props(styles.eccFieldset)}>
+        <legend {...stylex.props(styles.eccLegend)}>Marker pixel style</legend>
+        <p {...stylex.props(styles.eccHint)}>Pixel shape for marker modules.</p>
+        <div
+          {...stylex.props(styles.eccGrid)}
+          role="radiogroup"
+          aria-label="Marker pixel style"
+          style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}
+        >
+          {MARKER_STYLE_OPTIONS.map((opt) => {
+            const selected = markerStyle === opt.value
+            return (
+              <label
+                key={opt.value}
+                {...stylex.props(styles.eccCard, selected ? styles.eccCardSelected : null)}
+                aria-selected={selected}
+              >
+                <input
+                  type="radio"
+                  name="markerStyle"
+                  value={opt.value}
+                  checked={selected}
+                  onChange={() => onSettings({ markerStyle: opt.value })}
+                  {...stylex.props(styles.eccRadio)}
+                  aria-label={`${opt.value} ${opt.hint}`}
+                />
+                <span {...stylex.props(styles.eccPreviewBox)}>
+                  <MiniMarkerPixelPreview style={opt.value} />
+                </span>
+                <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
+                <span {...stylex.props(styles.eccRecovery)}>{opt.hint}</span>
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
+
+      <fieldset {...stylex.props(styles.eccFieldset)}>
+        <legend {...stylex.props(styles.eccLegend)}>Marker shape</legend>
+        <p {...stylex.props(styles.eccHint)}>Outer shape of the three finder markers.</p>
+        <div
+          {...stylex.props(styles.eccGrid)}
+          role="radiogroup"
+          aria-label="Marker shape"
+          style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}
+        >
+          {MARKER_SHAPE_OPTIONS.map((opt) => {
+            const selected = markerShape === opt.value
+            return (
+              <label
+                key={opt.value}
+                {...stylex.props(styles.eccCard, selected ? styles.eccCardSelected : null)}
+                aria-selected={selected}
+              >
+                <input
+                  type="radio"
+                  name="markerShape"
+                  value={opt.value}
+                  checked={selected}
+                  onChange={() => onSettings({ markerShape: opt.value })}
+                  {...stylex.props(styles.eccRadio)}
+                  aria-label={`${opt.value} ${opt.hint}`}
+                />
+                <span {...stylex.props(styles.eccPreviewBox)}>
+                  <MiniMarkerShapePreview shape={opt.value} />
+                </span>
+                <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
+                <span {...stylex.props(styles.eccRecovery)}>{opt.hint}</span>
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
+
+      <fieldset {...stylex.props(styles.eccFieldset)}>
+        <legend {...stylex.props(styles.eccLegend)}>Marker inner</legend>
+        <p {...stylex.props(styles.eccHint)}>Center of the finder markers.</p>
+        <div
+          {...stylex.props(styles.eccGrid)}
+          role="radiogroup"
+          aria-label="Marker inner"
+          style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}
+        >
+          {MARKER_INNER_OPTIONS.map((opt) => {
+            const selected = markerInner === opt.value
+            return (
+              <label
+                key={opt.value}
+                {...stylex.props(styles.eccCard, selected ? styles.eccCardSelected : null)}
+                aria-selected={selected}
+              >
+                <input
+                  type="radio"
+                  name="markerInner"
+                  value={opt.value}
+                  checked={selected}
+                  onChange={() => onSettings({ markerInner: opt.value })}
+                  {...stylex.props(styles.eccRadio)}
+                  aria-label={`${opt.value} ${opt.hint}`}
+                />
+                <span {...stylex.props(styles.eccPreviewBox)}>
+                  <MiniMarkerInnerPreview inner={opt.value} />
+                </span>
+                <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
+                <span {...stylex.props(styles.eccRecovery)}>{opt.hint}</span>
+              </label>
+            )
+          })}
+        </div>
+      </fieldset>
+
+      <fieldset {...stylex.props(styles.eccFieldset)}>
+        <legend {...stylex.props(styles.eccLegend)}>Sub marker</legend>
+        <p {...stylex.props(styles.eccHint)}>Shape of alignment (sub) markers.</p>
+        <div
+          {...stylex.props(styles.eccGrid)}
+          role="radiogroup"
+          aria-label="Sub marker"
+          style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}
+        >
+          {MARKER_SUB_OPTIONS.map((opt) => {
+            const selected = markerSub === opt.value
+            return (
+              <label
+                key={opt.value}
+                {...stylex.props(styles.eccCard, selected ? styles.eccCardSelected : null)}
+                aria-selected={selected}
+              >
+                <input
+                  type="radio"
+                  name="markerSub"
+                  value={opt.value}
+                  checked={selected}
+                  onChange={() => onSettings({ markerSub: opt.value })}
+                  {...stylex.props(styles.eccRadio)}
+                  aria-label={`${opt.value} ${opt.hint}`}
+                />
+                <span {...stylex.props(styles.eccPreviewBox)}>
+                  <MiniSubMarkerPreview sub={opt.value} />
                 </span>
                 <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
                 <span {...stylex.props(styles.eccRecovery)}>{opt.hint}</span>

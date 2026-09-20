@@ -30,11 +30,20 @@ export interface GeneratedQr {
   version: number
 }
 
+export type MarkerStyle = 'square' | 'rounded'
+export type MarkerShape = 'square' | 'circle' | 'octagon'
+export type MarkerInner = 'square' | 'circle' | 'plus' | 'diamond'
+export type MarkerSub = 'square' | 'circle'
+
 /** Builds the same two-module-margin QR profile accepted from legacy PNG inputs. */
 export async function generateQrFromContent(
   content: string,
   ecc: 'L' | 'M' | 'Q' | 'H' = 'M',
   pixelStyle: PixelStyle = 'rounded',
+  markerStyle: MarkerStyle = 'rounded',
+  markerShape: MarkerShape = 'circle',
+  markerInner: MarkerInner = 'circle',
+  markerSub: MarkerSub = 'square',
 ): Promise<GeneratedQr> {
   if (content.trim().length === 0)
     throw new QrPosterError('INVALID_INPUT', '--content must not be empty or whitespace-only.')
@@ -52,45 +61,205 @@ export async function generateQrFromContent(
     )
   }
 
-  // Keep pattern.ts as the single source of truth for the qrcode.antfu.me cell geometry.
   const marginModules = QUIET_ZONE_MODULES
-  const patternPng = await renderPattern(encoded.data, GENERATED_QR_MODULE_PIXELS, pixelStyle, {
+  const pitch = GENERATED_QR_MODULE_PIXELS
+  const size = encoded.size
+
+  // Base layer: all modules except finder cells and, for circular sub markers, alignment cells.
+  const basePng = await renderPattern(encoded.data, pitch, pixelStyle, {
     skipInk: (moduleX, moduleY) => {
       const x = moduleX - marginModules
       const y = moduleY - marginModules
-      return encoded.types[y]?.[x] === QrCodeDataType.Position
+      if (x < 0 || y < 0 || x >= size || y >= size) return false
+      const t = encoded.types[y]?.[x]
+      if (t === QrCodeDataType.Position) return true
+      if (t === QrCodeDataType.Alignment && markerSub === 'circle') return true
+      return false
     },
   })
-  const file = await sharp(patternPng)
-    .composite([{ input: Buffer.from(finderMarkerSvg(encoded.size, GENERATED_QR_MODULE_PIXELS, marginModules)) }])
-    .png()
-    .toBuffer()
+
+  const overlays: { input: Buffer }[] = []
+  const finderSvg = buildFinderSvg(size, pitch, marginModules, markerShape, markerInner, markerStyle)
+  if (finderSvg) overlays.push({ input: Buffer.from(finderSvg) })
+  if (markerSub === 'circle') {
+    const alignmentSvg = buildAlignmentSvg(encoded, pitch, marginModules)
+    if (alignmentSvg) overlays.push({ input: Buffer.from(alignmentSvg) })
+  }
+
+  const file = await sharp(basePng).composite(overlays).png().toBuffer()
   return {
     image: await decodePng(file, GENERATED_QR_PATH, 'generated QR'),
     version: encoded.version,
   }
 }
 
-/** Circular qrcode.antfu.me finder markers over the cleared Position cells. */
-function finderMarkerSvg(modules: number, pitch: number, marginModules: number): string {
+function buildFinderSvg(
+  modules: number,
+  pitch: number,
+  marginModules: number,
+  shape: MarkerShape,
+  inner: MarkerInner,
+  markerStyle: MarkerStyle,
+): string {
   const size = (modules + marginModules * 2) * pitch
   const origins = [
     [0, 0],
     [modules - 7, 0],
     [0, modules - 7],
   ] as const
-  const markers = origins
-    .map(([x, y]) => {
-      const cx = (marginModules + x + 3.5) * pitch
-      const cy = (marginModules + y + 3.5) * pitch
-      return (
-        `<circle cx="${cx}" cy="${cy}" r="${3.5 * pitch}" fill="#000"/>` +
-        `<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="#fff"/>` +
-        `<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`
+  const rounded = markerStyle === 'rounded'
+  const parts: string[] = []
+  for (const [x, y] of origins) {
+    const ox = (marginModules + x) * pitch
+    const oy = (marginModules + y) * pitch
+    const cx = ox + 3.5 * pitch
+    const cy = oy + 3.5 * pitch
+    if (shape === 'square') {
+      const rx = rounded ? pitch * 0.35 : 0
+      // outer 7x7 dark
+      parts.push(
+        `<rect x="${ox}" y="${oy}" width="${7 * pitch}" height="${7 * pitch}" fill="#000" rx="${rx}" ry="${rx}"/>`,
       )
-    })
-    .join('')
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">${markers}</svg>`
+      // white 5x5
+      parts.push(
+        `<rect x="${ox + pitch}" y="${oy + pitch}" width="${5 * pitch}" height="${5 * pitch}" fill="#fff" rx="${rx * 0.6}" ry="${rx * 0.6}"/>`,
+      )
+      // inner shape
+      if (inner === 'square') {
+        parts.push(
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="#000" rx="${rx * 0.5}" ry="${rx * 0.5}"/>`,
+        )
+      } else if (inner === 'circle') {
+        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`)
+      } else if (inner === 'plus') {
+        // plus = cross of 3 modules
+        parts.push(
+          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="#000"/>`,
+        )
+        parts.push(
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="#000"/>`,
+        )
+      } else if (inner === 'diamond') {
+        parts.push(
+          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="#000"/>`,
+        )
+      }
+    } else if (shape === 'circle') {
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${3.5 * pitch}" fill="#000"/>`)
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="#fff"/>`)
+      if (inner === 'square') {
+        parts.push(
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="#000"/>`,
+        )
+      } else if (inner === 'circle') {
+        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`)
+      } else if (inner === 'plus') {
+        parts.push(
+          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="#000"/>`,
+        )
+        parts.push(
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="#000"/>`,
+        )
+      } else if (inner === 'diamond') {
+        parts.push(
+          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="#000"/>`,
+        )
+      }
+    } else if (shape === 'octagon') {
+      const outer = octagonPoints(cx, cy, 3.5 * pitch)
+      const innerWhite = octagonPoints(cx, cy, 2.5 * pitch)
+      parts.push(`<polygon points="${outer}" fill="#000"/>`)
+      parts.push(`<polygon points="${innerWhite}" fill="#fff"/>`)
+      if (inner === 'square') {
+        parts.push(
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="#000"/>`,
+        )
+      } else if (inner === 'circle') {
+        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`)
+      } else if (inner === 'plus') {
+        parts.push(
+          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="#000"/>`,
+        )
+        parts.push(
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="#000"/>`,
+        )
+      } else if (inner === 'diamond') {
+        parts.push(
+          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="#000"/>`,
+        )
+      }
+    }
+  }
+  if (parts.length === 0) return ''
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">${parts.join('')}</svg>`
+}
+
+function octagonPoints(cx: number, cy: number, size: number): string {
+  const dx = (1.5 / 3.5) * size
+  const dy = size
+  const pts: [number, number][] = [
+    [dx, dy],
+    [-dx, dy],
+    [-dy, dx],
+    [-dy, -dx],
+    [-dx, -dy],
+    [dx, -dy],
+    [dy, -dx],
+    [dy, dx],
+  ]
+  return pts.map(([x, y]) => `${cx + x},${cy + y}`).join(' ')
+}
+
+function buildAlignmentSvg(encoded: ReturnType<typeof encode>, pitch: number, marginModules: number): string | null {
+  const size = encoded.size
+  const total = (size + marginModules * 2) * pitch
+  const visited = new Set<string>()
+  const blocks: { minX: number; minY: number }[] = []
+  const isAlignment = (x: number, y: number) => encoded.types[y]?.[x] === QrCodeDataType.Alignment
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (!isAlignment(x, y) || visited.has(`${x},${y}`)) continue
+      // BFS to collect block
+      const queue: [number, number][] = [[x, y]]
+      visited.add(`${x},${y}`)
+      let minX = x,
+        maxX = x,
+        minY = y,
+        maxY = y
+      let idx = 0
+      while (idx < queue.length) {
+        const [cx, cy] = queue[idx++]!
+        const neighbours: [number, number][] = [
+          [cx - 1, cy],
+          [cx + 1, cy],
+          [cx, cy - 1],
+          [cx, cy + 1],
+        ]
+        for (const [nx, ny] of neighbours) {
+          if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue
+          if (!isAlignment(nx, ny) || visited.has(`${nx},${ny}`)) continue
+          visited.add(`${nx},${ny}`)
+          queue.push([nx, ny])
+          if (nx < minX) minX = nx
+          if (nx > maxX) maxX = nx
+          if (ny < minY) minY = ny
+          if (ny > maxY) maxY = ny
+        }
+      }
+      // expect 5x5
+      if (maxX - minX === 4 && maxY - minY === 4) blocks.push({ minX, minY })
+    }
+  }
+  if (blocks.length === 0) return null
+  const parts: string[] = []
+  for (const { minX, minY } of blocks) {
+    const cx = (marginModules + minX + 2.5) * pitch
+    const cy = (marginModules + minY + 2.5) * pitch
+    parts.push(`<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="#000"/>`)
+    parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#fff"/>`)
+    parts.push(`<circle cx="${cx}" cy="${cy}" r="${0.5 * pitch}" fill="#000"/>`)
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}">${parts.join('')}</svg>`
 }
 
 export async function decodeQrBuffer(buffer: Buffer): Promise<string> {

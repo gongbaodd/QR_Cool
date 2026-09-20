@@ -2,6 +2,7 @@ import * as stylex from '@stylexjs/stylex'
 import { tokens } from '../../../styles/tokens.stylex'
 import { ui } from '../../../styles/ui.stylex'
 import PreparationError from '../PreparationError'
+import { QR_EXAMPLES } from '../../../lib/editor/examples'
 
 const styles = stylex.create({
   workspaceCentered: {
@@ -20,6 +21,31 @@ const styles = stylex.create({
     display: 'flex',
     gap: 12,
     marginTop: 18,
+  },
+  exampleGrid: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  exampleTitle: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: tokens.ink,
+    marginTop: 18,
+    marginBottom: 6,
+  },
+  exampleButton: {
+    paddingBlock: 6,
+    paddingInline: 10,
+    fontSize: 13,
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketch,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
   },
 })
 
@@ -94,6 +120,20 @@ export default function StepInput({
             >
               Continue
             </button>
+          </div>
+          <p {...stylex.props(styles.exampleTitle)}>Or try an example</p>
+          <div {...stylex.props(styles.exampleGrid)}>
+            {QR_EXAMPLES.map((ex) => (
+              <button
+                key={ex.value}
+                type="button"
+                {...stylex.props(styles.exampleButton)}
+                onClick={() => onContentChange(ex.value)}
+                aria-label={`Use example ${ex.label}`}
+              >
+                {ex.label}
+              </button>
+            ))}
           </div>
         </section>
         {preparationError && <PreparationError message={preparationError} onRetry={onRetry} />}

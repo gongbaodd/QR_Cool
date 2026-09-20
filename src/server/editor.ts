@@ -97,6 +97,10 @@ const defaults: Settings = {
   rimRounded: false,
   ecc: 'M',
   pixelStyle: 'rounded',
+  markerStyle: 'rounded',
+  markerShape: 'circle',
+  markerInner: 'circle',
+  markerSub: 'square',
 }
 async function resolveBuffers(input: BufferInput): Promise<{ layout: ResolvedLayout; validation: string | null }> {
   contentSchema.parse(input.content)
@@ -109,6 +113,10 @@ async function resolveBuffers(input: BufferInput): Promise<{ layout: ResolvedLay
     input.content,
     (input.settings?.ecc as 'L' | 'M' | 'Q' | 'H' | undefined) ?? defaults.ecc,
     (input.settings?.pixelStyle as 'square' | 'rounded' | 'dot' | undefined) ?? defaults.pixelStyle,
+    (input.settings?.markerStyle as 'square' | 'rounded' | undefined) ?? defaults.markerStyle,
+    (input.settings?.markerShape as 'square' | 'circle' | 'octagon' | undefined) ?? defaults.markerShape,
+    (input.settings?.markerInner as 'square' | 'circle' | 'plus' | 'diamond' | undefined) ?? defaults.markerInner,
+    (input.settings?.markerSub as 'square' | 'circle' | undefined) ?? defaults.markerSub,
   )
   const qrSource = generated.image
   const decoded = { ...decodeQrRawDetailed(qrSource.data, qrSource.width, qrSource.height), version: generated.version }
@@ -201,12 +209,20 @@ export async function assembleFromBuffers(
     rimRounded?: boolean
     ecc?: Settings['ecc']
     pixelStyle?: Settings['pixelStyle']
+    markerStyle?: Settings['markerStyle']
+    markerShape?: Settings['markerShape']
+    markerInner?: Settings['markerInner']
+    markerSub?: Settings['markerSub']
   },
 ) {
   const rimModules = input.rimModules ?? input.settings?.rimModules ?? defaults.rimModules
   const rimRounded = input.rimRounded ?? input.settings?.rimRounded ?? defaults.rimRounded
   const ecc = input.ecc ?? input.settings?.ecc ?? defaults.ecc
   const pixelStyle = input.pixelStyle ?? input.settings?.pixelStyle ?? defaults.pixelStyle
+  const markerStyle = input.markerStyle ?? input.settings?.markerStyle ?? defaults.markerStyle
+  const markerShape = input.markerShape ?? input.settings?.markerShape ?? defaults.markerShape
+  const markerInner = input.markerInner ?? input.settings?.markerInner ?? defaults.markerInner
+  const markerSub = input.markerSub ?? input.settings?.markerSub ?? defaults.markerSub
   const { layout, validation } = await resolveBuffers({
     ...input,
     previousTotalModules: undefined,
@@ -218,6 +234,10 @@ export async function assembleFromBuffers(
       rimRounded,
       ecc,
       pixelStyle,
+      markerStyle,
+      markerShape,
+      markerInner,
+      markerSub,
     },
   })
   if (validation) throw new QrPosterError('QR_LAYOUT_INVALID', validation)
