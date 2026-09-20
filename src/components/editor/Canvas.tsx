@@ -166,7 +166,6 @@ export default function EditorCanvas({
     node = useRef<Konva.Image>(null),
     transformer = useRef<Konva.Transformer>(null)
   const [viewport, setViewport] = useState(800),
-    [zoom, setZoom] = useState(1),
     [showMask, setShowMask] = useState(true)
   useEffect(() => {
     const observer = new ResizeObserver((entries) => setViewport(entries[0]!.contentRect.width))
@@ -177,7 +176,7 @@ export default function EditorCanvas({
     if (node.current) transformer.current?.nodes([node.current])
   }, [qrImage])
   const fit = Math.min((viewport - 32) / width, 640 / height, 1)
-  const scale = fit * zoom
+  const scale = fit
   function nudge(dx: number, dy: number) {
     onChange({ ...placement, x: Math.max(0, placement.x + dx), y: Math.max(0, placement.y + dy) })
   }
@@ -185,23 +184,6 @@ export default function EditorCanvas({
     <div {...stylex.props(styles.area)} ref={wrapper}>
       <div {...stylex.props(styles.tools)}>
         <label {...stylex.props(ui.label, styles.toolLabel)}>
-          Zoom{' '}
-          <select
-            {...stylex.props(ui.field, ui.select, styles.toolSelect)}
-            aria-label="Zoom"
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
-          >
-            <option value={0.5}>50%</option>
-            <option value={1}>Fit</option>
-            <option value={1.5}>150%</option>
-            <option value={2}>200%</option>
-          </select>
-        </label>
-        <button {...stylex.props(ui.button)} onClick={() => setZoom(1)}>
-          Fit to screen
-        </button>
-        <label {...stylex.props(ui.label, styles.toolLabel, styles.check)}>
           <input
             {...stylex.props(ui.checkbox)}
             type="checkbox"
@@ -277,7 +259,7 @@ export default function EditorCanvas({
         </div>
       </div>
       <div {...stylex.props(styles.footer)}>
-        <span>Drag the QR or resize a corner. Scroll to pan when zoomed.</span>
+        <span>Drag the QR or resize a corner.</span>
         <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
           <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>
             ←
