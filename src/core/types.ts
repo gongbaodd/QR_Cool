@@ -245,7 +245,7 @@ export interface PatternReport {
     quietZoneModules: 2
     totalModules: number
     modulePixels: number
-    pixelStyle: 'rounded'
+    pixelStyle: 'square' | 'rounded' | 'dot'
     removedTypes: Array<'Position' | 'Alignment'>
     /** Dropped marker cells are refilled with seeded random bits, never left light. */
     markerRefill: 'seeded-random'

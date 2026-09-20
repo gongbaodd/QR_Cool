@@ -19,6 +19,7 @@ export const settingsSchema = z
     rimModules: z.number().int().min(0).max(5).default(1),
     rimRounded: z.boolean().default(false),
     ecc: z.enum(['L', 'M', 'Q', 'H']).default('M'),
+    pixelStyle: z.enum(['square', 'rounded', 'dot']).default('rounded'),
   })
   .strict()
 export const requestSchema = z

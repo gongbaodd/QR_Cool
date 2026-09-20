@@ -3,7 +3,8 @@ import jsQR from 'jsqr'
 import type { QRCode as JsQrResult } from 'jsqr'
 import sharp from 'sharp'
 import { QrCodeDataType, encode } from 'uqr'
-import { renderRoundedPattern } from './pattern'
+import { renderPattern } from './pattern'
+import type { PixelStyle } from './pattern'
 import { QrPosterError } from './errors'
 import type { LoadedPng } from './image'
 import { decodePng, luma, rgbaToPng } from './image'
@@ -29,8 +30,12 @@ export interface GeneratedQr {
   version: number
 }
 
-/** Builds the same rounded, two-module-margin QR profile accepted from legacy PNG inputs. */
-export async function generateQrFromContent(content: string, ecc: 'L' | 'M' | 'Q' | 'H' = 'M'): Promise<GeneratedQr> {
+/** Builds the same two-module-margin QR profile accepted from legacy PNG inputs. */
+export async function generateQrFromContent(
+  content: string,
+  ecc: 'L' | 'M' | 'Q' | 'H' = 'M',
+  pixelStyle: PixelStyle = 'rounded',
+): Promise<GeneratedQr> {
   if (content.trim().length === 0)
     throw new QrPosterError('INVALID_INPUT', '--content must not be empty or whitespace-only.')
   if (/\r|\n/.test(content)) throw new QrPosterError('INVALID_INPUT', '--content must contain exactly one line.')
@@ -47,17 +52,16 @@ export async function generateQrFromContent(content: string, ecc: 'L' | 'M' | 'Q
     )
   }
 
-  // Keep pattern.ts as the single source of truth for the qrcode.antfu.me rounded cell geometry.
-  // The dynamic import avoids a static layout -> qr -> pattern -> layout module cycle.
+  // Keep pattern.ts as the single source of truth for the qrcode.antfu.me cell geometry.
   const marginModules = QUIET_ZONE_MODULES
-  const rounded = await renderRoundedPattern(encoded.data, GENERATED_QR_MODULE_PIXELS, {
+  const patternPng = await renderPattern(encoded.data, GENERATED_QR_MODULE_PIXELS, pixelStyle, {
     skipInk: (moduleX, moduleY) => {
       const x = moduleX - marginModules
       const y = moduleY - marginModules
       return encoded.types[y]?.[x] === QrCodeDataType.Position
     },
   })
-  const file = await sharp(rounded)
+  const file = await sharp(patternPng)
     .composite([{ input: Buffer.from(finderMarkerSvg(encoded.size, GENERATED_QR_MODULE_PIXELS, marginModules)) }])
     .png()
     .toBuffer()

@@ -30,7 +30,7 @@ No credentials or accounts are needed. QR text is never fetched as a URL. Upload
 
 Every input edit invalidates the previous output. Invalid manual placements are flagged and never silently moved. **Reset to automatic placement** finds a valid square with space left for texture. Longer content retains the previous center and module pitch when possible, then revalidates the enlarged QR.
 
-Pattern settings provide a stable seed, **New pattern**, a fixed 1-module finder margin, marker corners that continue the texture or stay light, a rim thickness of 0–5 modules, and a rounded rim with antialiasing. The corner setting affects the QR plate, not the poster's silhouette.
+Pattern settings provide a stable seed, **New pattern**, pixel style (`square`, `rounded`, `dot` matching [qrcode.antfu.me](https://qrcode.antfu.me)), a fixed 1-module finder margin, marker corners that continue the texture or stay light, a rim thickness of 0–5 modules, and a rounded rim with antialiasing. The corner setting affects the QR plate, not the poster's silhouette.
 
 **Artistic margins can affect scanning. Test the downloaded poster with your phone.** The result is not scan-certified. The report deliberately skips poster/full-size, half-scale, and JPEG decoding checks; `phoneScan` remains `untested`.
 
@@ -45,7 +45,7 @@ Component styles are authored in [StyleX](https://stylexjs.com). The browser rec
 
 ## Renderer contract
 
-- `uqr`, M error correction, automatic mask selection, two locally drawn source margin modules, existing rounded module geometry.
+- `uqr`, M error correction, automatic mask selection, two locally drawn source margin modules, selectable pixel geometry (`square`, `rounded` with blended wedges, `dot` as isolated circles) matching `qrcode.antfu.me`.
 - Seeded marker-free decorative matrix, phase-locked to the placed QR's lattice. Finder/separator and alignment cells are randomly refilled; timing and function cells remain.
 - Only whole modules fully covered by the selected region are drawn. The outer 0–5 safe-module rings are dark (antialiased when rounded). The plate does not seed that rim.
 - The actual plate is the code grid plus finder-only light bands of one module (whole cells). Its footprint is smaller than the full QR square used for placement constraints.
@@ -60,7 +60,7 @@ The CLI, paid image generation, QR-image upload, and standalone pattern modes ar
 
 - `poster`: PNG file
 - `mask`: optional PNG file
-- `data`: JSON containing `revision`, exact `content`, `settings: { seed, qrMargin, plateCorners }`, and optional `placement: { x, y, size }`. Assembly requires explicit placement. Preparation can also receive `previousTotalModules` to preserve center/pitch across content changes.
+- `data`: JSON containing `revision`, exact `content`, `settings: { seed, qrMargin, plateCorners, ecc, pixelStyle }`, and optional `placement: { x, y, size }`. Assembly requires explicit placement. Preparation can also receive `previousTotalModules` to preserve center/pitch across content changes.
 
 Preparation returns dimensions, base64 mask/overlay/QR previews, metadata, canonical placement, and a placement validation message or `null`. Assembly returns canonical placement, base64 artifact buffers, and the verification report. Responses use `Cache-Control: no-store`. Files and QR text are never logged by application code.
 

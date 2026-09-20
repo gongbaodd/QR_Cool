@@ -31,7 +31,15 @@ export interface State {
 export const initialState: State = {
   revision: 0,
   content: 'https://example.com',
-  settings: { seed: 0, qrMargin: 1, plateCorners: 'texture', rimModules: 1, rimRounded: false, ecc: 'M' },
+  settings: {
+    seed: 0,
+    qrMargin: 1,
+    plateCorners: 'texture',
+    rimModules: 1,
+    rimRounded: false,
+    ecc: 'M',
+    pixelStyle: 'rounded',
+  },
   prepared: null,
   placement: null,
   result: null,

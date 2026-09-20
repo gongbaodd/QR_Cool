@@ -19,8 +19,9 @@ import {
   PATTERN_PIXEL_STYLE,
   PATTERN_QUIET_ZONE_MODULES,
   buildPosterPattern,
-  renderRoundedPattern,
+  renderPattern,
 } from './pattern'
+import type { PixelStyle } from './pattern'
 import { buildCutSvg } from './pattern-cut'
 import { verifyQrVariant } from './qr'
 import type { AssembleReport, BoundingBox, QrPlacement, ResolvedLayout, VerificationCheck } from './types'
@@ -56,7 +57,14 @@ const ARTIFACT_NAMES = {
 
 export async function assembleResolved(
   layout: ResolvedLayout,
-  options: { seed?: number; qrMargin?: 1; radius?: number; rimModules?: number; rimRounded?: boolean },
+  options: {
+    seed?: number
+    qrMargin?: 1
+    radius?: number
+    rimModules?: number
+    rimRounded?: boolean
+    pixelStyle?: PixelStyle
+  },
 ) {
   const startedAt = Date.now()
   const { poster, qrSource, maskInput, regionMask, decoded, qrMetadata, placement, normalizedQr } = layout
@@ -159,7 +167,8 @@ export async function assembleResolved(
     if (column < 0 || row < 0 || column >= lattice.columns || row >= lattice.rows) return false
     return drawn[row * lattice.columns + column] === 1
   }
-  const texturePng = await renderRoundedPattern(effective, pitch, {
+  const pixelStyle: PixelStyle = options.pixelStyle ?? PATTERN_PIXEL_STYLE
+  const texturePng = await renderPattern(effective, pitch, pixelStyle, {
     marginModules: pattern.marginModules,
     window: { ...pattern.crop, width, height },
     include,
@@ -358,7 +367,7 @@ export async function assembleResolved(
       quietZoneModules: QUIET_ZONE_MODULES,
       totalModules: pattern.totalModules,
       modulePixels: pitch,
-      pixelStyle: PATTERN_PIXEL_STYLE,
+      pixelStyle,
       alignment: { alignedToQr: true, phase: { x: phaseX, y: phaseY } },
       removedTypes: [...REMOVED_TYPES],
       markerRefill: PATTERN_MARKER_REFILL,

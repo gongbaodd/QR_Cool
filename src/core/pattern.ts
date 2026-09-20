@@ -7,6 +7,8 @@ import { QrPosterError } from './errors'
 export const PATTERN_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 export const PATTERN_ECC = 'M' as const
 export const PATTERN_PIXEL_STYLE = 'rounded' as const
+export const PATTERN_PIXEL_STYLES = ['square', 'rounded', 'dot'] as const
+export type PixelStyle = (typeof PATTERN_PIXEL_STYLES)[number]
 export const PATTERN_MARKER_REFILL = 'seeded-random' as const
 /** Light modules the toolkit draws around the code; the texture's own quiet zone. */
 export const PATTERN_QUIET_ZONE_MODULES = 2 as const
@@ -55,6 +57,8 @@ export interface PosterPatternOptions {
    * continues the code's rhythm. Without it the window stays centered as before.
    */
   alignTo?: { x: number; y: number }
+  /** Pixel shape: square is full cell, rounded blends neighbours, dot is a circle. */
+  pixelStyle?: PixelStyle
 }
 
 export interface PosterPattern {
@@ -141,16 +145,21 @@ function markerRefillSeed(seed: number): number {
 }
 
 /**
- * Renders the toolkit's default rounded pixel style: one inscribed circle per dark module plus
- * corner wedges that bridge dark neighbours (and fill inner corners of light modules).
+ * Renders a pixel style — square is full cells, dot is circles, rounded blends neighbours.
+ * Square and dot follow the same toolkit design as https://qrcode.antfu.me; rounded matches
+ * the previous implementation: one inscribed circle per dark module plus corner wedges that
+ * bridge dark neighbours (and fill inner corners of light modules).
  */
-export async function renderRoundedPattern(
+export async function renderPattern(
   matrix: boolean[][],
   modulePixels: number,
+  pixelStyle: PixelStyle = PATTERN_PIXEL_STYLE,
   options: PatternRenderOptions = {},
 ): Promise<Buffer> {
   if (!Number.isInteger(modulePixels) || modulePixels < 1)
     throw new QrPosterError('INVALID_INPUT', 'modulePixels must be a positive integer.')
+  if (!PATTERN_PIXEL_STYLES.includes(pixelStyle))
+    throw new QrPosterError('INVALID_INPUT', `pixelStyle must be one of ${PATTERN_PIXEL_STYLES.join(', ')}.`)
   if (matrix.length === 0 || matrix.some((row) => row.length !== matrix.length))
     throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'Pattern matrix must be a non-empty square.', 3)
 
@@ -170,16 +179,12 @@ export async function renderRoundedPattern(
     throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'The pattern render window must fit inside the code canvas.', 3)
   }
 
-  const half = modulePixels / 2
-  const radius = half + WEDGE_RADIUS_PADDING
   const include = options.include
   const skipInk = options.skipInk
   const included = (x: number, y: number): boolean => {
     if (x < 0 || y < 0 || x >= totalModules || y >= totalModules) return false
     return include === undefined || include(x, y)
   }
-  // A module outside the drawn set is light for every purpose, so a dark neighbour the cut drops
-  // cannot pull a wedge into the artwork around the silhouette.
   const dark = (x: number, y: number): boolean => {
     if (!included(x, y)) return false
     if (skipInk?.(x, y)) return false
@@ -189,59 +194,92 @@ export async function renderRoundedPattern(
     return matrix[row]![column]!
   }
 
-  const circles: string[] = []
-  const wedges: string[] = []
-  const wedge = (key: 'tl' | 'tr' | 'bl' | 'br', ox: number, oy: number): void => {
-    const right = ox + modulePixels
-    const bottom = oy + modulePixels
-    const paths = {
-      tl: `M${ox},${oy} L${ox},${oy + half} A${radius},${radius} 0 0 1 ${ox + half},${oy} Z`,
-      tr: `M${right},${oy} L${right},${oy + half} A${radius},${radius} 0 0 0 ${right - half},${oy} Z`,
-      bl: `M${ox},${bottom} L${ox},${bottom - half} A${radius},${radius} 0 0 0 ${ox + half},${bottom} Z`,
-      br: `M${right},${bottom} L${right},${bottom - half} A${radius},${radius} 0 0 1 ${right - half},${bottom} Z`,
-    }
-    wedges.push(paths[key])
-  }
-
-  for (let y = 0; y < totalModules; y++) {
-    for (let x = 0; x < totalModules; x++) {
-      if (!included(x, y)) continue
-      if (skipInk?.(x, y)) continue
-      const ox = x * modulePixels
-      const oy = y * modulePixels
-      const up = dark(x, y - 1)
-      const down = dark(x, y + 1)
-      const left = dark(x - 1, y)
-      const right = dark(x + 1, y)
-      if (dark(x, y)) {
-        circles.push(
-          `M${ox},${oy + half}a${half},${half} 0 1 0 ${modulePixels},0a${half},${half} 0 1 0 ${-modulePixels},0Z`,
-        )
-        if (up || left) wedge('tl', ox, oy)
-        if (up || right) wedge('tr', ox, oy)
-        if (down || left) wedge('bl', ox, oy)
-        if (down || right) wedge('br', ox, oy)
-      } else {
-        if (up && left && dark(x - 1, y - 1)) wedge('tl', ox, oy)
-        if (up && right && dark(x + 1, y - 1)) wedge('tr', ox, oy)
-        if (down && left && dark(x - 1, y + 1)) wedge('bl', ox, oy)
-        if (down && right && dark(x + 1, y + 1)) wedge('br', ox, oy)
-      }
-    }
-  }
-
-  // Without an include mask the whole canvas is one white field, exactly as before. With one, only
-  // the drawn modules carry the texture's white, so the artwork shows through the dropped ones.
   const background =
     include === undefined
       ? `<rect width="${codeSize}" height="${codeSize}" fill="#ffffff"/>`
       : `<path fill="#ffffff" d="${includedCells(include, totalModules, modulePixels)}"/>`
+
+  let foreground = ''
+  if (pixelStyle === 'square') {
+    const rects: string[] = []
+    for (let y = 0; y < totalModules; y++) {
+      for (let x = 0; x < totalModules; x++) {
+        if (!included(x, y)) continue
+        if (skipInk?.(x, y)) continue
+        if (!dark(x, y)) continue
+        const ox = x * modulePixels
+        const oy = y * modulePixels
+        rects.push(`M${ox},${oy}h${modulePixels}v${modulePixels}h-${modulePixels}Z`)
+      }
+    }
+    foreground = `<path fill="#000000" d="${rects.join('')}"/>`
+  } else if (pixelStyle === 'dot') {
+    const half = modulePixels / 2
+    const circles: string[] = []
+    for (let y = 0; y < totalModules; y++) {
+      for (let x = 0; x < totalModules; x++) {
+        if (!included(x, y)) continue
+        if (skipInk?.(x, y)) continue
+        if (!dark(x, y)) continue
+        const ox = x * modulePixels
+        const oy = y * modulePixels
+        circles.push(
+          `M${ox},${oy + half}a${half},${half} 0 1 0 ${modulePixels},0a${half},${half} 0 1 0 ${-modulePixels},0Z`,
+        )
+      }
+    }
+    foreground = `<path fill="#000000" d="${circles.join('')}"/>`
+  } else {
+    const half = modulePixels / 2
+    const radius = half + WEDGE_RADIUS_PADDING
+    const circles: string[] = []
+    const wedges: string[] = []
+    const wedge = (key: 'tl' | 'tr' | 'bl' | 'br', ox: number, oy: number): void => {
+      const right = ox + modulePixels
+      const bottom = oy + modulePixels
+      const paths = {
+        tl: `M${ox},${oy} L${ox},${oy + half} A${radius},${radius} 0 0 1 ${ox + half},${oy} Z`,
+        tr: `M${right},${oy} L${right},${oy + half} A${radius},${radius} 0 0 0 ${right - half},${oy} Z`,
+        bl: `M${ox},${bottom} L${ox},${bottom - half} A${radius},${radius} 0 0 0 ${ox + half},${bottom} Z`,
+        br: `M${right},${bottom} L${right},${bottom - half} A${radius},${radius} 0 0 1 ${right - half},${bottom} Z`,
+      }
+      wedges.push(paths[key])
+    }
+
+    for (let y = 0; y < totalModules; y++) {
+      for (let x = 0; x < totalModules; x++) {
+        if (!included(x, y)) continue
+        if (skipInk?.(x, y)) continue
+        const ox = x * modulePixels
+        const oy = y * modulePixels
+        const up = dark(x, y - 1)
+        const down = dark(x, y + 1)
+        const left = dark(x - 1, y)
+        const right = dark(x + 1, y)
+        if (dark(x, y)) {
+          circles.push(
+            `M${ox},${oy + half}a${half},${half} 0 1 0 ${modulePixels},0a${half},${half} 0 1 0 ${-modulePixels},0Z`,
+          )
+          if (up || left) wedge('tl', ox, oy)
+          if (up || right) wedge('tr', ox, oy)
+          if (down || left) wedge('bl', ox, oy)
+          if (down || right) wedge('br', ox, oy)
+        } else {
+          if (up && left && dark(x - 1, y - 1)) wedge('tl', ox, oy)
+          if (up && right && dark(x + 1, y - 1)) wedge('tr', ox, oy)
+          if (down && left && dark(x - 1, y + 1)) wedge('bl', ox, oy)
+          if (down && right && dark(x + 1, y + 1)) wedge('br', ox, oy)
+        }
+      }
+    }
+    foreground = `<path fill="#000000" d="${circles.join('')}"/><path fill="#000000" d="${wedges.join('')}"/>`
+  }
+
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${window.width}" height="${window.height}"` +
     ` viewBox="${window.left} ${window.top} ${window.width} ${window.height}">` +
     background +
-    `<path fill="#000000" d="${circles.join('')}"/>` +
-    `<path fill="#000000" d="${wedges.join('')}"/>` +
+    foreground +
     '</svg>'
 
   const raster = sharp(Buffer.from(svg))
@@ -255,6 +293,19 @@ export async function renderRoundedPattern(
     )
   }
   return png
+}
+
+/**
+ * Renders the toolkit's default rounded pixel style: one inscribed circle per dark module plus
+ * corner wedges that bridge dark neighbours (and fill inner corners of light modules).
+ * @deprecated Use renderPattern with explicit pixelStyle instead.
+ */
+export async function renderRoundedPattern(
+  matrix: boolean[][],
+  modulePixels: number,
+  options: PatternRenderOptions = {},
+): Promise<Buffer> {
+  return renderPattern(matrix, modulePixels, 'rounded', options)
 }
 
 /**
@@ -297,7 +348,7 @@ export async function buildPosterPattern(options: PosterPatternOptions): Promise
 /** Renders the poster pattern, or just its lattice, in one call. */
 export async function renderPosterPattern(options: PosterPatternOptions): Promise<PosterPattern> {
   const lattice = await buildPosterPattern(options)
-  const png = await renderRoundedPattern(lattice.matrix, options.modulePixels, {
+  const png = await renderPattern(lattice.matrix, options.modulePixels, options.pixelStyle ?? PATTERN_PIXEL_STYLE, {
     window: { ...lattice.crop, width: options.width, height: options.height },
   })
   return { ...lattice, png }
