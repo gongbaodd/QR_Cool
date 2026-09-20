@@ -4,7 +4,8 @@ import * as stylex from '@stylexjs/stylex'
 import { Group, Stage, Layer, Image as CanvasImage, Rect, Transformer } from 'react-konva'
 import type Konva from 'konva'
 import { canonicalPlacement, fitsMask } from '../../lib/editor/schema'
-import type { Placement } from '../../lib/editor/schema'
+import type { Placement, PlacementInput } from '../../lib/editor/schema'
+import { canonicalizeRotation } from '../../core/rotate'
 import { tokens } from '../../styles/tokens.stylex'
 import { ui } from '../../styles/ui.stylex'
 
@@ -189,6 +190,17 @@ export default function EditorCanvas({
   function nudge(dx: number, dy: number) {
     onChange({ ...placement, x: Math.max(0, placement.x + dx), y: Math.max(0, placement.y + dy) })
   }
+  /** Live Konva transform of the group back to canonical placement frame (unrotated box + angle). */
+  function liveBox(): PlacementInput {
+    const n = node.current!
+    const size = n.width() * n.scaleX()
+    return {
+      x: n.x() - size / 2,
+      y: n.y() - size / 2,
+      size,
+      rotation: canonicalizeRotation(n.rotation()),
+    }
+  }
   return (
     <div {...stylex.props(styles.area)} ref={wrapper}>
       <div {...stylex.props(styles.tools)}>
@@ -229,27 +241,47 @@ export default function EditorCanvas({
               {showMask && <CanvasImage image={overlayImage} width={width} height={height} listening={false} />}
               <Group
                 ref={node}
-                x={placement.x}
-                y={placement.y}
+                x={placement.x + placement.size / 2}
+                y={placement.y + placement.size / 2}
+                offsetX={placement.size / 2}
+                offsetY={placement.size / 2}
                 width={placement.size}
                 height={placement.size}
+                rotation={placement.rotation}
                 draggable
                 dragDistance={1}
                 onDragMove={(e) => {
-                  const box = canonicalPlacement({ ...placement, x: e.target.x(), y: e.target.y() }, modules)
+                  const box = canonicalPlacement(
+                    { ...placement, x: e.target.x() - placement.size / 2, y: e.target.y() - placement.size / 2 },
+                    modules,
+                  )
                   border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? '#dd3748' : '#087f67')
                 }}
                 onDragEnd={(e) =>
-                  onChange(canonicalPlacement({ ...placement, x: e.target.x(), y: e.target.y() }, modules))
+                  onChange(
+                    canonicalPlacement(
+                      { ...placement, x: e.target.x() - placement.size / 2, y: e.target.y() - placement.size / 2 },
+                      modules,
+                    ),
+                  )
                 }
+                onTransform={() => {
+                  const box = canonicalPlacement(liveBox(), modules)
+                  border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? '#dd3748' : '#087f67')
+                }}
                 onTransformEnd={() => {
                   const n = node.current!
-                  // Group width/height is the full placement size; scale is the live transform
-                  const fullSize = n.width() * n.scaleX()
-                  const fullX = n.x()
-                  const fullY = n.y()
+                  const box = canonicalPlacement(liveBox(), modules)
+                  // Reset the transient scale, then re-anchor the group to the committed box.
                   n.scale({ x: 1, y: 1 })
-                  onChange(canonicalPlacement({ x: fullX, y: fullY, size: fullSize }, modules))
+                  n.width(box.size)
+                  n.height(box.size)
+                  n.offsetX(box.size / 2)
+                  n.offsetY(box.size / 2)
+                  n.rotation(box.rotation)
+                  n.x(box.x + box.size / 2)
+                  n.y(box.y + box.size / 2)
+                  onChange(box)
                 }}
               >
                 <Rect width={placement.size} height={placement.size} fill="transparent" />
@@ -260,6 +292,8 @@ export default function EditorCanvas({
                   width={displaySize}
                   height={displaySize}
                   crop={{ x: margin, y: margin, width: displaySize, height: displaySize }}
+                  // Approximate the assembly's nearest-neighbour resampling.
+                  imageSmoothingEnabled={false}
                 />
                 <Rect
                   ref={border}
@@ -271,21 +305,27 @@ export default function EditorCanvas({
               </Group>
               <Transformer
                 ref={transformer}
-                rotateEnabled={false}
+                rotateEnabled
                 flipEnabled={false}
                 keepRatio
                 enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
                 anchorSize={14}
                 anchorCornerRadius={3}
                 borderStroke={invalid ? '#dd3748' : '#087f67'}
-                boundBoxFunc={(old, next) => (next.width < modules * 4 * scale ? old : next)}
+                boundBoxFunc={(old, next) => {
+                  // Keep whole-module size snapping: a rotated square's axis-aligned bounding box
+                  // grows by (|cos| + |sin|) of the live rotation, so translate the floor back.
+                  const radians = ((node.current?.rotation() ?? 0) * Math.PI) / 180
+                  const factor = Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians))
+                  return next.width < modules * 4 * scale * factor ? old : next
+                }}
               />
             </Layer>
           </Stage>
         </div>
       </div>
       <div {...stylex.props(styles.footer)}>
-        <span>Drag the QR or resize a corner.</span>
+        <span>Drag, resize, or rotate the QR.</span>
         <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
           <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>
             ←

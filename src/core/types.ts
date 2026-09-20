@@ -61,6 +61,8 @@ export interface QrPlacement {
   x: number
   y: number
   size: number
+  /** Clockwise degrees the finished plate is rotated around the square's centre; canonical [0, 360). */
+  rotation: number
   modulePixels: number
   totalModules: number
   mode: 'auto' | 'manual'
@@ -146,6 +148,8 @@ export interface QrBoxInput {
   x: number
   y: number
   size: number
+  /** Optional clockwise rotation in degrees; defaults to 0 (upright). */
+  rotation?: number
 }
 
 export interface PosterInputOptions {

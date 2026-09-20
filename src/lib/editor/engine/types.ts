@@ -33,7 +33,7 @@ export interface PreparedPayload {
   overlay: Blob
   qr: Blob
   qrMetadata: { totalModules: number; version: number }
-  placement: { x: number; y: number; size: number }
+  placement: Placement
   validation: string | null
 }
 

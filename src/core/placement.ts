@@ -1,5 +1,6 @@
 import { fitsMask } from '../lib/editor/schema'
 import { QrPosterError } from './errors'
+import { canonicalizeRotation } from './rotate'
 import type { QrBoxInput, QrPlacement, RegionMask } from './types'
 
 export const MINIMUM_MODULE_PIXELS = 4
@@ -21,6 +22,7 @@ export function placeQr(mask: RegionMask, totalModules: number, requested?: QrBo
     x: topLeft.x,
     y: topLeft.y,
     size,
+    rotation: 0,
     modulePixels,
     totalModules,
     mode: 'auto',
@@ -28,13 +30,19 @@ export function placeQr(mask: RegionMask, totalModules: number, requested?: QrBo
   }
 }
 
-export function boxIsInsideMask(mask: RegionMask, x: number, y: number, size: number): boolean {
-  return fitsMask(mask.data, mask.width, mask.height, { x, y, size })
+export function boxIsInsideMask(mask: RegionMask, x: number, y: number, size: number, rotation = 0): boolean {
+  return fitsMask(mask.data, mask.width, mask.height, { x, y, size, rotation })
 }
 
 function validateManualPlacement(mask: RegionMask, totalModules: number, box: QrBoxInput): QrPlacement {
   const { x, y, size } = box
-  if (![x, y, size].every(Number.isInteger) || x < 0 || y < 0 || size <= 0)
+  const rotation = canonicalizeRotation(box.rotation)
+  if (
+    ![x, y, size].every(Number.isInteger) ||
+    x < 0 ||
+    y < 0 ||
+    size <= 0
+  )
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
       'QR position must contain non-negative integer x,y coordinates and a positive integer size.',
@@ -47,12 +55,12 @@ function validateManualPlacement(mask: RegionMask, totalModules: number, box: Qr
   const modulePixels = size / totalModules
   if (modulePixels < MINIMUM_MODULE_PIXELS)
     throw new QrPosterError('QR_LAYOUT_INVALID', `Manual QR module size must be at least ${MINIMUM_MODULE_PIXELS}px.`)
-  if (!boxIsInsideMask(mask, x, y, size))
+  if (!boxIsInsideMask(mask, x, y, size, rotation))
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
       'The requested QR position is not completely inside the painted region.',
     )
-  return { x, y, size, modulePixels, totalModules, mode: 'manual', artPaddingModules: 0 }
+  return { x, y, size, rotation, modulePixels, totalModules, mode: 'manual', artPaddingModules: 0 }
 }
 
 function findLargestSquareSize(data: Uint8Array, width: number, height: number): number {

@@ -16,6 +16,7 @@ import { placeQr, findClosestSquare } from '../../../core/placement'
 import { generateQrFromContent, decodeQrRawDetailed, inspectAntfuQr, normalizeQr } from '../../../core/qr'
 import { buildModuleLattice, computeSafeArea, computePlateModules, computeRimModules } from '../../../core/module-cut'
 import { selectPatternVersion } from '../../../core/pattern'
+import { computeRotatedPlateModules } from '../../../core/module-cut'
 import { QrPosterError } from '../../../core/errors'
 import type { Imaging } from '../../../core/imaging/types'
 import type { LoadedPng } from '../../../core/image'
@@ -83,11 +84,16 @@ export function validatePlacement({
   }
   const { arms, cornerBlocks } = markerBandRects(grid, qrMetadata.qrModules, pitch, settings.qrMargin)
   const corners = settings.plateCorners === 'texture'
-  const plate = computePlateModules(
-    lattice,
-    [grid, ...arms, ...(corners ? [] : cornerBlocks)],
-    corners ? cornerBlocks : [],
-  )
+  /**
+   * A rotated placement carves its plate hole as the whole rotated footprint: the complete
+   * upright plate (the normalized QR square) is rotated once during compositing, so every
+   * module the rotated plate covers in full leaves the cut. Corner hand-backs are an
+   * upright-plate concept and do not apply.
+   */
+  const rotated = p.rotation !== 0
+  const plate = rotated
+    ? computeRotatedPlateModules(lattice, p, [{ x: 0, y: 0, width: p.size, height: p.size }])
+    : computePlateModules(lattice, [grid, ...arms, ...(corners ? [] : cornerBlocks)], corners ? cornerBlocks : [])
   if (!safe.safe.some((cell, i) => cell && !rim[i] && !plate.cells[i]))
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
@@ -175,7 +181,7 @@ export function applyPlacement({
     // request schema rejects on the next round trip and strands the placement.
     const origin = (value: number, limit: number) =>
       Math.min(Math.max(0, Math.round(value + offset)), Math.max(0, limit - size))
-    requested = { x: origin(previous.x, regionMask.width), y: origin(previous.y, regionMask.height), size }
+    requested = { ...previous, x: origin(previous.x, regionMask.width), y: origin(previous.y, regionMask.height), size }
   }
   let validation: string | null = null
   let placement
@@ -198,7 +204,7 @@ export function applyPlacement({
       try {
         const size = qrMetadata.totalModules * pitch
         const point = findClosestSquare(regionMask, size)
-        placement = validatePlacement({ regionMask, qrMetadata, placement: { ...point, size }, settings })
+        placement = validatePlacement({ regionMask, qrMetadata, placement: { ...point, size, rotation: 0 }, settings })
         placement.mode = 'auto'
         break
       } catch (e) {
@@ -210,6 +216,8 @@ export function applyPlacement({
         'QR_LAYOUT_INVALID',
         'This region cannot fit the QR and decorative texture. Use shorter text or a larger black region.',
       )
+    // Auto-place searches only upright placements.
+    placement.rotation = 0
   }
   const normalizedQr = validation ? qr.qrSource.file : undefined
   return {
@@ -254,7 +262,7 @@ export async function toPreparedPayload(
     overlay: bytesToBlob('overlay.png', await rgbaToPng(overlay, poster.width, poster.height)),
     qr: bytesToBlob('qr.png', await normalizedQr),
     qrMetadata: { totalModules: qrMetadata.totalModules, version: qrMetadata.version },
-    placement: { x: placement.x, y: placement.y, size: placement.size },
+    placement: { x: placement.x, y: placement.y, size: placement.size, rotation: placement.rotation },
     validation,
   }
 }

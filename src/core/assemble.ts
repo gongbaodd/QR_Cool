@@ -11,6 +11,8 @@ import {
   moduleCellIndex,
   renderModuleCoverage,
 } from './module-cut'
+import { computeRotatedPlateModules } from './module-cut'
+import { localPointInPlate, posterToPlatePoint, rotatedFootprintBounds } from './rotate'
 import {
   PATTERN_ALPHABET,
   PATTERN_ECC,
@@ -95,11 +97,21 @@ export async function assembleResolved(
   }
   const { arms, cornerBlocks } = markerBandRects(codeGrid, qrMetadata.qrModules, pitch, marginModules)
   const plateCornersCut = radius >= PLATE_CORNER_EPSILON
-  const plate = computePlateModules(
-    lattice,
-    [codeGrid, ...arms, ...(plateCornersCut ? [] : cornerBlocks)],
-    plateCornersCut ? cornerBlocks : [],
-  )
+  /**
+   * Rotation keeps QR generation upright: placement code rotates the complete finished plate once.
+   * For a rotated placement the plate is the whole normalized QR square, the plate hole is every
+   * lattice module the rotated footprint covers in full, and nearest-neighbour sampling copies
+   * each destination pixel from the upright plate through the inverse transform — no anti-aliased
+   * module edges, no decode/resample round trip through PNG.
+   */
+  const rotated = placement.rotation !== 0
+  const plate = rotated
+    ? computeRotatedPlateModules(lattice, placement, [{ x: 0, y: 0, width: placement.size, height: placement.size }])
+    : computePlateModules(
+        lattice,
+        [codeGrid, ...arms, ...(plateCornersCut ? [] : cornerBlocks)],
+        plateCornersCut ? cornerBlocks : [],
+      )
   const bandCells = plate.holeModules - qrMetadata.qrModules * qrMetadata.qrModules
 
   const drawn = new Uint8Array(lattice.columns * lattice.rows)
@@ -207,20 +219,28 @@ export async function assembleResolved(
   // so the arms carry the QR's own quiet zone and the corner blocks keep the texture the drawn
   // modules put underneath. The rest of the code edge is texture, so the poster stays unverified and
   // the report warns about it.
-  // The normalized QR is copied verbatim where the plate is: the code grid and the light arms beside
-  // the three finder markers. Every plate pixel maps to the same position inside the placement box,
-  // so the arms carry the QR's own quiet zone and the corner blocks keep the texture the drawn
-  // modules put underneath. The rest of the code edge is texture, so the poster stays unverified and
-  // the report warns about it. decodePng alone suffices: normalizeQr is always flattened opaque.
   const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
+  /** Sample one plate pixel: same NN inverse-map helper validation uses. */
+  const plateSampleOffset = (column: number, row: number): number | null => {
+    const local = posterToPlatePoint(column + 0.5, row + 0.5, placement)
+    if (!localPointInPlate(local.x, local.y, placement.size)) return null
+    const sourceX = Math.min(placement.size - 1, Math.floor(local.x))
+    const sourceY = Math.min(placement.size - 1, Math.floor(local.y))
+    return (sourceY * placement.size + sourceX) * 4
+  }
   const output = Uint8Array.from(poster.data)
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
       const index = row * width + column
       const offset = index * 4
       const cell = moduleCellIndex(lattice, column, row)
-      if (cell >= 0 && plate.cells[cell] === 1) {
-        const source = qrSourceOffset(placement, column, row)
+      const source =
+        rotated
+          ? plateSampleOffset(column, row)
+          : cell >= 0 && plate.cells[cell] === 1
+          ? qrSourceOffset(placement, column, row)
+          : null
+      if (source !== null && source >= 0) {
         for (let channel = 0; channel < 4; channel++) output[offset + channel] = qrRaw[source + channel]!
         continue
       }
@@ -251,7 +271,12 @@ export async function assembleResolved(
       const offset = index * 4
       const cell = moduleCellIndex(lattice, column, row)
       const isCorner = cell >= 0 && plate.corners[cell] === 1
-      const isPlate = cell >= 0 && plate.cells[cell] === 1
+      const isPlate = rotated ? plateSampleOffset(column, row) !== null : cell >= 0 && plate.cells[cell] === 1
+      const plateSource = rotated
+        ? (plateSampleOffset(column, row) ?? -1)
+        : cell >= 0 && plate.cells[cell] === 1
+        ? qrSourceOffset(placement, column, row)
+        : -1
       const isDrawn = cell >= 0 && drawn[cell] === 1
       const hasCoverage = coverage[index]! > 0
       if (isCorner) cornerTexturePixels++
@@ -260,7 +285,7 @@ export async function assembleResolved(
         const value = output[offset + channel]!
         if (value !== poster.data[offset + channel]!) changed = true
         if (!regionMask.data[index] && value !== poster.data[offset + channel]!) outsidePassed = false
-        if (isPlate && value !== qrRaw[qrSourceOffset(placement, column, row) + channel]!) qrPassed = false
+        if (isPlate && value !== qrRaw[plateSource + channel]!) qrPassed = false
         if (isCorner && value !== render.data[offset + channel]!) plateCornersPassed = false
       }
       // Square rim: whole modules or nothing. Rounded rim: antialiased coverage may change pixels

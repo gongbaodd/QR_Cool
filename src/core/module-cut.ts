@@ -1,5 +1,7 @@
 import { imaging } from './imaging'
 import { QrPosterError } from './errors'
+import { plateToPosterPoint } from './rotate'
+import type { RotatableBox } from './rotate'
 import type { BoundingBox } from './types'
 
 /**
@@ -244,6 +246,106 @@ export function computePlateModules(
       minY = Math.min(minY, y)
       maxX = Math.max(maxX, x + pitch)
       maxY = Math.max(maxY, y + pitch)
+    }
+  }
+  return {
+    cells,
+    corners,
+    holeModules,
+    cornerModules: cornerCount,
+    bounds:
+      holeModules === 0
+        ? { x: 0, y: 0, width: 0, height: 0 }
+        : { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+  }
+}
+
+/**
+ * Marks the plate on the module lattice for a rotated placement. Rectangles are
+ * in plate-local coordinates (origin = the unrotated square's top-left). A lattice
+ * cell joins the hole only when its whole pixel block maps back inside one
+ * rectangle — the same whole-block rule as {@link computePlateModules}, applied
+ * through the rotation's inverse transform so the cut never slices a module the
+ * rotated plate would cross.
+ */
+export function computeRotatedPlateModules(
+  lattice: ModuleLattice,
+  box: RotatableBox,
+  plateRects: BoundingBox[],
+  handbackRects: BoundingBox[] = [],
+): PlateModules {
+  if (plateRects.length === 0) throw new QrPosterError('INVALID_INPUT', 'The QR plate needs at least one rectangle.')
+  for (const rect of [...plateRects, ...handbackRects]) {
+    if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite))
+      throw new QrPosterError('INVALID_INPUT', 'The QR plate rectangles must use finite numbers.')
+    if (rect.width <= 0 || rect.height <= 0)
+      throw new QrPosterError('INVALID_INPUT', 'The QR plate rectangles must have a positive size.')
+  }
+  // Shrink the target rectangles by an epsilon so a block merely touching a
+  // rectangle edge is not counted: its edge pixels would sample outside [0, size).
+  const epsilon = 1e-6
+
+  const inRect = (x: number, y: number, rect: BoundingBox): boolean =>
+    x > rect.x + epsilon && x < rect.x + rect.width - epsilon && y > rect.y + epsilon && y < rect.y + rect.height - epsilon
+
+  const blockInsideAnyRect = (rects: BoundingBox[]): ((originX: number, originY: number) => boolean) => {
+    const pitch = lattice.modulePixels
+    return (originX: number, originY: number): boolean =>
+      rects.some((rect) =>
+        [
+          plateToPosterPoint(originX, originY, box),
+          plateToPosterPoint(originX + pitch, originY, box),
+          plateToPosterPoint(originX + pitch, originY + pitch, box),
+          plateToPosterPoint(originX, originY + pitch, box),
+        ].every((point) => inRect(point.x, point.y, rect)),
+      )
+  }
+  const holeTest = blockInsideAnyRect(plateRects)
+  const handbackTest = blockInsideAnyRect(handbackRects)
+
+  const cells = new Uint8Array(lattice.columns * lattice.rows)
+  const corners = new Uint8Array(lattice.columns * lattice.rows)
+  let holeModules = 0
+  for (let row = 0; row < lattice.rows; row++) {
+    for (let column = 0; column < lattice.columns; column++) {
+      const originX = lattice.x + column * lattice.modulePixels
+      const originY = lattice.y + row * lattice.modulePixels
+      if (!holeTest(originX, originY)) continue
+      const index = row * lattice.columns + column
+      cells[index] = 1
+      holeModules++
+    }
+  }
+  let cornerCount = 0
+  for (let row = 0; row < lattice.rows; row++) {
+    for (let column = 0; column < lattice.columns; column++) {
+      const originX = lattice.x + column * lattice.modulePixels
+      const originY = lattice.y + row * lattice.modulePixels
+      if (!handbackTest(originX, originY)) continue
+      const index = row * lattice.columns + column
+      if (cells[index]) {
+        cells[index] = 0
+        holeModules--
+      }
+      if (corners[index]) continue
+      corners[index] = 1
+      cornerCount++
+    }
+  }
+
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  for (let row = 0; row < lattice.rows; row++) {
+    for (let column = 0; column < lattice.columns; column++) {
+      if (!cells[row * lattice.columns + column]) continue
+      const x = lattice.x + column * lattice.modulePixels
+      const y = lattice.y + row * lattice.modulePixels
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x + lattice.modulePixels)
+      maxY = Math.max(maxY, y + lattice.modulePixels)
     }
   }
   return {
