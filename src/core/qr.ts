@@ -30,14 +30,17 @@ export interface GeneratedQr {
 }
 
 /** Builds the same rounded, two-module-margin QR profile accepted from legacy PNG inputs. */
-export async function generateQrFromContent(content: string): Promise<GeneratedQr> {
+export async function generateQrFromContent(
+  content: string,
+  ecc: 'L' | 'M' | 'Q' | 'H' = 'M',
+): Promise<GeneratedQr> {
   if (content.trim().length === 0)
     throw new QrPosterError('INVALID_INPUT', '--content must not be empty or whitespace-only.')
   if (/\r|\n/.test(content)) throw new QrPosterError('INVALID_INPUT', '--content must contain exactly one line.')
 
   let encoded
   try {
-    encoded = encode(content, { ecc: 'M', maskPattern: -1, border: 0 })
+    encoded = encode(content, { ecc, maskPattern: -1, border: 0 })
   } catch (error) {
     throw new QrPosterError(
       'QR_INVALID',

@@ -252,6 +252,7 @@ export default function EditorCanvas({
                   onChange(canonicalPlacement({ x: fullX, y: fullY, size: fullSize }, modules))
                 }}
               >
+                <Rect width={placement.size} height={placement.size} fill="transparent" />
                 <CanvasImage
                   image={qrImage}
                   x={margin}
@@ -259,7 +260,6 @@ export default function EditorCanvas({
                   width={displaySize}
                   height={displaySize}
                   crop={{ x: margin, y: margin, width: displaySize, height: displaySize }}
-                  listening={false}
                 />
                 <Rect
                   ref={border}
@@ -267,7 +267,6 @@ export default function EditorCanvas({
                   height={placement.size}
                   stroke={invalid ? '#dd3748' : '#087f67'}
                   strokeWidth={2 / scale}
-                  listening={false}
                 />
               </Group>
               <Transformer

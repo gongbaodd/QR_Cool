@@ -89,7 +89,7 @@ export function validatePlacement({
     )
   return p
 }
-const defaults: Settings = { seed: 0, qrMargin: 1, plateCorners: 'texture', rimModules: 1, rimRounded: false }
+const defaults: Settings = { seed: 0, qrMargin: 1, plateCorners: 'texture', rimModules: 1, rimRounded: false, ecc: 'M' }
 async function resolveBuffers(input: BufferInput): Promise<{ layout: ResolvedLayout; validation: string | null }> {
   contentSchema.parse(input.content)
   const poster = await readImage(input.posterBytes, 'poster')
@@ -97,7 +97,7 @@ async function resolveBuffers(input: BufferInput): Promise<{ layout: ResolvedLay
   const regionMask = maskInput
     ? buildManualRegionMask(maskInput, poster.width, poster.height)
     : detectRegionMask(poster)
-  const generated = await generateQrFromContent(input.content)
+  const generated = await generateQrFromContent(input.content, (input.settings?.ecc as 'L' | 'M' | 'Q' | 'H' | undefined) ?? defaults.ecc)
   const qrSource = generated.image
   const decoded = { ...decodeQrRawDetailed(qrSource.data, qrSource.width, qrSource.height), version: generated.version }
   if (decoded.text !== input.content)
@@ -187,14 +187,16 @@ export async function assembleFromBuffers(
     plateCorners: Settings['plateCorners']
     rimModules?: number
     rimRounded?: boolean
+    ecc?: Settings['ecc']
   },
 ) {
   const rimModules = input.rimModules ?? input.settings?.rimModules ?? defaults.rimModules
   const rimRounded = input.rimRounded ?? input.settings?.rimRounded ?? defaults.rimRounded
+  const ecc = input.ecc ?? input.settings?.ecc ?? defaults.ecc
   const { layout, validation } = await resolveBuffers({
     ...input,
     previousTotalModules: undefined,
-    settings: { seed: input.seed, qrMargin: input.qrMargin, plateCorners: input.plateCorners, rimModules, rimRounded },
+    settings: { seed: input.seed, qrMargin: input.qrMargin, plateCorners: input.plateCorners, rimModules, rimRounded, ecc },
   })
   if (validation) throw new QrPosterError('QR_LAYOUT_INVALID', validation)
   const result = await assembleResolved(layout, {

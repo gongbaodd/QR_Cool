@@ -18,6 +18,7 @@ export const settingsSchema = z
     plateCorners: z.enum(['texture', 'light']).default('texture'),
     rimModules: z.number().int().min(0).max(5).default(1),
     rimRounded: z.boolean().default(false),
+    ecc: z.enum(['L', 'M', 'Q', 'H']).default('M'),
   })
   .strict()
 export const requestSchema = z

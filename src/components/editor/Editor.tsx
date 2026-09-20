@@ -278,11 +278,8 @@ export default function Editor() {
               <StepAdjust
                 state={state}
                 ready={ready}
-                canReset={!!poster && contentCheck.success}
-                onMove={move}
                 onSettings={(patch) => edit({ type: 'edit', patch: { settings: { ...state.settings, ...patch } } })}
                 onNewSeed={() => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } })}
-                onResetPlacement={() => edit({ type: 'edit', patch: { placement: null } })}
                 onAssemble={() => {
                   void request('assemble')
                   setStep(4)
