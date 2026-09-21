@@ -8,6 +8,8 @@
  * editor contract (integer origin, module-multiple size) is unchanged.
  */
 
+import { QrPosterError } from './errors'
+
 /** Any placement-like box that can carry a rotation, in degrees. */
 export interface RotatableBox {
   x: number
@@ -236,8 +238,8 @@ export function regionPixelBounds(mask: { data: Uint8Array; width: number; heigh
       if (!mask.data[y * mask.width + x]) continue
       x0 = Math.min(x0, x)
       y0 = Math.min(y0, y)
-      x1 = x + 1
-      y1 = y + 1
+      x1 = Math.max(x1, x + 1)
+      y1 = Math.max(y1, y + 1)
     }
   }
   if (x1 === 0 || y1 === 0) throw new Error('regionPixelBounds: the region mask is empty.')
@@ -255,4 +257,34 @@ export function localPointInPlate(
   size: number,
 ): boolean {
   return localX >= 0 && localY >= 0 && localX < size && localY < size
+}
+
+/**
+ * The rotated-frame invariant: every poster pixel centre that belongs to the valid
+ * placed QR square must map to a working pixel inside the working frame. A frame
+ * built from wrong region bounds would silently drop plate cells, and the assembly's
+ * `qrPixels` check never sees a plate cell it cannot address. Rejected with the
+ * layout error both validation and assembly report, so a bad placement is flagged
+ * before export instead of clipping silently (doc/plan/rotated-working-frame-clipping.md).
+ */
+export function assertFrameHoldsPlacement(
+  frame: QrFrame,
+  placement: RotatableBox,
+  posterWidth: number,
+  posterHeight: number,
+): void {
+  for (let y = 0; y < posterHeight; y++) {
+    for (let x = 0; x < posterWidth; x++) {
+      const local = posterToPlatePoint(x + 0.5, y + 0.5, placement)
+      if (!localPointInPlate(local.x, local.y, placement.size)) continue
+      const wx = Math.floor(local.x - frame.left)
+      const wy = Math.floor(local.y - frame.top)
+      if (wx >= 0 && wy >= 0 && wx < frame.width && wy < frame.height) continue
+      throw new QrPosterError(
+        'QR_LAYOUT_INVALID',
+        'The rotated working frame does not cover the placed QR plate; the placement would be clipped. ' +
+          'Adjust the position, size, or rotation inside the painted region.',
+      )
+    }
+  }
 }

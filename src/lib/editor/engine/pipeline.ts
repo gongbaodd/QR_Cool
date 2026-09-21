@@ -16,7 +16,7 @@ import { placeQr, findClosestSquare } from '../../../core/placement'
 import { generateQrFromContent, decodeQrRawDetailed, inspectAntfuQr, normalizeQr } from '../../../core/qr'
 import { buildModuleLattice, computeSafeArea, computePlateModules, computeRimModules } from '../../../core/module-cut'
 import { selectPatternVersion } from '../../../core/pattern'
-import { qrWorkingFrame, sampleMaskIntoQrFrame } from '../../../core/rotate'
+import { qrWorkingFrame, sampleMaskIntoQrFrame, assertFrameHoldsPlacement } from '../../../core/rotate'
 import { regionPixelBounds } from '../../../core/rotate'
 import { QrPosterError } from '../../../core/errors'
 import type { Imaging } from '../../../core/imaging/types'
@@ -82,6 +82,7 @@ export function validatePlacement({
   const frame = rotated ? qrWorkingFrame(p, regionPixelBounds(regionMask)) : undefined
   const canvasWidth = frame?.width ?? regionMask.width
   const canvasHeight = frame?.height ?? regionMask.height
+  if (frame) assertFrameHoldsPlacement(frame, p, regionMask.width, regionMask.height)
   const origin = frame?.qr ?? { x: p.x, y: p.y }
   const mask = frame
     ? sampleMaskIntoQrFrame(regionMask.data, regionMask.width, regionMask.height, frame, p)

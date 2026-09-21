@@ -11,7 +11,7 @@ import {
   moduleCellIndex,
   renderModuleCoverage,
 } from './module-cut'
-import { posterToPlatePoint, qrWorkingFrame, regionPixelBounds, sampleMaskIntoQrFrame } from './rotate'
+import { posterToPlatePoint, qrWorkingFrame, regionPixelBounds, sampleMaskIntoQrFrame, assertFrameHoldsPlacement } from './rotate'
 import type { QrFrame } from './rotate'
 import {
   PATTERN_ALPHABET,
@@ -495,6 +495,9 @@ async function assembleRotated(
   // only paints inside the region, so a small painted area stays a small buffer even at 45deg.
   const regionBounds = regionPixelBounds(regionMask)
   const frame = qrWorkingFrame(placement, regionBounds)
+  // The frame must hold the whole placed plate: a truncated frame would silently drop plate
+  // cells the qrPixels check could never see. Same helper as preparation, same rejection.
+  assertFrameHoldsPlacement(frame, placement, width, height)
   const selection = Uint8Array.from(regionMask.data, (value) => (value ? 1 : 0))
   const workingMask = sampleMaskIntoQrFrame(selection, width, height, frame, placement)
 

@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { describe, it, expect } from 'vitest'
+import sharp from 'sharp'
 import {
   canonicalizeRotation,
   localPointInPlate,
@@ -9,13 +10,18 @@ import {
   regionPixelBounds,
   rotatedSquareCorners,
   sampleMaskIntoQrFrame,
+  assertFrameHoldsPlacement,
 } from '../src/core/rotate'
 import { QrPosterError } from '../src/core/errors'
 import { canonicalPlacement, fitsMask, placementSchema } from '../src/lib/editor/schema'
 import { boxIsInsideMask, placeQr } from '../src/core/placement'
+import { buildModuleLattice, computePlateModules, computeSafeArea } from '../src/core/module-cut'
+import { markerBandRects } from '../src/core/assemble'
+import { PATTERN_QUIET_ZONE_MODULES } from '../src/core/pattern'
 import { createEditorEngine } from '../src/lib/editor/engine'
 import type { EditorEngineApi, EngineOutcome } from '../src/lib/editor/engine'
 import { nodeImaging } from '../src/core/imaging/node'
+import { prepareSource } from '../src/lib/editor/engine/pipeline'
 import type { RegionMask } from '../src/core/types'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
@@ -270,6 +276,154 @@ describe('sampleMaskIntoQrFrame', () => {
   })
 })
 
+describe('regionPixelBounds', () => {
+  it('takes the maxima over every selected pixel, independent of scan order', () => {
+    // Tapered mask: selected x 20-79 in rows 20-78, but only x=20 in the final row 79.
+    // The right edge must stay the rightmost selected pixel (x1: 80), not the right edge
+    // of the last scanned row (x1: 21).
+    const tapered = new Uint8Array(100 * 100)
+    for (let y = 20; y < 79; y++) for (let x = 20; x < 80; x++) tapered[y * 100 + x] = 255
+    tapered[79 * 100 + 20] = 255
+    expect(regionPixelBounds({ data: tapered, width: 100, height: 100 })).toEqual({
+      x0: 20,
+      y0: 20,
+      x1: 80,
+      y1: 80,
+    })
+    // Mirrored taper: the final row keeps only the rightmost pixel, so a row-order bug
+    // cannot determine either edge.
+    const mirrored = new Uint8Array(100 * 100)
+    for (let y = 20; y < 79; y++) for (let x = 20; x < 80; x++) mirrored[y * 100 + x] = 255
+    mirrored[79 * 100 + 79] = 255
+    expect(regionPixelBounds({ data: mirrored, width: 100, height: 100 })).toEqual({
+      x0: 20,
+      y0: 20,
+      x1: 80,
+      y1: 80,
+    })
+    // A single sparse pixel far right of the last row's bulk.
+    const sparse = new Uint8Array(100 * 100)
+    for (let y = 10; y < 50; y++) for (let x = 10; x < 30; x++) sparse[y * 100 + x] = 255
+    sparse[60 * 100 + 95] = 255
+    expect(regionPixelBounds({ data: sparse, width: 100, height: 100 })).toEqual({
+      x0: 10,
+      y0: 10,
+      x1: 96,
+      y1: 61,
+    })
+  })
+
+  it('still rejects an empty mask', () => {
+    expect(() => regionPixelBounds({ data: new Uint8Array(100), width: 10, height: 10 })).toThrowError(
+      /region mask is empty/u,
+    )
+  })
+})
+
+describe('rotated working frame contains the inverse-mapped region', () => {
+  /** Every selected poster pixel centre must map to a working pixel inside the frame. */
+  function assertRegionFitsFrame(mask: Uint8Array, width: number, height: number, placement: Parameters<typeof qrWorkingFrame>[0]) {
+    const bounds = regionPixelBounds({ data: mask, width, height })
+    const frame = qrWorkingFrame(placement, bounds)
+    for (let y = bounds.y0; y < bounds.y1; y++) {
+      for (let x = bounds.x0; x < bounds.x1; x++) {
+        if (!mask[y * width + x]) continue
+        const local = posterToPlatePoint(x + 0.5, y + 0.5, placement)
+        const wx = Math.floor(local.x - frame.left)
+        const wy = Math.floor(local.y - frame.top)
+        expect(wx).toBeGreaterThanOrEqual(0)
+        expect(wy).toBeGreaterThanOrEqual(0)
+        expect(wx).toBeLessThan(frame.width)
+        expect(wy).toBeLessThan(frame.height)
+      }
+    }
+    return frame
+  }
+
+  const taperedMask = (): Uint8Array => {
+    const mask = new Uint8Array(100 * 100)
+    for (let y = 20; y < 79; y++) for (let x = 20; x < 80; x++) mask[y * 100 + x] = 255
+    mask[79 * 100 + 20] = 255
+    return mask
+  }
+
+  it('rejects a deliberately undersized frame instead of clipping silently', () => {
+    const mask = taperedMask()
+    const placement = { x: 30, y: 30, size: 40, rotation: 45 }
+    const bounds = regionPixelBounds({ data: mask, width: 100, height: 100 })
+    const frame = qrWorkingFrame(placement, bounds)
+    // The corrected frame holds the plate...
+    expect(() => assertFrameHoldsPlacement(frame, placement, 100, 100)).not.toThrow()
+    // ...while a frame whose right edge cuts through the plate must be rejected:
+    // plate pixel centres beyond the edge would silently lose their cells.
+    const truncated = { ...frame, width: frame.qr.x + 20 }
+    expect(() => assertFrameHoldsPlacement(truncated, placement, 100, 100)).toThrowError(QrPosterError)
+  })
+
+  it('flags an undersized frame during preparation before any export', () => {
+    const mask = taperedMask()
+    const bounds = regionPixelBounds({ data: mask, width: 100, height: 100 })
+    // Fabricate the bug the guard exists for: a bounds scan that reports only the narrow
+    // final row, so the frame cannot hold the plate at 45°.
+    const buggyBounds = { x0: bounds.x0, y0: bounds.y0, x1: bounds.x0 + 1, y1: bounds.y1 }
+    const placement = { x: 30, y: 30, size: 40, rotation: 45 }
+    const frame = qrWorkingFrame(placement, buggyBounds)
+    expect(() => assertFrameHoldsPlacement(frame, placement, 100, 100)).toThrowError(QrPosterError)
+    void mask
+  })
+
+  it('keeps every tapered-region pixel centre inside the frame at 30/45/90/near-360 degrees', () => {
+    const mask = taperedMask()
+    for (const rotation of [30, 45, 90, 359.5] as const) {
+      // The placement square sits in the wide upper part and fits the mask upright.
+      const placement = { x: 30, y: 30, size: 30, rotation }
+      const frame = assertRegionFitsFrame(mask, 100, 100, placement)
+      expect(frame.width).toBeGreaterThan(0)
+      expect(frame.height).toBeGreaterThan(0)
+    }
+  })
+
+  it('holds a valid QR plate plus safe area inside the frame at the same angles', () => {
+    const mask = taperedMask()
+    const pitch = 2
+    for (const rotation of [30, 45, 90, 359.5] as const) {
+      const size = 20 * pitch
+      const placement = { x: 30, y: 30, size, rotation }
+      const frame = assertRegionFitsFrame(mask, 100, 100, placement)
+      // The upright plate square must sit fully on the working canvas...
+      expect(frame.qr.x).toBeGreaterThanOrEqual(0)
+      expect(frame.qr.y).toBeGreaterThanOrEqual(0)
+      expect(frame.qr.x + size).toBeLessThanOrEqual(frame.width)
+      expect(frame.qr.y + size).toBeLessThanOrEqual(frame.height)
+      // ...and the whole-module pipeline must find safe modules beside it.
+      const lattice = buildModuleLattice(frame.width, frame.height, pitch, frame.qr)
+      const working = sampleMaskIntoQrFrame(mask, 100, 100, frame, placement)
+      const safe = computeSafeArea(working, frame.width, frame.height, lattice)
+      expect(safe.safeModules).toBeGreaterThan(0)
+      // The plate hole must stay whole: no plate cell may fall off the canvas.
+      const codeGrid = {
+        x: frame.qr.x + PATTERN_QUIET_ZONE_MODULES * pitch,
+        y: frame.qr.y + PATTERN_QUIET_ZONE_MODULES * pitch,
+        width: 16 * pitch,
+        height: 16 * pitch,
+      }
+      const { arms } = markerBandRects(codeGrid, 16, pitch, 1)
+      const plate = computePlateModules(lattice, [codeGrid, ...arms], [])
+      for (let cell = 0; cell < plate.cells.length; cell++) {
+        if (!plate.cells[cell]) continue
+        expect(plate.cells[cell]).toBe(1)
+      }
+      let plateCellsOnCanvas = 0
+      for (let row = 0; row < lattice.rows; row++) {
+        for (let column = 0; column < lattice.columns; column++) {
+          if (plate.cells[row * lattice.columns + column]) plateCellsOnCanvas++
+        }
+      }
+      expect(plateCellsOnCanvas).toBe(plate.holeModules)
+    }
+  })
+})
+
 describe('placeQr rotation rules', () => {
   it('auto-place stays upright and emits rotation 0', () => {
     const mask = rectangularMask(300, 300, 10, 10, 280, 280)
@@ -368,5 +522,111 @@ describe('engine rotation end to end', () => {
       const digest = await nodeImaging.sha256Hex(new Uint8Array(await prepared.qr.arrayBuffer()))
       expect(await nodeImaging.sha256Hex(new Uint8Array(await rotated.qr.arrayBuffer()))).toBe(digest)
     }
+  })
+
+  it('assembles a tapered uploaded mask at 30° without clipping the plate or the texture', async () => {
+    const posterWidth = 400
+    const posterHeight = 400
+    // White poster; the uploaded mask selects a wide rectangle (x 40-360, rows 40-330)
+    // that tapers to a narrow tail (x 40-99) in the final selected rows 331-360.
+    const white = new Uint8Array(
+      await sharp({ create: { width: posterWidth, height: posterHeight, channels: 4, background: 'white' } })
+        .png()
+        .toBuffer(),
+    )
+    const maskRgba = new Uint8Array(posterWidth * posterHeight * 4)
+    const select = (x: number, y: number) => {
+      const offset = (y * posterWidth + x) * 4
+      maskRgba[offset] = 255
+      maskRgba[offset + 1] = 255
+      maskRgba[offset + 2] = 255
+      maskRgba[offset + 3] = 255
+    }
+    for (let y = 40; y < 331; y++) for (let x = 40; x < 361; x++) select(x, y)
+    for (let y = 331; y < 361; y++) for (let x = 40; x < 100; x++) select(x, y)
+    const maskBytes = new Uint8Array(await sharp(maskRgba, { raw: { width: posterWidth, height: posterHeight, channels: 4 } }).png().toBuffer())
+
+    const session = await makeEngine()
+    const prepared = assertOk(await session.prepare({ posterBytes: white, maskBytes, content }, 1))
+    const modules = prepared.qrMetadata.totalModules
+    // A QR centred in the wide rectangle, small enough that its 30° footprint fits
+    // inside the rectangular part of the tapered mask.
+    let sizeFactor = 0.8
+    let placement = prepared.placement
+    for (;;) {
+      const size = Math.floor((200 * sizeFactor) / modules) * modules
+      placement = { x: 140 - Math.floor(size / 2), y: 160 - Math.floor(size / 2), size, rotation: 30 }
+      const attempt = assertOk(await session.prepare({ posterBytes: white, maskBytes, content, placement }, 2))
+      if (!attempt.validation) break
+      sizeFactor -= 0.05
+      if (sizeFactor <= 0.2) throw new Error('no rotated placement fits the tapered fixture region')
+    }
+
+    const result = assertOk(await session.assemble({ posterBytes: white, maskBytes, content, placement, ...settings }, 3))
+    expect(result.report.placement.rotation).toBe(30)
+    expect(result.report.qualified).toBe(true)
+    expect(result.report.schemaVersion).toBe(8)
+    expect(result.report.verification.checks.every((check) => check.passed)).toBe(true)
+
+    // Rebuild the expected geometry from the same bounds convention the assembly uses,
+    // then verify the plate pixel-by-pixel with a frame-independent footprint scan.
+    const { poster, regionMask } = await prepareSource(nodeImaging, white, maskBytes)
+    const placementBox = result.report.placement
+    const pitch = placementBox.modulePixels
+    expect(pitch).toBeGreaterThan(0)
+    expect(regionMask.width).toBe(posterWidth)
+
+    const bounds = regionPixelBounds({ data: regionMask.data, width: posterWidth, height: posterHeight })
+    expect(bounds).toEqual({ x0: 40, y0: 40, x1: 361, y1: 361 })
+
+    const expectedQrRaw = (await nodeImaging.decodePng(new Uint8Array(await result.artifacts['qr.png']!.arrayBuffer()))).data
+    const assembledData = (await nodeImaging.decodePng(new Uint8Array(await result.artifacts['poster.png']!.arrayBuffer()))).data
+    const originalData = poster.data
+
+    // Expected plate rectangles in plate-local coordinates (the placement box IS the plate
+    // square): the code grid plus the finder-only light arms, corners handed back to texture.
+    const qrModules = result.report.qr.qrModules
+    const localGrid = {
+      x: PATTERN_QUIET_ZONE_MODULES * pitch,
+      y: PATTERN_QUIET_ZONE_MODULES * pitch,
+      width: qrModules * pitch,
+      height: qrModules * pitch,
+    }
+    const { arms } = markerBandRects(localGrid, qrModules, pitch, settings.qrMargin)
+    const plateRects = [localGrid, ...arms]
+    const inPlateRects = (lx: number, ly: number) =>
+      plateRects.some((rect) => lx >= rect.x && ly >= rect.y && lx < rect.x + rect.width && ly < rect.y + rect.height)
+
+    // Frame-independent scan: every poster region pixel whose inverse map lands inside an
+    // expected plate rectangle must carry the QR's own pixel, regardless of the working
+    // frame — a plate cell lost to frame truncation cannot hide from this.
+    let plateChecked = 0
+    for (let row = 0; row < posterHeight; row++) {
+      for (let column = 0; column < posterWidth; column++) {
+        const index = row * posterWidth + column
+        if (!regionMask.data[index]) {
+          for (let channel = 0; channel < 4; channel++) {
+            expect(assembledData[index * 4 + channel]).toBe(originalData[index * 4 + channel])
+          }
+          continue
+        }
+        const local = posterToPlatePoint(column + 0.5, row + 0.5, placementBox)
+        if (!inPlateRects(local.x, local.y)) continue
+        const sourceX = Math.floor(local.x)
+        const sourceY = Math.floor(local.y)
+        const qrOffset = (sourceY * placementBox.size + sourceX) * 4
+        for (let channel = 0; channel < 4; channel++) {
+          expect(assembledData[index * 4 + channel]).toBe(expectedQrRaw[qrOffset + channel])
+        }
+        plateChecked++
+      }
+    }
+    expect(plateChecked).toBeGreaterThan(0)
+    // Coarse coverage guard: the exact-map plate footprint must represent a substantial
+    // part of the plate rectangles. (NN aliasing leaves the outermost sliver unhitted, so
+    // an exact count is not stable — but a truncated frame would leave whole plate cells
+    // as original artwork, and those pixels already failed the equality check above.)
+    const platePixelArea = plateRects.reduce((sum, rect) => sum + rect.width * rect.height, 0)
+    expect(plateChecked).toBeGreaterThanOrEqual(platePixelArea * 0.5)
   })
 })
