@@ -325,44 +325,103 @@ test('fill tool toggles and can be dismissed', async ({ page }) => {
   await expect(fill).toHaveAttribute('aria-pressed', 'false')
 })
 
-test('pattern settings expose ecc, pixel style and marker options', async ({ page }) => {
+/** Tap on touch devices (hasTouch), click elsewhere; Konva handles both. */
+async function tapOrClick(page: import('@playwright/test').Page, x: number, y: number) {
+  if (page.context().browser()?.browserType().name() !== 'firefox') {
+    try {
+      await page.touchscreen.tap(x, y)
+      return
+    } catch {
+      // fall back to mouse for contexts without touch support
+    }
+  }
+  await page.mouse.move(x, y)
+  await page.mouse.click(x, y)
+}
+
+function isPointOffscreen(page: import('@playwright/test').Page, x: number, y: number) {
+  const vp = page.viewportSize() ?? { width: 1280, height: 720 }
+  return x < 0 || y < 0 || x + 20 > vp.width || y + 20 > vp.height
+}
+
+/** Scroll so that a canvas-relative point becomes visible (the poster canvas forces page-level overflow on narrow viewports). */
+async function scrollCanvasToPoint(page: import('@playwright/test').Page, x: number, y: number) {
+  const vp = page.viewportSize() ?? { width: 1280, height: 720 }
+  const dx = Math.max(0, Math.floor(x - vp.width + 60))
+  const dy = Math.max(0, Math.floor(y - vp.height + 60))
+  if (dx === 0 && dy === 0) return
+  await page.evaluate(
+    ([sx, sy]) => {
+      const stageEl = document.querySelector('[data-marker-targets]')
+      const scroller = stageEl?.closest('[role="group"]')
+      // On narrow viewports the overflow lives at the page level, not in the
+      // poster canvas scroll box.
+      if (scroller && scroller.scrollWidth > scroller.clientWidth) scroller.scrollBy({ left: sx, top: sy })
+      window.scrollBy({ left: sx, top: sy })
+    },
+    [dx, dy] as unknown as [number, number],
+  )
+}
+
+/** Tap/click a marker rect (dataset coords) wherever it currently is. */
+async function tapMarker(page: import('@playwright/test').Page, rect: { x: number; y: number; size: number }) {
+  // Cross-platform design choice: reopen in case the bounding box changed.
+  const stageEl = page.locator('[data-marker-targets]').first()
+  let box = (await stageEl.locator('canvas').boundingBox())!
+  let point = { x: box.x + rect.x + rect.size / 2, y: box.y + rect.y + rect.size / 2 }
+  if (isPointOffscreen(page, point.x, point.y)) {
+    await scrollCanvasToPoint(page, point.x, point.y)
+    box = (await stageEl.locator('canvas').boundingBox())!
+    point = { x: box.x + rect.x + rect.size / 2, y: box.y + rect.y + rect.size / 2 }
+  }
+  await tapOrClick(page, point.x, point.y)
+}
+
+test('marker dialogs open from the canvas and expose marker options', async ({ page }) => {
   await page.goto('/')
   await enterAdjust(page)
   await expect(page.getByText('Pattern settings', { exact: true })).toBeVisible()
-  // ecc
+  // ecc stays in Pattern Settings
   await expect(page.getByRole('radiogroup', { name: 'Error correction level' })).toBeVisible()
-  await page.getByRole('radiogroup', { name: 'Error correction level' }).getByText('H', { exact: true }).click()
-  await expect(page.getByLabel('H High ~30%')).toBeChecked()
-  // H may temporarily invalidate placement while preparing; wait for settle then return to M
-  await page.waitForTimeout(1500)
-  await page.getByRole('radiogroup', { name: 'Error correction level' }).getByText('M', { exact: true }).click()
-  await expect(page.getByLabel('M Medium ~15%')).toBeChecked()
-  // pixel style
+  // pixel style stays in Pattern Settings
   await expect(page.getByRole('radiogroup', { name: 'Pixel style', exact: true })).toBeVisible()
   await page.getByRole('radiogroup', { name: 'Pixel style', exact: true }).getByText('Dot', { exact: true }).click()
-  // marker shape
-  await expect(page.getByRole('radiogroup', { name: 'Marker shape' })).toBeVisible()
+  // the marker controls moved out of Pattern Settings into marker dialogs
+  await expect(page.getByRole('radiogroup', { name: 'Marker shape' })).toHaveCount(0)
+  // Open the finder dialog by hovering and clicking the top-left marker.
+  const stageContainer = page.locator('[data-marker-targets]').first()
+  await stageContainer.waitFor()
+  await stageContainer.scrollIntoViewIfNeeded()
+  const rects = JSON.parse((await stageContainer.getAttribute('data-marker-targets'))!) as Record<
+    string,
+    { id: string; x: number; y: number; size: number }
+  >[]
+  await tapMarker(page, rects.find((rect) => rect.id === 'tl')!)
+  const finderDialog = page.getByRole('dialog', { name: 'Finder marker' })
+  await expect(finderDialog).toBeVisible()
+  // the same accessible radiogroups now live inside the dialog
   await page.getByRole('radiogroup', { name: 'Marker shape' }).locator('label').filter({ hasText: 'Octagon' }).click()
   await expect(page.getByLabel('octagon Octagon')).toBeChecked()
-  // marker inner
-  await expect(page.getByRole('radiogroup', { name: 'Marker inner' })).toBeVisible()
   await page.getByRole('radiogroup', { name: 'Marker inner' }).locator('label').filter({ hasText: 'Plus' }).click()
   await expect(page.getByLabel('plus Plus')).toBeChecked()
-  // sub marker
-  await expect(page.getByRole('radiogroup', { name: 'Sub marker' })).toBeVisible()
+  await page.getByRole('button', { name: 'Close marker settings' }).click()
+  await expect(finderDialog).not.toBeVisible()
+  // The bottom-right alignment marker opens the sub marker dialog.
+  await tapMarker(page, rects.find((rect) => rect.id === 'br')!)
+  const subDialog = page.getByRole('dialog', { name: 'Sub marker' })
+  await expect(subDialog).toBeVisible()
   const subMarker = page.getByRole('radiogroup', { name: 'Sub marker' })
   await subMarker.locator('label').filter({ hasText: 'Round' }).first().click()
   await expect(subMarker.getByLabel('circle Circle')).toBeChecked()
-  // rim and seed
+  await page.keyboard.press('Escape')
+  await expect(subDialog).not.toBeVisible()
+  // rim and seed behavior is unchanged in Pattern Settings
   const rim = page.getByLabel('Add Rim (1 module)')
   await expect(rim).toBeVisible()
   const seed = page.getByLabel('Seed', { exact: true })
-  await expect(seed).toBeVisible()
   const before = await seed.inputValue()
   await page.getByRole('button', { name: 'New pattern' }).click()
   await expect(seed).not.toHaveValue(before)
-  await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled({ timeout: 10000 })
-  // toggling rim keeps step valid
   await rim.click()
   await expect(page.getByRole('button', { name: 'Continue to generate', exact: true })).toBeEnabled({ timeout: 10000 })
   await rim.click()

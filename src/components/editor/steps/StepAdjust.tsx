@@ -29,7 +29,7 @@ export default function StepAdjust({
       <p {...stylex.props(ui.fileMeta)}>Encoding: {state.content || '—'}</p>
       <p {...stylex.props(ui.hint)}>
         Original poster pixels. Size snaps to whole QR modules. Drag or resize the QR in the preview, or rotate it
-        with the handle. Pattern settings are in the preview area.
+        with the handle. Hover a finder or alignment marker to edit it. Other pattern settings are beside the preview.
       </p>
       <div {...stylex.props(styles.nav)}>
         <button {...stylex.props(ui.button)} onClick={() => onGoto(2)}>

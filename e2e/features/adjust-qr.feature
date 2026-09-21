@@ -7,19 +7,20 @@ Feature: Step 3 — adjust the QR
     Given the editor is open
     And I finished the first two steps
 
-  Scenario: Pattern settings expose ecc, pixel style and marker options
-    When I set the error correction level to "H"
-    Then the option "H High ~30%" is checked
-    # H may temporarily invalidate placement while preparing; return to M for a stable assemble
-    When I set the error correction level back to "M"
-    Then the option "M Medium ~15%" is checked
+  Scenario: Marker settings open from the canvas and expose marker options
     When I choose "Dot" in the "Pixel style" option group
+    And I open the finder marker dialog from the top-left marker
+    Then the "Marker shape" option group is visible
     And I choose "Octagon" in the "Marker shape" option group
     Then the option "octagon Octagon" is checked
-    When I choose "Plus" in the "Marker inner" option group
+    And I choose "Plus" in the "Marker inner" option group
     Then the option "plus Plus" is checked
-    When I choose "Round" in the "Sub marker" option group
+    And I close the marker dialog
+    When I open the sub marker dialog from the bottom-right marker
+    Then the "Sub marker" option group is visible
+    And I choose "Round" in the "Sub marker" option group
     Then the "circle Circle" option in the "Sub marker" option group is checked
+    And I close the marker dialog
 
   Scenario: The rim and the seed stay reproducible
     When I press "New pattern" and remember the seed

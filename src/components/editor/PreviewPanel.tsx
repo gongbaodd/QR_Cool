@@ -1,9 +1,11 @@
 'use client'
 import dynamic from 'next/dynamic'
+import { useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import MaskPreviewCanvas from './MaskPreviewCanvas'
 import ResultPanel from './ResultPanel'
 import PatternSettings from './PatternSettings'
+import MarkerDialog from './MarkerDialog'
 import type { IconItem } from '../../lib/editor/text-mask'
 import type { Result } from '../../lib/editor/state'
 import type { Placement, Settings } from '../../lib/editor/schema'
@@ -205,6 +207,9 @@ export default function PreviewPanel({
   onFillCommit,
   pattern,
 }: PreviewPanelProps) {
+  // Transient step-3 UI state: which marker dialog the canvas opened. It stays
+  // out of the editor reducer on purpose.
+  const [markerDialog, setMarkerDialog] = useState<'finder' | 'sub' | null>(null)
   return (
     <div {...stylex.props(styles.panel, step === 2 && styles.panelStep2)}>
       <div {...stylex.props(styles.heading)}>
@@ -252,6 +257,7 @@ export default function PreviewPanel({
               modules={modules}
               onChange={onMove}
               invalid={invalid}
+              onMarkerClick={setMarkerDialog}
             />
           </div>
           {pattern && step === 3 && !showingResult && (
@@ -271,6 +277,14 @@ export default function PreviewPanel({
           <h3 {...stylex.props(styles.emptyTitle)}>Your poster goes here</h3>
           <p {...stylex.props(styles.emptyText)}>Pick a canvas and place your QR.</p>
         </div>
+      )}
+      {pattern && step === 3 && !showingResult && (
+        <MarkerDialog
+          kind={markerDialog}
+          settings={pattern.settings}
+          onSettings={pattern.onSettings}
+          onClose={() => setMarkerDialog(null)}
+        />
       )}
       <div {...stylex.props(styles.note)}>
         <span>Original dimensions. Precise placement.</span>

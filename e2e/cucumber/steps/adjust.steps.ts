@@ -102,3 +102,73 @@ Then('an invalid-placement alert is visible', async function (this: EditorWorld)
 Then('the page has no horizontal overflow', async function (this: EditorWorld) {
   expect(await this.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
+
+/** Open a marker dialog by hovering and clicking that marker on the QR canvas. */
+type MarkerTarget = { id: string; kind: string; x: number; y: number; size: number }
+
+/** Tap on touch devices (hasTouch), click elsewhere; Konva handles both. */
+async function tapOrClick(page: EditorWorld['page'], x: number, y: number) {
+  if (page.context().browser()?.browserType().name() !== 'firefox') {
+    try {
+      await page.touchscreen.tap(x, y)
+      return
+    } catch {
+      // fall back to mouse for contexts without touch support
+    }
+  }
+  await page.mouse.move(x, y)
+  await page.mouse.click(x, y)
+}
+
+async function clickMarker(this: EditorWorld, id: string) {
+  const stage = this.page.locator('[data-marker-targets]').first()
+  await stage.waitFor()
+  const rects = JSON.parse((await stage.getAttribute('data-marker-targets'))!) as MarkerTarget[]
+  const hit = rects.find((rect) => rect.id === id)
+  if (!hit) throw new Error(`No marker target ${id}`)
+  await this.page.locator('canvas').first().scrollIntoViewIfNeeded()
+  let box = (await stage.locator('canvas').boundingBox())!
+  let point = { x: box.x + hit.x + hit.size / 2, y: box.y + hit.y + hit.size / 2 }
+  // The poster canvas scrolls both axes; a marker can sit outside the viewport.
+  const vp = this.page.viewportSize() ?? { width: 1280, height: 720 }
+  if (point.x > vp.width - 20 || point.y > vp.height - 20) {
+    await this.page.evaluate(
+      ([sx, sy]) => {
+        const stageEl = document.querySelector('[data-marker-targets]')
+        const scroller = stageEl?.closest('[role="group"]')
+        // On narrow viewports the overflow lives at the page level, not in the
+        // poster canvas scroll box.
+        const delta: ScrollToOptions = { left: sx, top: sy, behavior: 'instant' }
+        if (scroller && scroller.scrollWidth > scroller.clientWidth) scroller.scrollBy(delta)
+        window.scrollBy(delta)
+      },
+      [Math.max(0, point.x - vp.width + 60), Math.max(0, point.y - vp.height + 60)],
+    )
+    box = (await stage.locator('canvas').boundingBox())!
+    point = { x: box.x + hit.x + hit.size / 2, y: box.y + hit.y + hit.size / 2 }
+  }
+  // Hover first so the highlight state activates, then click to open the dialog.
+  await this.page.mouse.move(point.x, point.y)
+  await this.page.waitForTimeout(100)
+  await tapOrClick(this.page, point.x, point.y)
+  await expect(this.page.getByRole('dialog')).toBeVisible()
+}
+
+When('I open the finder marker dialog from the top-left marker', async function (this: EditorWorld) {
+  await clickMarker.call(this, 'tl')
+  await expect(this.page.getByRole('dialog', { name: 'Finder marker' })).toBeVisible()
+})
+
+When('I open the sub marker dialog from the bottom-right marker', async function (this: EditorWorld) {
+  await clickMarker.call(this, 'br')
+  await expect(this.page.getByRole('dialog', { name: 'Sub marker' })).toBeVisible()
+})
+
+Then('the {string} option group is visible', async function (this: EditorWorld, group: string) {
+  await expect(this.page.getByRole('radiogroup', { name: group })).toBeVisible()
+})
+
+When('I close the marker dialog', async function (this: EditorWorld) {
+  await this.page.getByRole('button', { name: 'Close marker settings' }).click()
+  await expect(this.page.getByRole('dialog')).not.toBeVisible()
+})

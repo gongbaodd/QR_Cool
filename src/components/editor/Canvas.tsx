@@ -136,6 +136,7 @@ export default function EditorCanvas({
   modules,
   onChange,
   invalid,
+  onMarkerClick,
 }: {
   poster: string
   overlay: string
@@ -147,6 +148,7 @@ export default function EditorCanvas({
   modules: number
   onChange: (box: Placement) => void
   invalid: boolean
+  onMarkerClick?: (kind: 'finder' | 'sub') => void
 }) {
   const maskImage = useImage(mask)
   const [maskData, setMaskData] = useState<Uint8Array>()
@@ -164,11 +166,14 @@ export default function EditorCanvas({
     overlayImage = useImage(overlay),
     qrImage = useImage(qr)
   const wrapper = useRef<HTMLDivElement>(null),
+    scroll = useRef<HTMLDivElement>(null),
     node = useRef<Konva.Group>(null),
     border = useRef<Konva.Rect>(null),
-    transformer = useRef<Konva.Transformer>(null)
+    transformer = useRef<Konva.Transformer>(null),
+    stage = useRef<Konva.Stage>(null)
   const [viewport, setViewport] = useState(800),
-    [showMask, setShowMask] = useState(true)
+    [showMask, setShowMask] = useState(true),
+    [hoverMarker, setHoverMarker] = useState<string | null>(null)
   useEffect(() => {
     const observer = new ResizeObserver((entries) => setViewport(entries[0]!.contentRect.width))
     if (wrapper.current) observer.observe(wrapper.current)
@@ -187,6 +192,47 @@ export default function EditorCanvas({
   const pitch = modules ? placement.size / modules : 0
   const margin = pitch
   const displaySize = placement.size - 2 * margin
+  // Marker hit targets live in the QR's own module lattice: the preview QR
+  // carries a 2-module quiet zone, so markers start at ring 2. Finder markers
+  // are 7×7 at TL/TR/BL; the bottom-right alignment pattern is 5×5 and only
+  // exists from version 2 up. Being children of the QR Group means Konva
+  // already applies the placement translate/scale/rotate for free.
+  const n = modules - 4
+  const q = 2
+  const version = modules ? Math.floor((modules - 21) / 4) : 0
+  const markerHits: { id: string; kind: 'finder' | 'sub'; x: number; y: number; size: number }[] = modules
+    ? [
+        { id: 'tl', kind: 'finder', x: q * pitch, y: q * pitch, size: 7 * pitch },
+        { id: 'tr', kind: 'finder', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
+        { id: 'bl', kind: 'finder', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
+        ...(version >= 2
+          ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch } as const]
+          : []),
+      ]
+    : []
+  // Publish marker hit rects (stage CSS pixels, relative to the stage container)
+  // on the container so tests can hover/click a marker deterministically.
+  useEffect(() => {
+    const container = stage.current?.container()
+    if (!container || !modules || !pitch) return
+    const n = modules - 4
+    const q = 2
+    const rects: { id: string; kind: string; x: number; y: number; size: number }[] = [
+      { id: 'tl', kind: 'finder', x: q * pitch, y: q * pitch, size: 7 * pitch },
+      { id: 'tr', kind: 'finder', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
+      { id: 'bl', kind: 'finder', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
+      ...(Math.floor((modules - 21) / 4) >= 2
+        ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch }]
+        : []),
+    ].map((hit) => ({
+      id: hit.id,
+      kind: hit.kind,
+      x: (placement.x + hit.x) * scale,
+      y: (placement.y + hit.y) * scale,
+      size: hit.size * scale,
+    }))
+    container.dataset.markerTargets = JSON.stringify(rects)
+  }, [stage, modules, pitch, placement.x, placement.y, scale])
   function nudge(dx: number, dy: number) {
     onChange({ ...placement, x: Math.max(0, placement.x + dx), y: Math.max(0, placement.y + dy) })
   }
@@ -216,6 +262,7 @@ export default function EditorCanvas({
       </div>
       <div
         {...stylex.props(styles.scroll)}
+        ref={scroll}
         tabIndex={0}
         role="group"
         aria-label="Poster canvas. Arrow keys move the QR; Shift moves ten pixels."
@@ -235,7 +282,7 @@ export default function EditorCanvas({
         }}
       >
         <div {...stylex.props(styles.stageFrame)}>
-          <Stage width={width * scale} height={height * scale} scaleX={scale} scaleY={scale}>
+          <Stage ref={stage} width={width * scale} height={height * scale} scaleX={scale} scaleY={scale}>
             <Layer>
               <CanvasImage image={posterImage} width={width} height={height} listening={false} />
               {showMask && <CanvasImage image={overlayImage} width={width} height={height} listening={false} />}
@@ -250,6 +297,7 @@ export default function EditorCanvas({
                 rotation={placement.rotation}
                 draggable
                 dragDistance={1}
+                onDragStart={() => setHoverMarker(null)}
                 onDragMove={(e) => {
                   const box = canonicalPlacement(
                     { ...placement, x: e.target.x() - placement.size / 2, y: e.target.y() - placement.size / 2 },
@@ -295,12 +343,42 @@ export default function EditorCanvas({
                   // Approximate the assembly's nearest-neighbour resampling.
                   imageSmoothingEnabled={false}
                 />
+                {markerHits.map((hit) => {
+                  const hovered = hoverMarker === hit.id
+                  return (
+                    <Rect
+                      key={hit.id}
+                      x={hit.x}
+                      y={hit.y}
+                      width={hit.size}
+                      height={hit.size}
+                      fill="#087f67"
+                      opacity={hovered ? 0.3 : 0.06}
+                      {...(hovered ? { stroke: 'rgba(35, 39, 43, 0.8)', strokeWidth: 2 / scale } : { strokeWidth: 0 })}
+                      listening={Boolean(onMarkerClick)}
+                      onMouseEnter={() => {
+                        setHoverMarker(hit.id)
+                        if (scroll.current) scroll.current.style.cursor = 'pointer'
+                      }}
+                      onMouseLeave={() => {
+                        setHoverMarker((current) => (current === hit.id ? null : current))
+                        if (scroll.current) scroll.current.style.cursor = ''
+                      }}
+                      onTap={() => onMarkerClick?.(hit.kind)}
+                      onClick={(e) => {
+                        e.cancelBubble = true
+                        onMarkerClick?.(hit.kind)
+                      }}
+                    />
+                  )
+                })}
                 <Rect
                   ref={border}
                   width={placement.size}
                   height={placement.size}
                   stroke={invalid ? '#dd3748' : '#087f67'}
                   strokeWidth={2 / scale}
+                  listening={false}
                 />
               </Group>
               <Transformer
