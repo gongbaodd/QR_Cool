@@ -29,6 +29,10 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 - The poster is deliberately not decode-verified: `poster`/`posterHalfScale`/`posterJpeg80` are skipped checks, `phoneScan` stays `untested`, and the UI warns that artistic margins can affect scanning.
 - Upstream reference: `antfu/qrcode-toolkit` `logic/generate.ts` and `unjs/uqr` (`encode`, `QrCodeDataType`).
 
+## Skills
+
+- Use the `modern-web-guidance` skill (via the skill tool) before any HTML/CSS or client-side JS work — including UI/layout, motion, performance (CWV), and Web API tasks — to check for modern best practices that may differ from training data.
+
 ## Docs
 
 - Behavior changes update `README.md` and `doc/plan/web-qr-poster.md`. `doc/plan/artistic-qr-poster.md` is historical design context.

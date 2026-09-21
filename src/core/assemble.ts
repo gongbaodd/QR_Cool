@@ -11,13 +11,8 @@ import {
   moduleCellIndex,
   renderModuleCoverage,
 } from './module-cut'
-import {
-  posterToPlatePoint,
-  qrWorkingFrame,
-  regionPixelBounds,
-  sampleMaskIntoQrFrame,
-} from './rotate'
-import type { PixelBounds, QrFrame } from './rotate'
+import { posterToPlatePoint, qrWorkingFrame, regionPixelBounds, sampleMaskIntoQrFrame } from './rotate'
+import type { QrFrame } from './rotate'
 import {
   PATTERN_ALPHABET,
   PATTERN_ECC,
@@ -164,8 +159,9 @@ async function assembleUpright(
     alignTo: { x: placement.x, y: placement.y },
     ...(options.seed !== undefined ? { seed: options.seed } : {}),
   })
-  const phaseX = (pattern.crop.left + placement.x) % pitch
-  const phaseY = (pattern.crop.top + placement.y) % pitch
+  // Non-negative remainder, so a negative working-space offset never reports a -0 phase.
+  const phaseX = (((pattern.crop.left + placement.x) % pitch) + pitch) % pitch
+  const phaseY = (((pattern.crop.top + placement.y) % pitch) + pitch) % pitch
   if (phaseX !== 0 || phaseY !== 0) {
     throw new QrPosterError(
       'IMAGE_PROCESSING_FAILED',
@@ -563,8 +559,8 @@ async function assembleRotated(
     alignTo: { x: frame.qr.x, y: frame.qr.y },
     ...(options.seed !== undefined ? { seed: options.seed } : {}),
   })
-  const phaseX = (pattern.crop.left + frame.qr.x) % pitch
-  const phaseY = (pattern.crop.top + frame.qr.y) % pitch
+  const phaseX = (((pattern.crop.left + frame.qr.x) % pitch) + pitch) % pitch
+  const phaseY = (((pattern.crop.top + frame.qr.y) % pitch) + pitch) % pitch
   if (phaseX !== 0 || phaseY !== 0) {
     throw new QrPosterError(
       'IMAGE_PROCESSING_FAILED',
@@ -693,7 +689,10 @@ async function assembleRotated(
         } else if (srcA > 0) {
           for (let channel = 0; channel < 3; channel++) {
             const dst = output[offset + channel]!
-            const value = srcA === 1 ? overlay[overlayOffset! + channel]! : Math.round(overlay[overlayOffset! + channel]! * srcA + dst * (1 - srcA))
+            const value =
+              srcA === 1
+                ? overlay[overlayOffset! + channel]!
+                : Math.round(overlay[overlayOffset! + channel]! * srcA + dst * (1 - srcA))
             if (value !== poster.data[offset + channel]!) changed = true
             output[offset + channel] = value
           }
@@ -908,10 +907,8 @@ function buildRotatedCutSvg(
   const body = workingCutSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
   const centerX = placement.x + placement.size / 2
   const centerY = placement.y + placement.size / 2
-  const transform =
-    `translate(${centerX},${centerY}) rotate(${placement.rotation}) translate(${frame.left - centerX},${frame.top - centerY})`
-  const header =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${posterWidth}" height="${posterHeight}" viewBox="0 0 ${posterWidth} ${posterHeight}">`
+  const transform = `translate(${centerX},${centerY}) rotate(${placement.rotation}) translate(${frame.left - centerX},${frame.top - centerY})`
+  const header = `<svg xmlns="http://www.w3.org/2000/svg" width="${posterWidth}" height="${posterHeight}" viewBox="0 0 ${posterWidth} ${posterHeight}">`
   return `${header}\n  <g transform="${transform}">${body}</g>\n</svg>\n`
 }
 

@@ -1,4 +1,5 @@
 'use client'
+import dynamic from 'next/dynamic'
 import { useEffect, useReducer, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { initialState, reducer } from '../../lib/editor/state'
@@ -18,7 +19,6 @@ import EditorHeader from './EditorHeader'
 import StepRail from './StepRail'
 import PreviewPanel from './PreviewPanel'
 import PreparationError from './PreparationError'
-import IconGallery from './IconGallery'
 import StepInput from './steps/StepInput'
 import StepMaskSearch from './steps/StepMaskSearch'
 import StepAdjust from './steps/StepAdjust'
@@ -28,6 +28,8 @@ import { useEngineRequest } from './hooks/use-engine-request'
 import { useIconSearch } from './hooks/use-icon-search'
 import { useMaskSelection } from './hooks/use-mask-selection'
 import { ui } from '../../styles/ui.stylex'
+
+const IconGallery = dynamic(() => import('./IconGallery'))
 
 const styles = stylex.create({
   workspace: {
@@ -48,6 +50,13 @@ const styles = stylex.create({
     alignItems: 'center',
   },
 })
+
+type ChunkLoader = () => Promise<unknown>
+const stepWarmers: Record<number, ChunkLoader[]> = {
+  1: [() => import('./MaskPreviewCanvas'), () => import('./IconGallery')],
+  2: [() => import('./PatternSettings'), () => import('./MarkerDialog'), () => import('./Canvas')],
+  3: [() => import('./ResultPanel')],
+}
 
 const freshSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!
 const steps = ['Input text', 'Mask Search', 'Adjust QR', 'Generate']
@@ -101,6 +110,14 @@ export default function Editor() {
       : {},
   )
   const artifacts = useBlobUrls(state.result?.artifacts ?? {})
+  // Warm the next step's deferred chunks once entry is plausible, never during
+  // the first paint: step 1 warms when the content is valid, steps 2/3 warm
+  // while their own panels render.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (step === 1 && !contentCheck.success) return
+    for (const warm of stepWarmers[step] ?? []) void warm().catch(() => {})
+  }, [step, contentCheck.success])
   useEffect(() => {
     if (!poster) return
     const url = URL.createObjectURL(poster)

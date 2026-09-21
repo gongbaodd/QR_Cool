@@ -2,16 +2,11 @@
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import MaskPreviewCanvas from './MaskPreviewCanvas'
-import ResultPanel from './ResultPanel'
-import PatternSettings from './PatternSettings'
-import MarkerDialog from './MarkerDialog'
 import type { IconItem } from '../../lib/editor/text-mask'
 import type { Result } from '../../lib/editor/state'
 import type { Placement, Settings } from '../../lib/editor/schema'
 import { tokens } from '../../styles/tokens.stylex'
 import { ui } from '../../styles/ui.stylex'
-const Canvas = dynamic(() => import('./Canvas'), { ssr: false })
 
 const styles = stylex.create({
   panel: {
@@ -155,7 +150,31 @@ const styles = stylex.create({
       gap: 3,
     },
   },
+  /** Stable-size stand-in for the loading mask preview: same canvas geometry. */
+  maskPreviewPlaceholder: {
+    width: '100%',
+    maxWidth: 560,
+    aspectRatio: '1 / 1',
+    backgroundColor: 'black',
+    borderWidth: 2,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketchAlt,
+  },
 })
+
+// Step panels load on demand: step 1 never downloads the mask preview, pattern
+// settings, or result UI (doc/plan/modern-web-optimization.md 2.1). The canvas
+// and the mask preview touch canvas APIs on mount, so both skip SSR; the next
+// step's placeholder keeps the canvas' aspect ratio so nothing jumps.
+const Canvas = dynamic(() => import('./Canvas'), { ssr: false })
+const MaskPreviewCanvas = dynamic(() => import('./MaskPreviewCanvas'), {
+  ssr: false,
+  loading: () => <div {...stylex.props(styles.maskPreviewPlaceholder)} aria-hidden="true" />,
+})
+const ResultPanel = dynamic(() => import('./ResultPanel'))
+const PatternSettings = dynamic(() => import('./PatternSettings'))
+const MarkerDialog = dynamic(() => import('./MarkerDialog'))
 
 export interface MaskPreviewView {
   effectiveMask: string

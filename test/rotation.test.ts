@@ -189,21 +189,27 @@ describe('qrWorkingFrame', () => {
         expect(local.y).toBeLessThanOrEqual(frame.top + frame.height)
       }
       // ...and the pixel centre round trip through the working helpers is stable.
-      const posterPoint = plateToPosterPoint(posterToPlatePoint(100, 100, box).x, posterToPlatePoint(100, 100, box).y, box)
+      const posterPoint = plateToPosterPoint(
+        posterToPlatePoint(100, 100, box).x,
+        posterToPlatePoint(100, 100, box).y,
+        box,
+      )
       expect(posterPoint.x).toBeCloseTo(100, 9)
       expect(posterPoint.y).toBeCloseTo(100, 9)
       expect(frame.qr.size).toBe(84)
       expect(frame.width).toBeGreaterThan(0)
       expect(frame.height).toBeGreaterThan(0)
     }
-    // 0° specific: the working frame is exactly the poster, QR box at the placement origin.
+    // 0° specific: the working frame is the poster extent expressed in plate-local coordinates
+    // (origin = the unrotated placement square's top-left), so the frame's top-left is negative
+    // and frame.qr carries the placement x/y. The `shifted` case below flips both signs.
     const upright = qrWorkingFrame({ x: 12, y: 7, size: 84, rotation: 0 }, { x0: 0, y0: 0, x1: 200, y1: 200 })
     expect(upright).toEqual({
-      left: 0,
-      top: 0,
+      left: -12,
+      top: -7,
       width: 200,
       height: 200,
-      qr: { x: 0, y: 0, size: 84 },
+      qr: { x: 12, y: 7, size: 84 },
     })
     const shifted = qrWorkingFrame({ x: 12, y: 7, size: 84, rotation: 0 }, { x0: 20, y0: 15, x1: 60, y1: 55 })
     expect(shifted).toEqual({
@@ -287,9 +293,7 @@ describe('engine rotation end to end', () => {
     const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
     expect(prepared.placement.rotation).toBe(0)
     const rotated = { ...prepared.placement, rotation: 30 }
-    const reapply = assertOk(
-      await session.prepare({ posterBytes, content, placement: rotated }, 2),
-    )
+    const reapply = assertOk(await session.prepare({ posterBytes, content, placement: rotated }, 2))
     expect(reprepare(reapply).rotation).toBe(30)
   })
 
