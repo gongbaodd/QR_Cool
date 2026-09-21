@@ -19,6 +19,14 @@ pnpm build
 pnpm start
 ```
 
+The same app also builds for Cloudflare Workers with [vinext](https://vinext.dev) (Vite). The Node commands above keep working unchanged:
+
+```sh
+pnpm build:vinext     # Vite build for Workers (dist/client + dist/server)
+pnpm preview:workers  # local Workers runtime preview on http://localhost:8787
+pnpm deploy:workers   # build + deploy to Cloudflare (requires `wrangler login`)
+```
+
 No credentials or accounts are needed. QR text is never fetched as a URL. Uploaded files exist only in your browser: the PNG bytes and every render step live in browser memory, and all decoding, detection, assembly, and verification run inside this page's Web Worker. Nothing render-related is ever uploaded or stored.
 
 ## Editing
@@ -76,6 +84,18 @@ See [client render migration plan](doc/plan/client-render-migration.md) for the 
 - This is a static-ish Next.js app: any Node host that can run the build can serve it; the render work is on the visitor's browser. Browsers need Web Worker, `OffscreenCanvas`-free WASM loading, and `crypto.subtle` (all evergreen).
 - `Dockerfile` supplies a Node 24 production build/run configuration. No deployment is performed by the project. Verify the image and resource settings on your deployment host.
 
+### Cloudflare Workers
+
+The app deploys to a single Cloudflare Worker via vinext: the Worker serves the page, static assets, and the `GET /api/icons` proxy; no KV/R2/D1/Images bindings are used. The render pipeline stays in the visitor's Web Worker — nothing render-related reaches the server.
+
+- `vite.config.ts` holds the vinext build. It re-applies the StyleX Babel transform (`babel.config.json` options) to app source — Vite never reads that file, so `stylex.create`/`defineVars` would otherwise run at runtime — and rewrites the codec `.wasm` imports to asset URLs (`{ default: url }`), the same contract as the Turbopack `asset` rule in `next.config.ts`, so the codecs' own inits supply their wasm-bindgen imports. The worker uses ES-module output (top-level-await WASM inits).
+- `src/lib/editor/worker/window-shim.ts` aliases `window` to the worker global before the engine loads: ZXing's PDF417 tables touch `window.BigInt` at module scope, which Turbopack shims but Vite does not.
+- `src/core/pattern-cut.ts` encodes the cut-SVG data URI with `btoa` instead of Node's `Buffer`, which does not exist in the Workers runtime.
+- `wrangler.jsonc` pins the Worker name (`qr-cool`), `compatibility_date`, `nodejs_compat`, and the `dist/client` assets binding. `dist/` and `.dev.vars` are gitignored; never commit API tokens.
+- The two toolchains both regenerate `next-env.d.ts` and `.next/types/routes.d.ts` when they run; `pnpm typecheck` stays green either way (the Next-only `validator.ts` is excluded from the standalone program — `next build` validates routes with its own generated checks).
+
+Deploy checks: `pnpm test`, `pnpm typecheck`, `pnpm build` (Node path still green), then `pnpm build:vinext` and `pnpm preview:workers` — walk upload/mask → place → assemble → download at http://localhost:8787 and confirm zero console errors, `application/wasm` responses for both codec binaries, and `Cache-Control: no-store` on `/api/icons`. The assembled bytes must stay identical to the Node build for the same seed (verified with a fixed `crypto.getRandomValues` seed). Deploy with `pnpm deploy:workers` to the `*.workers.dev` URL, attach the custom domain afterwards, and keep the last known-good deployment for rollback from the Cloudflare dashboard (Workers → Deployments → Roll back). Production URL and owner: to be recorded here once the account is connected.
+
 ### Measurements
 
 Local Node 24.15.0, Linux x86_64. `npx tsx scripts/benchmark.ts` creates a noisy 2000×2000 PNG with a black region and drives the engine through the sharp backend: a measured run took **1.9 s preparation, 3.5 s assembly, 402 MiB peak RSS**. In the browser the same work is spread over the session — the first prepare decodes and detects (wasm init included), later edits around cached sources typically re-run only geometry, and assemble reuses the cached poster/QR bytes. Results vary by machine, browser, QR version, and image entropy; these are local benchmarks, not guarantees.
@@ -89,6 +109,7 @@ pnpm lint
 pnpm test
 pnpm typecheck
 pnpm build
+pnpm build:vinext
 pnpm exec playwright install chromium
 pnpm test:e2e
 pnpm test:bdd

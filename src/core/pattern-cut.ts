@@ -419,6 +419,19 @@ export interface CutSvgOptions {
   borderWidth?: number
 }
 
+/**
+ * Base64 without Node's `Buffer`: the pipeline runs in the browser worker,
+ * where `Buffer` does not exist (the Node build shimmed it, Vite does not).
+ * `btoa` is available in browsers, workers, and Node >= 16 alike.
+ */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let start = 0; start < bytes.length; start += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(start, start + 0x8000))
+  }
+  return btoa(binary)
+}
+
 /** Self-contained SVG: the pattern rides along as a data URI and the cut edge stays vector. */
 export function buildCutSvg(
   pathData: string,
@@ -427,7 +440,7 @@ export function buildCutSvg(
   pattern: Uint8Array,
   options: CutSvgOptions = {},
 ): string {
-  const encoded = Buffer.from(pattern).toString('base64')
+  const encoded = bytesToBase64(pattern)
   const borderWidth = options.borderWidth ?? 0
   // A centered stroke of twice the width, clipped to the shape, leaves a band of exactly
   // `borderWidth` pixels along the inside of the edge.

@@ -4,6 +4,7 @@
  * lazily inside this worker only, keeping it off the page's initial bundle.
  */
 
+import './window-shim'
 import * as Comlink from 'comlink'
 import { browserImaging } from '../../../core/imaging/browser'
 import { createEditorEngine } from '../engine'

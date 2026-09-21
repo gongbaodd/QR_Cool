@@ -5,7 +5,9 @@ output/
 *.log
 .DS_Store
 .env
+.dev.vars
 .next/
+.wrangler/
 *.tsbuildinfo
 playwright-report/
 test-results/
