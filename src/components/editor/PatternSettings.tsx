@@ -141,7 +141,8 @@ const styles = stylex.create({
 })
 
 function MiniQrPreview({ content, ecc }: { content: string; ecc: 'L' | 'M' | 'Q' | 'H' }) {
-  const text = content.trim().length > 0 ? content : 'https://example.com'
+  const text = content.trim()
+  if (!text) return <span {...stylex.props(styles.eccPreviewFallback)}>Generate content</span>
   if (/[\r\n]/.test(text)) return <span {...stylex.props(styles.eccPreviewFallback)}>Single line only</span>
   let encoded: ReturnType<typeof encode> | null = null
   try {
@@ -185,7 +186,8 @@ function MiniPixelQrPreview({
   ecc: 'L' | 'M' | 'Q' | 'H'
   pixelStyle: 'square' | 'rounded' | 'dot'
 }) {
-  const text = content.trim().length > 0 ? content : 'https://example.com'
+  const text = content.trim()
+  if (!text) return <span {...stylex.props(styles.eccPreviewFallback)}>Generate content</span>
   if (/[\r\n]/.test(text)) return <span {...stylex.props(styles.eccPreviewFallback)}>Single line only</span>
   let encoded: ReturnType<typeof encode> | null = null
   try {

@@ -12,6 +12,7 @@ export interface EditorRequestOptions {
   dispatch: Dispatch<Action>
   poster: File | null
   mask: File | null
+  maskBusy?: boolean
 }
 
 export interface EditorRequest {
@@ -30,7 +31,13 @@ export interface EditorRequest {
  * to `{ok | stale | error}` and are dispatched with the revision they belong
  * to; the reducer's revision guard rejects superseded results.
  */
-export function useEngineRequest({ state, dispatch, poster, mask }: EditorRequestOptions): EditorRequest {
+export function useEngineRequest({
+  state,
+  dispatch,
+  poster,
+  mask,
+  maskBusy = false,
+}: EditorRequestOptions): EditorRequest {
   const latest = useRef(state)
   latest.current = state
 
@@ -91,13 +98,13 @@ export function useEngineRequest({ state, dispatch, poster, mask }: EditorReques
   }
 
   useEffect(() => {
-    if (!poster) return
+    if (!poster || maskBusy) return
     const timer = setTimeout(() => {
       void request('prepare')
     }, 450)
     return () => clearTimeout(timer)
     // Responses never increment the revision; the deps mirror the old fetch hook.
-  }, [state.revision, poster, mask]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.revision, poster, mask, maskBusy]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function cancel() {}
   return { request, cancel }

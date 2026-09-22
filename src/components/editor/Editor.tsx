@@ -4,7 +4,6 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { initialState, reducer } from '../../lib/editor/state'
 import { canonicalPlacement, contentSchema, MAX_IMAGE_BYTES } from '../../lib/editor/schema'
-import { REGION_TOO_SMALL_MESSAGE } from '../../core/placement'
 import {
   BLANK_MASK_FILENAME,
   BLANK_POSTER_FILENAME,
@@ -13,69 +12,58 @@ import {
   buildBlankMaskRgba,
   buildBlankPosterRgba,
 } from '../../lib/editor/blank'
-import { TEXT_MASK_FILENAME, TEXT_MASK_FONTS, deriveMaskLetter, searchControlState } from '../../lib/editor/text-mask'
+import { TEXT_MASK_FILENAME, deriveMaskLetter } from '../../lib/editor/text-mask'
 import type { Placement } from '../../lib/editor/schema'
 import EditorHeader from './EditorHeader'
-import StepRail from './StepRail'
 import PreviewPanel from './PreviewPanel'
+import MaskPanel from './MaskPanel'
+import QrDetailsPanel from './QrDetailsPanel'
+import ResponsiveEditorPanel from './ResponsiveEditorPanel'
 import PreparationError from './PreparationError'
-import StepInput from './steps/StepInput'
-import StepMaskSearch from './steps/StepMaskSearch'
-import StepAdjust from './steps/StepAdjust'
-import StepGenerate from './steps/StepGenerate'
 import { useBlobUrls } from './hooks/use-blob-urls'
 import { useEngineRequest } from './hooks/use-engine-request'
 import { useIconSearch } from './hooks/use-icon-search'
 import { useMaskSelection } from './hooks/use-mask-selection'
 import { ui } from '../../styles/ui.stylex'
+import { tokens } from '../../styles/tokens.stylex'
 
 const IconGallery = dynamic(() => import('./IconGallery'))
-
 const styles = stylex.create({
-  workspace: {
+  shell: {
     display: 'grid',
-    gridTemplateColumns: '360px minmax(0, 1fr)',
-    minHeight: 'calc(100vh - 88px)',
+    gridTemplateColumns: 'minmax(15rem, 0.8fr) minmax(22rem, 1.7fr) minmax(18rem, 0.9fr)',
+    gap: 18,
     alignItems: 'start',
-    '@media (max-width: 1000px)': {
-      gridTemplateColumns: '300px minmax(0, 1fr)',
+    padding: 18,
+    maxWidth: 1800,
+    marginInline: 'auto',
+    '@media (max-width: 1200px)': {
+      gridTemplateColumns: 'minmax(14rem, 0.75fr) minmax(20rem, 1.5fr) minmax(16rem, 0.85fr)',
     },
-    '@media (max-width: 700px)': {
-      display: 'flex',
-      flexDirection: 'column',
-    },
+    '@media (max-width: 900px)': { display: 'block', padding: 10 },
   },
-  /** Step 2 centers the mask preview against the taller sidebar. */
-  workspaceStep2: {
-    alignItems: 'center',
-  },
+  side: { minWidth: 0 },
+  error: { margin: 0, padding: 10, backgroundColor: tokens.highlightSoft, borderRadius: tokens.sketch },
 })
 
-type ChunkLoader = () => Promise<unknown>
-const stepWarmers: Record<number, ChunkLoader[]> = {
-  1: [() => import('./MaskPreviewCanvas'), () => import('./IconGallery')],
-  2: [() => import('./PatternSettings'), () => import('./MarkerDialog'), () => import('./Canvas')],
-  3: [() => import('./ResultPanel')],
-}
-
 const freshSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!
-const steps = ['Input text', 'Mask Search', 'Adjust QR', 'Generate']
+
 export default function Editor() {
   const [state, dispatch] = useReducer(reducer, initialState)
-  const [step, setStep] = useState(1)
-  const [textConfirmed, setTextConfirmed] = useState(false)
-  const [poster, setPoster] = useState<File | null>(null),
-    [mask, setMask] = useState<File | null>(null),
-    [posterUrl, setPosterUrl] = useState('')
+  const [draftContent, setDraftContent] = useState('')
+  const [draftError, setDraftError] = useState<string | null>(null)
+  const [draftBlurred, setDraftBlurred] = useState(false)
+  const [poster, setPoster] = useState<File | null>(null)
+  const [mask, setMask] = useState<File | null>(null)
+  const [posterUrl, setPosterUrl] = useState('')
+  const [maskOpen, setMaskOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const maskTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const detailsTriggerRef = useRef<HTMLButtonElement | null>(null)
   const searchQueryRef = useRef('')
+  const blankStarted = useRef(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const iconSearch = useIconSearch(searchQueryRef)
-  const { request, cancel } = useEngineRequest({ state, dispatch, poster, mask })
-  const contentCheck = contentSchema.safeParse(state.content)
-  const contentError = !contentCheck.success
-    ? contentCheck.error.issues[0]!.message
-    : state.field === 'content'
-      ? state.error
-      : null
   const suggestedMask = deriveMaskLetter(state.content)
   const maskSelection = useMaskSelection({
     revision: state.revision,
@@ -85,48 +73,31 @@ export default function Editor() {
     onUploadMask: uploadMaskFile,
     dispatch,
   })
-  const searchQuery = maskSelection.text.trim()
-  searchQueryRef.current = searchQuery
-  const searchState = searchControlState(searchQuery, iconSearch.fetchedQuery, iconSearch.results.length)
-  const preparationError = state.error && state.field !== 'content' ? state.error : null
-  useEffect(() => {
-    if (step !== 2 || typeof document === 'undefined' || !('fonts' in document)) return
-    for (const entry of TEXT_MASK_FONTS) {
-      if (!entry.family) continue
-      void document.fonts.load(`34px "${entry.family}"`).catch(() => {})
-    }
-  }, [step])
-  // Typing never searches; it only closes the gallery so no stale results are shown.
-  useEffect(() => {
-    iconSearch.closeGallery()
-  }, [maskSelection.text]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Entering step 2 re-derives the control from the input and starts on the mask preview.
-  useEffect(() => {
-    iconSearch.closeGallery()
-  }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
+  const { request, cancel } = useEngineRequest({ state, dispatch, poster, mask, maskBusy: maskSelection.busy })
+  searchQueryRef.current = maskSelection.text.trim()
   const previews = useBlobUrls(
     state.prepared
       ? { 'mask.png': state.prepared.overlay, 'region.png': state.prepared.mask, 'qr.png': state.prepared.qr }
       : {},
   )
   const artifacts = useBlobUrls(state.result?.artifacts ?? {})
-  // Warm the next step's deferred chunks once entry is plausible, never during
-  // the first paint: step 1 warms when the content is valid, steps 2/3 warm
-  // while their own panels render.
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (step === 1 && !contentCheck.success) return
-    for (const warm of stepWarmers[step] ?? []) void warm().catch(() => {})
-  }, [step, contentCheck.success])
+  const preparationError = state.error && state.field !== 'content' ? state.error : null
+  const committedContentError = state.field === 'content' ? state.error : null
+  const current = !!state.prepared && state.prepared.revision === state.revision && !state.error
+  const busy = !!state.busy || maskSelection.busy || iconSearch.loading
+
   useEffect(() => {
     if (!poster) return
     const url = URL.createObjectURL(poster)
     setPosterUrl(url)
     return () => URL.revokeObjectURL(url)
   }, [poster])
+  useEffect(() => {
+    if (!poster || !mask) return
+    for (const entry of ['Fathead', 'FatC']) void document.fonts.load(`24px "${entry}"`).catch(() => {})
+  }, [poster, mask])
   function edit(patch: Parameters<typeof reducer>[1] & { type: 'edit' }) {
     cancel()
-    if (patch.patch.content !== undefined) setTextConfirmed(false)
     dispatch(patch)
   }
   function uploadMaskFile(file: File) {
@@ -141,9 +112,9 @@ export default function Editor() {
       })
   }
   function ensureBlankPoster() {
-    if (poster) return
-    const width = BLANK_POSTER_WIDTH,
-      height = BLANK_POSTER_HEIGHT
+    if (poster || typeof document === 'undefined') return
+    const width = BLANK_POSTER_WIDTH
+    const height = BLANK_POSTER_HEIGHT
     const posterCanvas = document.createElement('canvas')
     posterCanvas.width = width
     posterCanvas.height = height
@@ -159,7 +130,6 @@ export default function Editor() {
     posterCanvas.toBlob((posterBlob) => {
       maskCanvas.toBlob((maskBlob) => {
         if (!posterBlob || !maskBlob) return
-        cancel()
         setPoster(new File([posterBlob], BLANK_POSTER_FILENAME, { type: 'image/png' }))
         setMask(new File([maskBlob], BLANK_MASK_FILENAME, { type: 'image/png' }))
         dispatch({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } }, reset: true })
@@ -167,73 +137,36 @@ export default function Editor() {
     }, 'image/png')
   }
   useEffect(() => {
-    if (step === 2) ensureBlankPoster()
-  }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (textConfirmed && !poster) ensureBlankPoster()
-  }, [textConfirmed]) // eslint-disable-line react-hooks/exhaustive-deps
-  const ready =
-    !!state.prepared &&
-    state.prepared.revision === state.revision &&
-    !state.error &&
-    !state.busy &&
-    contentCheck.success
-  const placementError =
-    preparationError && (state.field === 'placement' || state.field === 'mask') ? preparationError : null
-  // The minimum-fit failure is only revealed by clicking Continue; auto-prepare
-  // must not display it beforehand.
-  const isFitError = placementError === REGION_TOO_SMALL_MESSAGE
-  const [fitRevealed, setFitRevealed] = useState(false)
-  useEffect(() => {
-    setFitRevealed(false)
-  }, [state.revision, step])
-  const visiblePlacementError = isFitError && !fitRevealed ? null : placementError
-  const visiblePreparationError = isFitError && !fitRevealed ? null : preparationError
-  const hasFreshPrepared = !!state.prepared && state.prepared.revision === state.revision && !state.error && !state.busy
-  const maskBusy = maskSelection.busy || iconSearch.loading || state.busy !== null
-  const canContinueFromMask = !maskBusy && (hasFreshPrepared || !!placementError)
-  const move = (box: Placement) =>
-    edit({ type: 'edit', patch: { placement: canonicalPlacement(box, state.prepared!.qrMetadata.totalModules) } })
-  const canEnter = (index: number) => {
-    if (index <= 1) return true
-    if (index >= 2 && (!textConfirmed || !contentCheck.success)) return false
-    if (index === 2) return true
-    if (index === 3) return !!poster && hasFreshPrepared
-    if (index === 4) return !!state.prepared && !!state.placement
-    return !!state.prepared
-  }
-  function goto(index: number) {
-    if (index >= 1 && index <= 4 && canEnter(index)) setStep(index)
-  }
-  function continueFromMask() {
-    if (maskBusy) return
-    if (placementError) {
-      if (isFitError) setFitRevealed(true)
-      return
-    }
-    if (!hasFreshPrepared) {
-      void request('prepare')
-      return
-    }
-    goto(3)
-  }
-  function continueFromText() {
-    if (!contentCheck.success) return
-    if (suggestedMask && (maskSelection.text.trim()[0] ?? '') !== suggestedMask) maskSelection.setText(suggestedMask)
-    setTextConfirmed(true)
+    if (blankStarted.current) return
+    blankStarted.current = true
     ensureBlankPoster()
-    setStep(2)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  function submitDraft() {
+    const parsed = contentSchema.safeParse(draftContent)
+    if (!parsed.success) {
+      setDraftError(parsed.error.issues[0]?.message ?? 'Enter text or a URL.')
+      setDraftBlurred(true)
+      requestAnimationFrame(() => inputRef.current?.focus())
+      return
+    }
+    setDraftError(null)
+    if (parsed.data === state.content) return
+    edit({ type: 'edit', patch: { content: parsed.data } })
+  }
+  function onDraftBlur() {
+    setDraftBlurred(true)
+    const parsed = contentSchema.safeParse(draftContent)
+    setDraftError(parsed.success ? null : (parsed.error.issues[0]?.message ?? 'Enter text or a URL.'))
   }
   function handleSearch() {
-    void iconSearch.handleSearchClick(searchQuery, maskSelection.busy)
+    void iconSearch.handleSearchClick(searchQueryRef.current, maskSelection.busy)
   }
   function handleGallerySelect(index: number) {
     const item = iconSearch.results[index]
-    if (!item) return
-    maskSelection.selectIcon(item)
+    if (item) maskSelection.selectIcon(item)
   }
-  /** Scales a fill-edited 600x600 preview up to the poster mask and uploads it. */
   function handleFillCommit(preview: HTMLCanvasElement) {
+    maskSelection.markManualFill()
     const width = state.prepared?.width ?? BLANK_POSTER_WIDTH
     const height = state.prepared?.height ?? BLANK_POSTER_HEIGHT
     const full = document.createElement('canvas')
@@ -248,117 +181,116 @@ export default function Editor() {
       if (blob) uploadMaskFile(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' }))
     }, 'image/png')
   }
-  useEffect(() => {
-    if (state.showingResult) setStep(4)
-  }, [state.showingResult])
+  function move(box: Placement) {
+    if (!state.prepared) return
+    edit({ type: 'edit', patch: { placement: canonicalPlacement(box, state.prepared.qrMetadata.totalModules) } })
+  }
+  const visibleError = (draftBlurred ? draftError : null) ?? committedContentError
   return (
     <main>
-      <EditorHeader />
-      <StepRail steps={steps} step={step} canEnter={canEnter} onGoto={goto} />
-      {step === 1 ? (
-        <StepInput
-          content={state.content}
-          contentError={contentError}
-          canContinue={contentCheck.success}
-          suggestedMask={suggestedMask}
-          preparationError={visiblePreparationError}
-          onContentChange={(value) => edit({ type: 'edit', patch: { content: value } })}
-          onContinue={continueFromText}
-          onRetry={() => void request('prepare')}
-        />
-      ) : (
-        <div {...stylex.props(styles.workspace, step === 2 && styles.workspaceStep2)}>
-          <aside {...stylex.props(ui.aside, ui.asideCompact)}>
-            <div>
-              <span {...stylex.props(ui.eyebrow)}>POSTER STUDIO · STEP {step} OF 4</span>
-              <h1 {...stylex.props(ui.pageTitle)}>
-                Make the code
-                <br />
-                part of the art.
-              </h1>
-            </div>
-            {step === 2 && (
-              <StepMaskSearch
-                mask={maskSelection}
-                search={iconSearch}
-                suggestedMask={suggestedMask}
-                searchState={searchState}
-                blockedMessage={visiblePlacementError}
-                canContinue={canContinueFromMask}
-                onSearch={handleSearch}
-                onContinue={continueFromMask}
-                onGoto={goto}
-              />
-            )}
-            {step === 3 && (
-              <StepAdjust
-                state={state}
-                ready={ready}
-                onAssemble={() => {
-                  void request('assemble')
-                  setStep(4)
-                }}
-                onGoto={goto}
-              />
-            )}
-            {step === 4 && (
-              <StepGenerate
-                state={state}
-                ready={ready}
-                preparationError={visiblePreparationError}
-                onAssemble={() => void request('assemble')}
-                onRetry={() => void request('prepare')}
-                onBack={() => {
-                  dispatch({ type: 'view', result: false })
-                  goto(3)
-                }}
-              />
-            )}
-            {visiblePreparationError && step !== 4 && (
-              <PreparationError message={visiblePreparationError} onRetry={() => void request('prepare')} />
-            )}
-          </aside>
-          <PreviewPanel
-            step={step}
-            showingResult={state.showingResult}
-            dimensions={state.prepared ? { width: state.prepared.width, height: state.prepared.height } : null}
-            result={state.result}
-            artifacts={artifacts}
-            previews={previews}
-            posterUrl={posterUrl}
-            placement={state.placement}
-            modules={state.prepared?.qrMetadata.totalModules ?? 0}
-            invalid={!!state.error}
-            maskPreview={{
-              effectiveMask: maskSelection.effectiveMask,
-              family: maskSelection.font.family,
-              isBlank: maskSelection.isBlank,
-              isIconMode: maskSelection.isIconMode,
-              iconResults: iconSearch.results,
-              selectedIconId: maskSelection.selectedIconId,
-            }}
-            onMove={move}
-            onReturnToEditing={() => dispatch({ type: 'view', result: false })}
-            onFillCommit={handleFillCommit}
-            pattern={{
-              content: state.content,
-              settings: state.settings,
-              onSettings: (patch) => edit({ type: 'edit', patch: { settings: { ...state.settings, ...patch } } }),
-              onNewSeed: () => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } }),
-            }}
-          />
+      <EditorHeader
+        content={draftContent}
+        contentError={visibleError}
+        busy={busy}
+        status={
+          state.busy === 'prepare' || maskSelection.busy
+            ? 'Updating the live preview…'
+            : state.showingResult
+              ? 'Export ready.'
+              : 'Draft changes wait for Generate.'
+        }
+        onContentChange={(value) => {
+          setDraftContent(value)
+          if (draftError) setDraftError(null)
+        }}
+        onContentBlur={onDraftBlur}
+        onSubmit={submitDraft}
+        inputRef={inputRef}
+      />
+      <div {...stylex.props(styles.shell)}>
+        <div {...stylex.props(styles.side)}>
+          <ResponsiveEditorPanel
+            id="mask-panel"
+            side="left"
+            title="Mask selection"
+            open={maskOpen}
+            onOpenChange={setMaskOpen}
+            triggerRef={maskTriggerRef}
+          >
+            <MaskPanel
+              mask={maskSelection}
+              search={iconSearch}
+              onSearch={handleSearch}
+              onFillCommit={handleFillCommit}
+            />
+          </ResponsiveEditorPanel>
         </div>
-      )}
-      {step === 2 && (
-        <IconGallery
-          open={iconSearch.galleryMode}
-          query={searchQuery}
-          total={iconSearch.total}
-          items={iconSearch.results}
-          selectedIconId={maskSelection.selectedIconId}
-          onSelect={handleGallerySelect}
-          onClose={iconSearch.closeGallery}
+        <PreviewPanel
+          showingResult={state.showingResult}
+          dimensions={state.prepared ? { width: state.prepared.width, height: state.prepared.height } : null}
+          result={state.result}
+          artifacts={artifacts}
+          previews={previews}
+          posterUrl={posterUrl}
+          placement={state.placement}
+          modules={state.prepared?.qrMetadata.totalModules ?? 0}
+          invalid={!!state.error}
+          busy={busy}
+          error={preparationError}
+          current={current}
+          onMove={move}
+          onReturnToEditing={() => dispatch({ type: 'view', result: false })}
+          onMaskOpen={() => setMaskOpen(true)}
+          onDetailsOpen={() => setDetailsOpen(true)}
+          maskOpen={maskOpen}
+          detailsOpen={detailsOpen}
+          maskTriggerRef={maskTriggerRef}
+          detailsTriggerRef={detailsTriggerRef}
+          pattern={{
+            content: state.content,
+            settings: state.settings,
+            onSettings: (patch) => edit({ type: 'edit', patch: { settings: { ...state.settings, ...patch } } }),
+            onNewSeed: () => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } }),
+          }}
+          onAssemble={() => void request('assemble')}
+          assembleBusy={state.busy === 'assemble'}
+          ready={current && !!state.placement && !busy}
         />
+        <div {...stylex.props(styles.side)}>
+          <ResponsiveEditorPanel
+            id="qr-details-panel"
+            side="right"
+            title="QR details"
+            open={detailsOpen}
+            onOpenChange={setDetailsOpen}
+            triggerRef={detailsTriggerRef}
+          >
+            <QrDetailsPanel
+              content={state.content}
+              settings={state.settings}
+              onSettings={(patch) => edit({ type: 'edit', patch: { settings: { ...state.settings, ...patch } } })}
+              onNewSeed={() => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } })}
+              error={preparationError}
+            />
+          </ResponsiveEditorPanel>
+        </div>
+      </div>
+      {preparationError && state.field !== 'placement' && (
+        <PreparationError message={preparationError} onRetry={() => void request('prepare')} />
+      )}
+      <IconGallery
+        open={iconSearch.galleryMode}
+        query={searchQueryRef.current}
+        total={iconSearch.total}
+        items={iconSearch.results}
+        selectedIconId={maskSelection.selectedIconId}
+        onSelect={handleGallerySelect}
+        onClose={iconSearch.closeGallery}
+      />
+      {draftError && (
+        <p {...stylex.props(styles.error, ui.error)} role="alert">
+          {draftError}
+        </p>
       )}
     </main>
   )

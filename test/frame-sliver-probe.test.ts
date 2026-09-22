@@ -14,14 +14,6 @@ import type { EditorEngineApi, EngineOutcome } from '../src/lib/editor/engine'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
 const content = 'https://example.com/qr'
-const settings = {
-  seed: 42,
-  qrMargin: 1 as const,
-  plateCorners: 'texture' as const,
-  rimModules: 4 as const,
-  rimRounded: false as const,
-}
-
 const makeEngine = (): Promise<EditorEngineApi> => createEditorEngine(nodeImaging)
 
 function assertOk<T>(outcome: EngineOutcome<T>): T {

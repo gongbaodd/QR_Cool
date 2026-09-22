@@ -4,6 +4,12 @@ Status: implemented; the web editor is the supported product interface and the C
 
 ## Product goal
 
+## Reactive workspace (implemented 2026-09-22)
+
+The shipped editor no longer uses the four-step navigation model. Its header owns a controlled draft Text or URL field and a Generate submit that commits valid input; draft typing does not touch the worker or current preview. The committed value drives automatic mask derivation and debounced worker preparation. The default visible mask is `A` in the Fathead font, and plain text derives its first ASCII letter or digit.
+
+Desktop renders persistent Mask selection, Preview canvas, and QR details columns. At the mobile breakpoint the same mask and details instances become left/right native modal drawers with focus return, Escape/backdrop dismissal, and reduced-motion-safe presentation. Selecting a mask text/font/blank/icon/fill switches to manual mode; Follow input restores automatic updates. After a commit, QR settings and placement edits refresh the preview without a Continue or completion Generate step. Full-resolution assembly/download remains an export action and renderer invariants are unchanged.
+
 Upload a PNG poster containing a solid black region, enter the text or URL to encode, move and resize the QR on the poster, then assemble and download the finished PNG. Use the existing deterministic assembly style: rounded decorative QR cells inside the black region and the real QR at the selected position.
 
 The black region is part of the uploaded poster, not a second required file. Detect it automatically and show a translucent selection overlay before assembly. Preserve the original poster dimensions and all pixels outside the selected region.

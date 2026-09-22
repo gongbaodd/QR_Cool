@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Dispatch } from 'react'
 import { BLANK_POSTER_HEIGHT, BLANK_POSTER_WIDTH } from '../../../lib/editor/blank'
 import {
-  TEXT_MASK_DEFAULT_TEXT,
+  DEFAULT_AUTO_MASK,
+  DEFAULT_AUTO_MASK_FONT_ID,
   TEXT_MASK_FILENAME,
   TEXT_MASK_FONTS,
   defaultTextMaskSize,
@@ -21,19 +22,19 @@ function drawTextMask(width: number, height: number, text: string, family: strin
   context.fillStyle = 'white'
   context.textAlign = 'center'
   context.textBaseline = 'middle'
-  const capped = Math.min(capPx, height)
   const size = fitTextMaskSize(
     (px) => {
       context.font = `${px}px "${family}"`
       return context.measureText(text).width
     },
     width * 0.94,
-    capped,
+    Math.min(capPx, height),
   )
   context.font = `${size}px "${family}"`
   context.fillText(text, width / 2, height / 2)
   return canvas
 }
+
 function drawBlankMask(width: number, height: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = width
@@ -43,6 +44,7 @@ function drawBlankMask(width: number, height: number): HTMLCanvasElement {
   context.fillRect(0, 0, width, height)
   return canvas
 }
+
 function recolorSvgToWhite(svg: string): string {
   return svg
     .replace(/currentColor/g, 'white')
@@ -50,32 +52,32 @@ function recolorSvgToWhite(svg: string): string {
     .replace(/#000\b/gi, 'white')
     .replace(/\bblack\b/gi, 'white')
 }
+
 async function drawIconMask(width: number, height: number, svgText: string, capPx: number): Promise<HTMLCanvasElement> {
-  const recolored = recolorSvgToWhite(svgText)
-  const blob = new Blob([recolored], { type: 'image/svg+xml' })
-  const url = URL.createObjectURL(blob)
-  const img = new window.Image()
-  await new Promise<void>((res, rej) => {
-    img.onload = () => res()
-    img.onerror = () => rej(new Error('icon load failed'))
-    img.src = url
-  })
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')!
-  ctx.fillStyle = 'black'
-  ctx.fillRect(0, 0, width, height)
-  const naturalW = (img as unknown as { naturalWidth: number }).naturalWidth || img.width || 24
-  const naturalH = (img as unknown as { naturalHeight: number }).naturalHeight || img.height || 24
-  const maxW = width * 0.8,
-    maxH = Math.min(capPx, height) * 0.8
-  const scale = Math.min(maxW / naturalW, maxH / naturalH)
-  const drawW = naturalW * scale,
-    drawH = naturalH * scale
-  ctx.drawImage(img, (width - drawW) / 2, (height - drawH) / 2, drawW, drawH)
-  URL.revokeObjectURL(url)
-  return canvas
+  const url = URL.createObjectURL(new Blob([recolorSvgToWhite(svgText)], { type: 'image/svg+xml' }))
+  const image = new window.Image()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error('icon load failed'))
+      image.src = url
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')!
+    context.fillStyle = 'black'
+    context.fillRect(0, 0, width, height)
+    const naturalWidth = (image as unknown as { naturalWidth: number }).naturalWidth || image.width || 24
+    const naturalHeight = (image as unknown as { naturalHeight: number }).naturalHeight || image.height || 24
+    const scale = Math.min((width * 0.8) / naturalWidth, (Math.min(capPx, height) * 0.8) / naturalHeight)
+    const drawWidth = naturalWidth * scale
+    const drawHeight = naturalHeight * scale
+    context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight)
+    return canvas
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
 export interface MaskSelectionOptions {
@@ -93,18 +95,21 @@ export interface MaskSelection {
   fontId: string
   font: TextMaskFont
   selectedIconId: string | null
+  selectedIcon: IconItem | null
   effectiveMask: string
   isBlank: boolean
   isIconMode: boolean
+  origin: 'auto' | 'manual'
+  isFollowingInput: boolean
   busy: boolean
   selectFont: (fontId: string) => void
   selectIcon: (item: IconItem) => void
+  followInput: () => void
+  markManualFill: () => void
+  whenSettled: () => Promise<void>
 }
 
-/**
- * Owns the step-2 mask choice: the search input, the selected font or icon, and
- * the white-on-black canvas that gets uploaded as the region mask.
- */
+/** Reactive automatic/manual mask controller. */
 export function useMaskSelection({
   revision,
   prepared,
@@ -113,99 +118,141 @@ export function useMaskSelection({
   onUploadMask,
   dispatch,
 }: MaskSelectionOptions): MaskSelection {
-  const [maskText, setMaskText] = useState(TEXT_MASK_DEFAULT_TEXT),
-    [maskFontId, setMaskFontId] = useState('blank'),
-    [maskBusy, setMaskBusy] = useState(false)
-  const [selectedIconId, setSelectedIconId] = useState<string | null>(null)
-  const maskFont = TEXT_MASK_FONTS.find((entry) => entry.id === maskFontId) ?? TEXT_MASK_FONTS[0]!
-  const effectiveMask = (maskText.trim()[0] || suggestedMask).slice(0, 1).toUpperCase()
-  const isBlank = maskFontId === 'blank' && !selectedIconId
-  const isIconMode = !!selectedIconId
-  async function applyTextMask(fontId = maskFontId) {
-    if (maskBusy) return
-    setSelectedIconId(null)
-    closeGallery()
-    const entry = TEXT_MASK_FONTS.find((item) => item.id === fontId) ?? maskFont
-    const blank = entry.id === 'blank'
-    if (blank) {
-      const width = prepared?.width ?? BLANK_POSTER_WIDTH,
-        height = prepared?.height ?? BLANK_POSTER_HEIGHT
-      const canvas = drawBlankMask(width, height)
-      canvas.toBlob((blob) => {
-        if (blob) onUploadMask(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' }))
-      }, 'image/png')
-      return
-    }
-    const text = effectiveMask
-    if (!prepared || !text) return
-    setMaskBusy(true)
-    try {
-      await document.fonts.load(`16px "${entry.family}"`)
-      if (!document.fonts.check(`16px "${entry.family}"`)) throw new Error('font unavailable')
-    } catch {
-      dispatch({
-        type: 'error',
-        revision,
-        message: `Could not load the ${entry.label} mask font. Please retry.`,
-        field: 'mask',
-      })
-      setMaskBusy(false)
-      return
-    }
-    const canvas = drawTextMask(
-      prepared.width,
-      prepared.height,
-      text,
-      entry.family,
-      defaultTextMaskSize(prepared.width, prepared.height),
-    )
-    canvas.toBlob((blob) => {
-      setMaskBusy(false)
-      if (blob) onUploadMask(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' }))
-    }, 'image/png')
-  }
-  async function applyIconMask(item: IconItem) {
-    if (maskBusy) return
-    if (!prepared) return
-    const download = item.download || item.variants[0]?.download
-    if (!download) return
-    setMaskBusy(true)
-    setSelectedIconId(item.id)
-    try {
-      const svgText = await fetch(download).then((r) => {
-        if (!r.ok) throw new Error('svg fetch')
-        return r.text()
-      })
-      const cap = defaultTextMaskSize(prepared.width, prepared.height)
-      const canvas = await drawIconMask(prepared.width, prepared.height, svgText, cap)
-      canvas.toBlob((blob) => {
-        setMaskBusy(false)
-        if (blob) onUploadMask(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' }))
-      }, 'image/png')
-    } catch {
-      setMaskBusy(false)
-      dispatch({ type: 'error', revision, message: `Could not load icon ${item.name}. Please retry.`, field: 'mask' })
-    }
+  const [origin, setOrigin] = useState<'auto' | 'manual'>('auto')
+  const [maskText, setMaskText] = useState(DEFAULT_AUTO_MASK)
+  const [maskFontId, setMaskFontId] = useState(DEFAULT_AUTO_MASK_FONT_ID)
+  const [selectedIcon, setSelectedIcon] = useState<IconItem | null>(null)
+  const [maskBusy, setMaskBusy] = useState(false)
+  const token = useRef(0)
+  const lastSignature = useRef('')
+  const waiters = useRef<Array<() => void>>([])
+  const maskFont = TEXT_MASK_FONTS.find((entry) => entry.id === maskFontId) ?? TEXT_MASK_FONTS[1]!
+  const effectiveMask =
+    (origin === 'auto' ? suggestedMask : maskText).trim().slice(0, 1).toUpperCase() || DEFAULT_AUTO_MASK
+  const isBlank = maskFontId === 'blank' && !selectedIcon
+  const isIconMode = !!selectedIcon
+  const width = prepared?.width ?? BLANK_POSTER_WIDTH
+  const height = prepared?.height ?? BLANK_POSTER_HEIGHT
+
+  useEffect(() => {
+    if (!maskBusy) for (const resolve of waiters.current.splice(0)) resolve()
+  }, [maskBusy])
+
+  const renderMask = useCallback(
+    async (nextOrigin: 'auto' | 'manual', text: string, fontId: string, icon: IconItem | null) => {
+      const entry = TEXT_MASK_FONTS.find((item) => item.id === fontId) ?? TEXT_MASK_FONTS[1]!
+      const signature = [nextOrigin, text, entry.id, icon?.id ?? '', width, height].join('|')
+      if (signature === lastSignature.current) return
+      lastSignature.current = signature
+      const currentToken = ++token.current
+      setMaskBusy(true)
+      closeGallery()
+      try {
+        let canvas: HTMLCanvasElement
+        if (entry.id === 'blank') {
+          canvas = drawBlankMask(width, height)
+        } else if (icon) {
+          const download = icon.download || icon.variants[0]?.download
+          if (!download) throw new Error('icon unavailable')
+          const svg = await fetch(download).then((response) => {
+            if (!response.ok) throw new Error('svg fetch')
+            return response.text()
+          })
+          canvas = await drawIconMask(width, height, svg, defaultTextMaskSize(width, height))
+        } else {
+          await document.fonts.load(`16px "${entry.family}"`)
+          if (!document.fonts.check(`16px "${entry.family}"`)) throw new Error('font unavailable')
+          canvas = drawTextMask(
+            width,
+            height,
+            text || DEFAULT_AUTO_MASK,
+            entry.family,
+            defaultTextMaskSize(width, height),
+          )
+        }
+        if (currentToken !== token.current) return
+        await new Promise<void>((resolve) => {
+          canvas.toBlob((blob) => {
+            if (blob && currentToken === token.current)
+              onUploadMask(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' }))
+            resolve()
+          }, 'image/png')
+        })
+      } catch {
+        if (currentToken === token.current)
+          dispatch({
+            type: 'error',
+            revision,
+            message: `Could not load the ${entry.label} mask. Please retry.`,
+            field: 'mask',
+          })
+      } finally {
+        if (currentToken === token.current) setMaskBusy(false)
+      }
+    },
+    [closeGallery, dispatch, height, onUploadMask, revision, width],
+  )
+
+  useEffect(() => {
+    if (origin === 'auto') void renderMask('auto', suggestedMask, DEFAULT_AUTO_MASK_FONT_ID, null)
+  }, [origin, renderMask, suggestedMask])
+
+  function setText(value: string) {
+    const next = value.slice(0, 10)
+    setOrigin('manual')
+    setMaskText(next)
+    setSelectedIcon(null)
+    void renderMask('manual', next, maskFontId, null)
   }
   function selectFont(fontId: string) {
+    const nextText = effectiveMask
+    setOrigin('manual')
+    setMaskText(nextText)
     setMaskFontId(fontId)
-    void applyTextMask(fontId)
+    setSelectedIcon(null)
+    void renderMask('manual', nextText, fontId, null)
   }
   function selectIcon(item: IconItem) {
-    void applyIconMask(item)
+    setOrigin('manual')
+    setMaskText(effectiveMask)
+    setSelectedIcon(item)
+    void renderMask('manual', effectiveMask, maskFontId, item)
     closeGallery()
   }
+  function followInput() {
+    setOrigin('auto')
+    setMaskText(suggestedMask)
+    setMaskFontId(DEFAULT_AUTO_MASK_FONT_ID)
+    setSelectedIcon(null)
+    void renderMask('auto', suggestedMask, DEFAULT_AUTO_MASK_FONT_ID, null)
+  }
+  function markManualFill() {
+    setOrigin('manual')
+    setMaskText(effectiveMask)
+    setSelectedIcon(null)
+    lastSignature.current = `fill|${revision}|${width}|${height}`
+  }
+  function whenSettled() {
+    if (!maskBusy) return Promise.resolve()
+    return new Promise<void>((resolve) => waiters.current.push(resolve))
+  }
   return {
-    text: maskText,
-    setText: setMaskText,
+    text: origin === 'auto' ? effectiveMask : maskText,
+    setText,
     fontId: maskFontId,
     font: maskFont,
-    selectedIconId,
+    selectedIconId: selectedIcon?.id ?? null,
+    selectedIcon,
     effectiveMask,
     isBlank,
     isIconMode,
+    origin,
+    isFollowingInput: origin === 'auto',
     busy: maskBusy,
     selectFont,
     selectIcon,
+    followInput,
+    markManualFill,
+    whenSettled,
   }
 }

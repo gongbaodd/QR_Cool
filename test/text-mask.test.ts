@@ -30,16 +30,16 @@ describe('text mask fonts', () => {
     expect(TEXT_MASK_MAX_LENGTH).toBe(10)
   })
 
-  it('derives a single mask letter from website content and blanks otherwise', () => {
+  it('derives a single mask letter from websites and plain text', () => {
     expect(deriveMaskLetter('http://ABCD.com')).toBe('A')
     expect(deriveMaskLetter('https://ABCD.com/page')).toBe('A')
     expect(deriveMaskLetter('www.XYZ.com')).toBe('X')
     expect(deriveMaskLetter('https://example.com/qr')).toBe('E')
     expect(deriveMaskLetter('  https://example.com  ')).toBe('E')
-    expect(deriveMaskLetter('hello')).toBe('')
-    expect(deriveMaskLetter('not a site')).toBe('')
-    expect(deriveMaskLetter('123')).toBe('')
-    expect(deriveMaskLetter('')).toBe('')
+    expect(deriveMaskLetter('hello')).toBe('H')
+    expect(deriveMaskLetter('not a site')).toBe('N')
+    expect(deriveMaskLetter('123')).toBe('1')
+    expect(deriveMaskLetter('')).toBe('A')
   })
 
   it('defaults the cap to the poster height so words fill the region', () => {

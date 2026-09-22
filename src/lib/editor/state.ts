@@ -30,7 +30,7 @@ export interface State {
 }
 export const initialState: State = {
   revision: 0,
-  content: 'https://example.com',
+  content: '',
   settings: {
     seed: 0,
     qrMargin: 1,

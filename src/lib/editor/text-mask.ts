@@ -34,7 +34,9 @@ export const TEXT_MASK_FONTS: TextMaskFont[] = [
 ]
 
 export const TEXT_MASK_FILENAME = 'text-mask.png'
-export const TEXT_MASK_DEFAULT_TEXT = 'Q'
+export const TEXT_MASK_DEFAULT_TEXT = 'A'
+export const DEFAULT_AUTO_MASK = 'A'
+export const DEFAULT_AUTO_MASK_FONT_ID = 'fathead'
 export const TEXT_MASK_MAX_LENGTH = 10
 export const TEXT_MASK_SEARCH_MAX_LENGTH = 10
 export const MASK_SEARCH_LETTER_TILES = 3
@@ -92,18 +94,17 @@ export function searchControlState(query: string, fetchedQuery: string, resultCo
  * Derive the single-letter mask suggestion from encoded content.
  * Website-like input yields the first letter of the host (scheme and a
  * leading `www.` are ignored, uppercased): `http://ABCD.com` -> `A`,
- * `www.XYZ.com` -> `X`. Anything else returns '' so the caller falls back
- * to a blank full-canvas region.
+ * `www.XYZ.com` -> `X`. Other text uses its first ASCII letter or digit.
+ * Unsupported or empty input falls back to the default display letter.
  */
 export function deriveMaskLetter(content: string): string {
   const trimmed = content.trim()
-  if (!trimmed || /\s/.test(trimmed)) return ''
+  if (!trimmed) return DEFAULT_AUTO_MASK
   const withoutScheme = trimmed.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '')
   const withoutWww = withoutScheme.replace(/^www\./i, '')
   const host = withoutWww.split(/[/?#:]/, 1)[0] ?? ''
-  if (!host.includes('.')) return ''
-  const match = host.match(/[A-Za-z]/)
-  return match ? match[0]!.toUpperCase() : ''
+  const match = host.match(/[A-Za-z0-9]/) ?? trimmed.match(/[A-Za-z0-9]/)
+  return match ? match[0]!.toUpperCase() : DEFAULT_AUTO_MASK
 }
 
 /**
