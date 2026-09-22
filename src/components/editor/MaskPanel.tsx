@@ -112,7 +112,7 @@ export default function MaskPanel({
                   <span {...stylex.props(styles.blankGlyph)} aria-label="Blank full-canvas mask" />
                 ) : (
                   <span {...stylex.props(ui.fontGlyph)} style={{ fontFamily: `"${entry.family}", sans-serif` }}>
-                    {mask.effectiveMask}
+                    {mask.effectiveMask || 'A'}
                   </span>
                 )}
                 <span {...stylex.props(ui.fontName)}>{entry.label}</span>

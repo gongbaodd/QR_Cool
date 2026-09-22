@@ -247,7 +247,9 @@ export function useMaskSelection({
     return new Promise<void>((resolve) => waiters.current.push(resolve))
   }
   return {
-    text: origin === 'auto' ? effectiveMask : maskText,
+    // Keep the editable mask text defaulted to A even while empty automatic
+    // content uses the blank full-canvas mask visually.
+    text: origin === 'auto' ? effectiveMask || DEFAULT_AUTO_MASK : maskText,
     setText,
     fontId: maskFontId,
     font: maskFont,
