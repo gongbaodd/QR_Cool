@@ -39,7 +39,7 @@ describe('text mask fonts', () => {
     expect(deriveMaskLetter('hello')).toBe('H')
     expect(deriveMaskLetter('not a site')).toBe('N')
     expect(deriveMaskLetter('123')).toBe('1')
-    expect(deriveMaskLetter('')).toBe('A')
+    expect(deriveMaskLetter('')).toBe('')
   })
 
   it('defaults the cap to the poster height so words fill the region', () => {

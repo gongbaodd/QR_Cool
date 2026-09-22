@@ -45,6 +45,7 @@ const styles = stylex.create({
     borderColor: tokens.ink,
     borderRadius: tokens.sketchAlt,
   },
+  blankCanvas: { backgroundColor: 'white' },
 })
 
 const BUCKET_CURSOR =
@@ -277,7 +278,7 @@ export default function MaskPreviewCanvas({
       )}
       <div {...stylex.props(styles.wrap)}>
         <canvas
-          {...stylex.props(styles.canvas)}
+          {...stylex.props(styles.canvas, isBlank && styles.blankCanvas)}
           ref={maskPreview}
           width={600}
           height={600}

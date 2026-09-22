@@ -95,11 +95,12 @@ export function searchControlState(query: string, fetchedQuery: string, resultCo
  * Website-like input yields the first letter of the host (scheme and a
  * leading `www.` are ignored, uppercased): `http://ABCD.com` -> `A`,
  * `www.XYZ.com` -> `X`. Other text uses its first ASCII letter or digit.
- * Unsupported or empty input falls back to the default display letter.
+ * Empty input returns an empty suggestion so automatic mode can show a blank
+ * full-canvas mask; unsupported non-empty input falls back to `A`.
  */
 export function deriveMaskLetter(content: string): string {
   const trimmed = content.trim()
-  if (!trimmed) return DEFAULT_AUTO_MASK
+  if (!trimmed) return ''
   const withoutScheme = trimmed.replace(/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//, '')
   const withoutWww = withoutScheme.replace(/^www\./i, '')
   const host = withoutWww.split(/[/?#:]/, 1)[0] ?? ''

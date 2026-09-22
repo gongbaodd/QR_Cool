@@ -6,7 +6,7 @@ Status: implemented; the web editor is the supported product interface and the C
 
 ## Reactive workspace (implemented 2026-09-22)
 
-The shipped editor no longer uses the four-step navigation model. Its header owns a controlled draft Text or URL field and a Generate submit that commits valid input; draft typing does not touch the worker or current preview. The committed value drives automatic mask derivation and debounced worker preparation. The default visible mask is `A` in the Fathead font, and plain text derives its first ASCII letter or digit.
+The shipped editor no longer uses the four-step navigation model. Its header owns a controlled draft Text or URL field and a Generate submit that commits valid input; draft typing does not touch the worker or current preview. The committed value drives automatic mask derivation and debounced worker preparation. Empty committed input shows a blank full-canvas mask; non-empty values derive a letter in the Fathead font, and plain text uses its first ASCII letter or digit.
 
 Desktop renders persistent Mask selection, Preview canvas, and QR details columns. At the mobile breakpoint the same mask and details instances become left/right native modal drawers with focus return, Escape/backdrop dismissal, and reduced-motion-safe presentation. Selecting a mask text/font/blank/icon/fill switches to manual mode; Follow input restores automatic updates. After a commit, QR settings and placement edits refresh the preview without a Continue or completion Generate step. Full-resolution assembly/download remains an export action and renderer invariants are unchanged.
 

@@ -24,6 +24,17 @@ const styles = stylex.create({
   fontGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
   search: { marginTop: 4 },
   iconButton: { width: '100%' },
+  blankGlyph: {
+    display: 'block',
+    width: 24,
+    height: 24,
+    marginBlock: 10,
+    backgroundColor: tokens.ink,
+    borderWidth: 4,
+    borderStyle: 'solid',
+    borderColor: 'transparent',
+    borderRadius: 3,
+  },
 })
 
 export default function MaskPanel({
@@ -48,7 +59,7 @@ export default function MaskPanel({
         </h2>
         <p {...stylex.props(styles.status)} role="status">
           {mask.isFollowingInput
-            ? `Following input · ${mask.effectiveMask}`
+            ? `Following input · ${mask.isBlank ? 'blank' : mask.effectiveMask}`
             : `Custom mask · ${mask.isIconMode ? 'icon' : mask.isBlank ? 'blank' : mask.effectiveMask}`}
         </p>
         <p {...stylex.props(ui.hint)}>
@@ -97,12 +108,13 @@ export default function MaskPanel({
                 disabled={mask.busy}
                 onClick={() => mask.selectFont(entry.id)}
               >
-                <span
-                  {...stylex.props(ui.fontGlyph)}
-                  style={entry.family ? { fontFamily: `"${entry.family}", sans-serif` } : undefined}
-                >
-                  {entry.id === 'blank' ? 'blank' : mask.effectiveMask}
-                </span>
+                {entry.id === 'blank' ? (
+                  <span {...stylex.props(styles.blankGlyph)} aria-label="Blank full-canvas mask" />
+                ) : (
+                  <span {...stylex.props(ui.fontGlyph)} style={{ fontFamily: `"${entry.family}", sans-serif` }}>
+                    {mask.effectiveMask}
+                  </span>
+                )}
                 <span {...stylex.props(ui.fontName)}>{entry.label}</span>
               </button>
             )

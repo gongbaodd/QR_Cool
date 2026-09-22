@@ -120,15 +120,14 @@ export function useMaskSelection({
 }: MaskSelectionOptions): MaskSelection {
   const [origin, setOrigin] = useState<'auto' | 'manual'>('auto')
   const [maskText, setMaskText] = useState(DEFAULT_AUTO_MASK)
-  const [maskFontId, setMaskFontId] = useState(DEFAULT_AUTO_MASK_FONT_ID)
+  const [maskFontId, setMaskFontId] = useState('blank')
   const [selectedIcon, setSelectedIcon] = useState<IconItem | null>(null)
   const [maskBusy, setMaskBusy] = useState(false)
   const token = useRef(0)
   const lastSignature = useRef('')
   const waiters = useRef<Array<() => void>>([])
   const maskFont = TEXT_MASK_FONTS.find((entry) => entry.id === maskFontId) ?? TEXT_MASK_FONTS[1]!
-  const effectiveMask =
-    (origin === 'auto' ? suggestedMask : maskText).trim().slice(0, 1).toUpperCase() || DEFAULT_AUTO_MASK
+  const effectiveMask = (origin === 'auto' ? suggestedMask : maskText).trim().slice(0, 1).toUpperCase()
   const isBlank = maskFontId === 'blank' && !selectedIcon
   const isIconMode = !!selectedIcon
   const width = prepared?.width ?? BLANK_POSTER_WIDTH
@@ -194,7 +193,13 @@ export function useMaskSelection({
   )
 
   useEffect(() => {
-    if (origin === 'auto') void renderMask('auto', suggestedMask, DEFAULT_AUTO_MASK_FONT_ID, null)
+    if (origin === 'auto')
+      void renderMask(
+        'auto',
+        suggestedMask || DEFAULT_AUTO_MASK,
+        suggestedMask ? DEFAULT_AUTO_MASK_FONT_ID : 'blank',
+        null,
+      )
   }, [origin, renderMask, suggestedMask])
 
   function setText(value: string) {
@@ -205,7 +210,7 @@ export function useMaskSelection({
     void renderMask('manual', next, maskFontId, null)
   }
   function selectFont(fontId: string) {
-    const nextText = effectiveMask
+    const nextText = effectiveMask || DEFAULT_AUTO_MASK
     setOrigin('manual')
     setMaskText(nextText)
     setMaskFontId(fontId)
@@ -214,17 +219,22 @@ export function useMaskSelection({
   }
   function selectIcon(item: IconItem) {
     setOrigin('manual')
-    setMaskText(effectiveMask)
+    setMaskText(effectiveMask || DEFAULT_AUTO_MASK)
     setSelectedIcon(item)
-    void renderMask('manual', effectiveMask, maskFontId, item)
+    void renderMask('manual', effectiveMask || DEFAULT_AUTO_MASK, maskFontId, item)
     closeGallery()
   }
   function followInput() {
     setOrigin('auto')
-    setMaskText(suggestedMask)
-    setMaskFontId(DEFAULT_AUTO_MASK_FONT_ID)
+    setMaskText(suggestedMask || DEFAULT_AUTO_MASK)
+    setMaskFontId(suggestedMask ? DEFAULT_AUTO_MASK_FONT_ID : 'blank')
     setSelectedIcon(null)
-    void renderMask('auto', suggestedMask, DEFAULT_AUTO_MASK_FONT_ID, null)
+    void renderMask(
+      'auto',
+      suggestedMask || DEFAULT_AUTO_MASK,
+      suggestedMask ? DEFAULT_AUTO_MASK_FONT_ID : 'blank',
+      null,
+    )
   }
   function markManualFill() {
     setOrigin('manual')

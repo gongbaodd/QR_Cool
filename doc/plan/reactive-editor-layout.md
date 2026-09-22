@@ -21,15 +21,15 @@ This is a presentation and interaction refactor, not a renderer rewrite. Preserv
 
 The phrases in the request are implemented as follows so Luna does not have to guess during the build.
 
-| Request                               | Concrete behavior                                                                                                                                                                                                                                                                                                                            |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| “Show A as default”                   | The mask state starts as `{ origin: 'auto', letter: 'A', fontId: 'fathead' }`. The left panel visibly previews `A`, even before the content field is valid. The initial committed content and the editable draft are empty rather than prefilled with `https://example.com`; nothing refreshes until Generate is clicked.                    |
-| “Listens to the input”                | The field is a draft. Typing never changes the mask, worker input, QR, or preview. Generate validates and commits the draft; only then does auto-mask derivation, mask Blob creation, and worker preparation begin. After that commit, configuration edits remain reactive.                                                                  |
-| Mask derivation                       | For a website-like value, keep the existing rule: first host letter after scheme and `www.`. For other text, use the first ASCII letter or digit in the trimmed value. Uppercase letters; preserve digits. If no supported character exists, fall back to `A`. Keep this rule in a pure helper with unit tests.                              |
-| “Mask Selection has selected by user” | Typing in the mask search/letter field, choosing a font, choosing blank, choosing an icon, or committing a Fill operation switches `origin` to `manual` and freezes the effective letter/art. Merely opening/closing the panel or icon gallery does not.                                                                                     |
-| Frozen mask                           | A committed-content change must not change `manualText`, `fontId`, `selectedIconId`, the committed mask Blob, or a fill edit. It still invalidates the old result and refreshes the QR preview with the new payload. An uncommitted draft must change none of these.                                                                         |
-| “Generate button”                     | Keep one header Generate button as the draft commit/apply action. It validates the draft, commits it as the new worker input, and starts the mask/preview refresh. Remove the old completion meaning: there is no required final Generate/Continue step, and settings changes update the preview automatically.                              |
-| “Slide in as modal”                   | On mobile, each side panel uses one native `<dialog>` node shown with `showModal()`, placed against its corresponding viewport edge, with a backdrop and a reduced-motion-aware slide transition. Mask comes from the left; QR details comes from the right. Desktop uses those same mounted panel instances as non-modal, in-flow sidebars. |
+| Request                               | Concrete behavior                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| “Show A as default”                   | For an empty committed input, automatic mode starts with a blank full-canvas mask. Once a non-empty value is committed, the automatic mask derives its letter and uses the default `fathead` font. The initial committed content and editable draft are empty rather than prefilled with `https://example.com`; nothing refreshes until Generate is clicked. |
+| “Listens to the input”                | The field is a draft. Typing never changes the mask, worker input, QR, or preview. Generate validates and commits the draft; only then does auto-mask derivation, mask Blob creation, and worker preparation begin. After that commit, configuration edits remain reactive.                                                                                  |
+| Mask derivation                       | For a website-like value, keep the existing rule: first host letter after scheme and `www.`. For other non-empty text, use the first ASCII letter or digit in the trimmed value. Uppercase letters; preserve digits. Empty input selects blank; unsupported non-empty input falls back to `A`. Keep this rule in a pure helper with unit tests.              |
+| “Mask Selection has selected by user” | Typing in the mask search/letter field, choosing a font, choosing blank, choosing an icon, or committing a Fill operation switches `origin` to `manual` and freezes the effective letter/art. Merely opening/closing the panel or icon gallery does not.                                                                                                     |
+| Frozen mask                           | A committed-content change must not change `manualText`, `fontId`, `selectedIconId`, the committed mask Blob, or a fill edit. It still invalidates the old result and refreshes the QR preview with the new payload. An uncommitted draft must change none of these.                                                                                         |
+| “Generate button”                     | Keep one header Generate button as the draft commit/apply action. It validates the draft, commits it as the new worker input, and starts the mask/preview refresh. Remove the old completion meaning: there is no required final Generate/Continue step, and settings changes update the preview automatically.                                              |
+| “Slide in as modal”                   | On mobile, each side panel uses one native `<dialog>` node shown with `showModal()`, placed against its corresponding viewport edge, with a backdrop and a reduced-motion-aware slide transition. Mask comes from the left; QR details comes from the right. Desktop uses those same mounted panel instances as non-modal, in-flow sidebars.                 |
 
 If product direction differs on the empty initial input or plain-text letter derivation, change those two decisions before Phase 2. Do not leave the behavior implicit in component effects.
 
@@ -101,7 +101,7 @@ Before editing Next.js code, read the installed version's relevant documents, no
 │ MASK SELECTION    │ PREVIEW CANVAS                 │ QR DETAILS              │
 │ Auto · follows    │ live poster + movable QR       │ error correction        │
 │ input             │ busy/error overlay             │ pixel style             │
-│ [mask preview A]  │ or assembled result            │ seed / rim / corners    │
+│ [mask preview]     │ or assembled result            │ seed / rim / corners    │
 │ search + fonts    │                                │ marker entry points     │
 │ icons / fill      │                                │                         │
 └───────────────────┴────────────────────────────────┴─────────────────────────┘
@@ -258,9 +258,9 @@ Markup requirements:
 Create `src/components/editor/MaskPanel.tsx` by adapting `StepMaskSearch`.
 
 - Heading: **Mask selection**; no step number.
-- At the top show a text status, not color alone: **Following input · A** or **Custom mask · A / icon / blank**.
+- At the top show a text status, not color alone: **Following input · blank** for empty input, a derived letter for committed content, or **Custom mask · A / icon / blank**.
 - In auto mode, explain that the mask changes with the content. In manual mode, show **Follow input**.
-- Put a compact `MaskPreviewCanvas` before the large tile grid so the default `A` is obvious.
+- Put a compact `MaskPreviewCanvas` before the large tile grid so the blank initial mask or derived letter is obvious.
 - Keep the mask search field, 3×4 font grid, icon search, notes, errors, and Fill tool.
 - Rename legacy step-specific ids and comments. Parameterize any id referenced by labels if the panel wrapper needs a stable drawer id.
 - Remove Continue/Back and `canContinue` props. Fit failures belong to the center status and may also be repeated in the mask panel when actionable there.
@@ -386,7 +386,7 @@ After explicit maintainer instruction:
 
 ### Unit and integration coverage
 
-- Initial content is empty; initial visible auto mask is `A` with the declared default font.
+- Initial content is empty; initial visible auto mask is blank/full-canvas, then non-empty committed content derives a letter with the declared default font.
 - `https://example.com` derives `E`; `www.XYZ.com` derives `X`; `Hello QR / COOL` derives `H`; `123` derives `1`; unsupported/empty content falls back to `A` for mask display while remaining invalid QR content when empty.
 - Typing at least three draft edits leaves the committed mask/QR/preview unchanged; clicking Generate once commits the final draft and auto mode settles on the matching mask without stale async work winning.
 - Manual typing, font, blank, icon, and Fill each freeze the mask independently.
@@ -451,7 +451,7 @@ Do not run `pnpm test:e2e` as a routine phase gate. Run it only in Phase 6 after
 
 - No step rail, step gate, Continue, Back, or step-dependent preview branch remains in the shipped editor. The one header Generate button is only the draft commit/apply action.
 - Desktop header + three-column layout and mobile header + preview + two modal drawers match the requested information architecture.
-- Initial mask is visibly `A`; auto-follow and every manual-freeze transition are deterministic and tested; **Follow input** restores reactivity.
+- Initial empty-input mask is visibly blank; non-empty auto-follow and every manual-freeze transition are deterministic and tested; **Follow input** restores reactivity.
 - Header Generate commits only the newest valid draft and preserves stale-response safety; it is not required to complete/export the poster.
 - After a commit, every supported configuration change updates the live preview automatically without a completion click.
 - Existing placement, styles, marker controls, assembly, verification, artifacts, and exact Blob download behavior remain intact.

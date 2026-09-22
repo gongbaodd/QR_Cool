@@ -35,7 +35,7 @@ The editor is a single reactive workspace. The header contains an empty **Text o
 
 Desktop keeps **Mask selection**, **Preview canvas**, and **QR details** visible in three columns. On mobile only the header and preview remain in normal flow; Mask selection opens from the left and QR details from the right as accessible native modal drawers. The same panel instances and state survive resizing.
 
-The mask starts in automatic mode with the visible letter **A** and the Fathead font. A committed URL uses its first host letter; plain text uses its first ASCII letter or digit. Draft typing never refreshes the mask or preview. Choosing mask text, a font, blank, an icon, or Fill switches to a manual mask that remains fixed when content changes. **Follow input** restores automatic behavior.
+The mask starts in automatic mode with a blank full-canvas region while the committed input is empty. After a value is committed, a URL uses its first host letter and plain text uses its first ASCII letter or digit, rendered with the Fathead font. Draft typing never refreshes the mask or preview. Choosing mask text, a font, blank, an icon, or Fill switches to a manual mask that remains fixed when content changes. **Follow input** restores automatic behavior.
 
 After content is committed, QR details, placement, and mask changes update the preview automatically. The existing full-resolution assembly/download remains an export action, while the editing surface has no Continue/Back step rail. Placement, marker dialogs, artifacts, exact Blob sharing, and the renderer's pixel/verification invariants are unchanged.
 
