@@ -116,6 +116,7 @@ export default function PreviewPanel({
   onAssemble,
   assembleBusy,
   ready: externallyReady,
+  canAssemble,
 }: {
   showingResult: boolean
   dimensions: { width: number; height: number } | null
@@ -146,6 +147,7 @@ export default function PreviewPanel({
   onAssemble: () => void
   assembleBusy: boolean
   ready: boolean
+  canAssemble: boolean
 }) {
   const [markerDialog, setMarkerDialog] = useState<'finder' | 'sub' | null>(null)
   const ready = externallyReady && !!dimensions && !!placement && !!posterUrl && current
@@ -212,7 +214,7 @@ export default function PreviewPanel({
             <button
               {...stylex.props(ui.button, ui.primary)}
               type="button"
-              disabled={!ready || assembleBusy}
+              disabled={!ready || !canAssemble || assembleBusy}
               onClick={onAssemble}
             >
               {assembleBusy ? 'Assembling…' : 'Assemble poster'}

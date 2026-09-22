@@ -12,7 +12,7 @@ import {
   buildBlankMaskRgba,
   buildBlankPosterRgba,
 } from '../../lib/editor/blank'
-import { TEXT_MASK_FILENAME, deriveMaskLetter } from '../../lib/editor/text-mask'
+import { deriveMaskLetter } from '../../lib/editor/text-mask'
 import type { Placement } from '../../lib/editor/schema'
 import EditorHeader from './EditorHeader'
 import PreviewPanel from './PreviewPanel'
@@ -73,7 +73,14 @@ export default function Editor() {
     onUploadMask: uploadMaskFile,
     dispatch,
   })
-  const { request, cancel } = useEngineRequest({ state, dispatch, poster, mask, maskBusy: maskSelection.busy })
+  const { request, cancel } = useEngineRequest({
+    state,
+    dispatch,
+    poster,
+    mask,
+    maskBusy: maskSelection.busy,
+    previewWithoutContent: maskSelection.origin === 'manual',
+  })
   searchQueryRef.current = maskSelection.text.trim()
   const previews = useBlobUrls(
     state.prepared
@@ -165,27 +172,12 @@ export default function Editor() {
     const item = iconSearch.results[index]
     if (item) maskSelection.selectIcon(item)
   }
-  function handleFillCommit(preview: HTMLCanvasElement) {
-    maskSelection.markManualFill()
-    const width = state.prepared?.width ?? BLANK_POSTER_WIDTH
-    const height = state.prepared?.height ?? BLANK_POSTER_HEIGHT
-    const full = document.createElement('canvas')
-    full.width = width
-    full.height = height
-    const context = full.getContext('2d')!
-    context.imageSmoothingEnabled = false
-    context.fillStyle = 'black'
-    context.fillRect(0, 0, width, height)
-    context.drawImage(preview, 0, 0, width, height)
-    full.toBlob((blob) => {
-      if (blob) uploadMaskFile(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' }))
-    }, 'image/png')
-  }
   function move(box: Placement) {
     if (!state.prepared) return
     edit({ type: 'edit', patch: { placement: canonicalPlacement(box, state.prepared.qrMetadata.totalModules) } })
   }
   const visibleError = (draftBlurred ? draftError : null) ?? committedContentError
+  const canAssemble = contentSchema.safeParse(state.content).success
   return (
     <main>
       <EditorHeader
@@ -221,7 +213,6 @@ export default function Editor() {
               mask={maskSelection}
               search={iconSearch}
               onSearch={handleSearch}
-              onFillCommit={handleFillCommit}
             />
           </ResponsiveEditorPanel>
         </div>
@@ -255,6 +246,7 @@ export default function Editor() {
           onAssemble={() => void request('assemble')}
           assembleBusy={state.busy === 'assemble'}
           ready={current && !!state.placement && !busy}
+          canAssemble={canAssemble}
         />
         <div {...stylex.props(styles.side)}>
           <ResponsiveEditorPanel

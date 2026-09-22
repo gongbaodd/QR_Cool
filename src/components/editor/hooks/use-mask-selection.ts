@@ -105,7 +105,6 @@ export interface MaskSelection {
   selectFont: (fontId: string) => void
   selectIcon: (item: IconItem) => void
   followInput: () => void
-  markManualFill: () => void
   whenSettled: () => Promise<void>
 }
 
@@ -236,12 +235,6 @@ export function useMaskSelection({
       null,
     )
   }
-  function markManualFill() {
-    setOrigin('manual')
-    setMaskText(effectiveMask)
-    setSelectedIcon(null)
-    lastSignature.current = `fill|${revision}|${width}|${height}`
-  }
   function whenSettled() {
     if (!maskBusy) return Promise.resolve()
     return new Promise<void>((resolve) => waiters.current.push(resolve))
@@ -264,7 +257,6 @@ export function useMaskSelection({
     selectFont,
     selectIcon,
     followInput,
-    markManualFill,
     whenSettled,
   }
 }

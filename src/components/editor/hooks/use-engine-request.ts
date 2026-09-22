@@ -13,6 +13,7 @@ export interface EditorRequestOptions {
   poster: File | null
   mask: File | null
   maskBusy?: boolean
+  previewWithoutContent?: boolean
 }
 
 export interface EditorRequest {
@@ -37,17 +38,21 @@ export function useEngineRequest({
   poster,
   mask,
   maskBusy = false,
+  previewWithoutContent = false,
 }: EditorRequestOptions): EditorRequest {
   const latest = useRef(state)
   latest.current = state
 
   async function request(mode: 'prepare' | 'assemble', automatic = false) {
     const current = latest.current
+    const hasValidContent = contentSchema.safeParse(current.content).success
+    const previewContent =
+      mode === 'prepare' && previewWithoutContent && !hasValidContent ? 'A' : current.content
     if (
       !poster ||
       poster.size > MAX_IMAGE_BYTES ||
       (mask && mask.size > MAX_IMAGE_BYTES) ||
-      !contentSchema.safeParse(current.content).success
+      (!hasValidContent && previewContent === current.content)
     )
       return
     dispatch({ type: 'busy', mode, revision: current.revision })
@@ -55,7 +60,7 @@ export function useEngineRequest({
     const revision = current.revision
     const input: EngineInput = {
       posterBytes: await toTransferredBytes(poster),
-      content: current.content,
+      content: previewContent,
       settings: current.settings,
     }
     if (mask) input.maskBytes = await toTransferredBytes(mask)

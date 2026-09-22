@@ -1,5 +1,4 @@
 'use client'
-import dynamic from 'next/dynamic'
 import * as stylex from '@stylexjs/stylex'
 import { TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH, searchControlState } from '../../lib/editor/text-mask'
 import type { IconSearch } from './hooks/use-icon-search'
@@ -7,7 +6,6 @@ import type { MaskSelection } from './hooks/use-mask-selection'
 import { tokens } from '../../styles/tokens.stylex'
 import { ui } from '../../styles/ui.stylex'
 
-const MaskPreviewCanvas = dynamic(() => import('./MaskPreviewCanvas'), { ssr: false })
 const styles = stylex.create({
   panel: { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 },
   card: {
@@ -20,7 +18,6 @@ const styles = stylex.create({
     boxShadow: tokens.shadowLg,
   },
   status: { fontSize: 15, color: tokens.green, margin: 0 },
-  preview: { width: '100%', maxWidth: 260, alignSelf: 'center' },
   fontGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
   search: { marginTop: 4 },
   iconButton: { width: '100%' },
@@ -41,12 +38,10 @@ export default function MaskPanel({
   mask,
   search,
   onSearch,
-  onFillCommit,
 }: {
   mask: MaskSelection
   search: IconSearch
   onSearch: () => void
-  onFillCommit: (preview: HTMLCanvasElement) => void
 }) {
   const query = mask.text.trim()
   const searchState = searchControlState(query, search.fetchedQuery, search.results.length)
@@ -72,17 +67,6 @@ export default function MaskPanel({
             Follow input
           </button>
         )}
-        <div {...stylex.props(styles.preview)}>
-          <MaskPreviewCanvas
-            effectiveMask={mask.effectiveMask}
-            family={mask.font.family}
-            isBlank={mask.isBlank}
-            isIconMode={mask.isIconMode}
-            iconResults={search.results}
-            selectedIconId={mask.selectedIconId}
-            onFillCommit={onFillCommit}
-          />
-        </div>
         <label {...stylex.props(ui.label)} htmlFor="maskSearch">
           Mask text or icon search
           <input
