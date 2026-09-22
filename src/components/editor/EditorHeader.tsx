@@ -41,7 +41,7 @@ const styles = stylex.create({
   field: { fontSize: 16, marginTop: 0 },
   submit: { minHeight: 48, whiteSpace: 'nowrap' },
   meta: { minWidth: 150, fontSize: 14, color: tokens.muted, lineHeight: 1.35 },
-  examples: { gridColumn: '2 / 3', display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -2 },
+  examples: { gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -2 },
   example: {
     paddingBlock: 3,
     paddingInline: 8,
@@ -54,7 +54,7 @@ const styles = stylex.create({
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
-  status: { gridColumn: '2 / 3', fontSize: 14, color: tokens.muted, minHeight: 20, margin: 0 },
+  status: { gridColumn: '1 / -1', fontSize: 14, color: tokens.muted, minHeight: 20, margin: 0 },
 })
 
 export default function EditorHeader({
