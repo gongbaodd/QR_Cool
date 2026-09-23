@@ -202,7 +202,6 @@ function EditorWorkspace() {
             content: editorDocument.content,
             settings: editorDocument.settings,
             onSettings: actions.patchSettings,
-            onNewSeed: () => actions.setSeed(freshSeed()),
           }}
           onAssemble={() => void request('assemble')}
           assembleBusy={editorDocument.busy === 'assemble'}
@@ -222,7 +221,6 @@ function EditorWorkspace() {
               content={editorDocument.content}
               settings={editorDocument.settings}
               onSettings={actions.patchSettings}
-              onNewSeed={() => actions.setSeed(freshSeed())}
               error={preparationError}
             />
           </ResponsiveEditorPanel>

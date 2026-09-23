@@ -125,19 +125,6 @@ const styles = stylex.create({
     color: tokens.muted,
     lineHeight: 1,
   },
-  seedRow: {
-    display: 'flex',
-    gap: 10,
-    alignItems: 'end',
-    marginTop: 12,
-    '@media (max-width: 600px)': {
-      flexDirection: 'column',
-      alignItems: 'stretch',
-    },
-  },
-  seedField: {
-    flex: 1,
-  },
 })
 
 function MiniPixelQrPreview({
@@ -270,12 +257,10 @@ export default function PatternSettings({
   content,
   settings,
   onSettings,
-  onNewSeed,
 }: {
   content: string
   settings: Settings
   onSettings: (patch: Partial<Settings>) => void
-  onNewSeed: () => void
 }) {
   const ecc = (settings.ecc ?? 'M') as 'L' | 'M' | 'Q' | 'H'
   const pixelStyle = (settings.pixelStyle ?? 'rounded') as 'square' | 'rounded' | 'dot'
@@ -357,24 +342,6 @@ export default function PatternSettings({
         </div>
       </fieldset>
 
-      <div {...stylex.props(styles.seedRow)}>
-        <label {...stylex.props(ui.label, styles.seedField)}>
-          Seed
-          <input
-            {...stylex.props(ui.field)}
-            type="number"
-            min={0}
-            max={4294967295}
-            value={settings.seed}
-            onChange={(e) =>
-              onSettings({ seed: Math.max(0, Math.min(4294967295, Math.round(Number(e.target.value)))) })
-            }
-          />
-        </label>
-        <button {...stylex.props(ui.button)} onClick={onNewSeed}>
-          New pattern
-        </button>
-      </div>
       <label {...stylex.props(ui.label, ui.detailsLabel)}>
         Rim
         <input

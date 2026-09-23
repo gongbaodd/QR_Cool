@@ -161,7 +161,6 @@ export default function PreviewPanel({
     content: string
     settings: Settings
     onSettings: (patch: Partial<Settings>) => void
-    onNewSeed: () => void
   }
   onAssemble: () => void
   assembleBusy: boolean

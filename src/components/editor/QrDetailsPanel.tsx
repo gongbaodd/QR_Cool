@@ -23,13 +23,11 @@ export default function QrDetailsPanel({
   content,
   settings,
   onSettings,
-  onNewSeed,
   error,
 }: {
   content: string
   settings: Settings
   onSettings: (patch: Partial<Settings>) => void
-  onNewSeed: () => void
   error?: string | null
 }) {
   return (
@@ -46,7 +44,7 @@ export default function QrDetailsPanel({
           </p>
         )}
       </div>
-      <PatternSettings content={content} settings={settings} onSettings={onSettings} onNewSeed={onNewSeed} />
+      <PatternSettings content={content} settings={settings} onSettings={onSettings} />
     </section>
   )
 }
