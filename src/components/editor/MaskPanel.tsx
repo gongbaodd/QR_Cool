@@ -20,7 +20,21 @@ const styles = stylex.create({
   status: { fontSize: 15, color: tokens.green, margin: 0 },
   fontGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
   search: { marginTop: 4 },
-  iconButton: { width: '100%' },
+  inputWrap: { position: 'relative', marginTop: 8 },
+  maskField: { marginTop: 0, paddingInlineEnd: 60 },
+  searchButton: {
+    position: 'absolute',
+    top: '50%',
+    right: 8,
+    display: 'grid',
+    placeItems: 'center',
+    width: 40,
+    height: 40,
+    paddingBlock: 0,
+    paddingInline: 0,
+    transform: 'translateY(-50%)',
+  },
+  searchIcon: { width: 22, height: 22, display: 'block' },
   blankGlyph: {
     display: 'block',
     width: 24,
@@ -64,8 +78,10 @@ export default function MaskPanel({
         )}
         <label {...stylex.props(ui.label)} htmlFor="maskSearch">
           Mask text or icon search
+        </label>
+        <div {...stylex.props(styles.inputWrap)}>
           <input
-            {...stylex.props(ui.field)}
+            {...stylex.props(ui.field, styles.maskField)}
             id="maskSearch"
             name="maskSearch"
             value={mask.text}
@@ -73,7 +89,29 @@ export default function MaskPanel({
             placeholder="Type a letter or search icons…"
             onChange={(event) => mask.setText(event.target.value)}
           />
-        </label>
+          <button
+            {...stylex.props(ui.button, styles.searchButton)}
+            type="button"
+            aria-haspopup="dialog"
+            aria-label={
+              search.loading
+                ? 'Searching icons'
+                : searchState === 'more'
+                  ? `Show more icons (${search.total || search.results.length})`
+                  : query
+                    ? `Search icons for “${query}”`
+                    : 'Search icons'
+            }
+            title={search.loading ? 'Searching icons' : 'Search icons'}
+            disabled={mask.busy || search.loading || searchState === 'idle'}
+            onClick={onSearch}
+          >
+            <svg {...stylex.props(styles.searchIcon)} viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path d="m16 16 5 5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
         <div {...stylex.props(styles.fontGrid)} role="radiogroup" aria-label="Mask font">
           {TEXT_MASK_FONTS.map((entry) => {
             const selected = !mask.selectedIconId && mask.fontId === entry.id
@@ -100,19 +138,6 @@ export default function MaskPanel({
           })}
         </div>
         <div {...stylex.props(styles.search)}>
-          <button
-            {...stylex.props(ui.button, ui.fontCard, styles.iconButton)}
-            type="button"
-            aria-haspopup="dialog"
-            disabled={mask.busy || search.loading || searchState === 'idle'}
-            onClick={onSearch}
-          >
-            {search.loading
-              ? 'Searching icons…'
-              : searchState === 'more'
-                ? `More icons (${search.total || search.results.length})`
-                : `Search icons for “${query}”`}
-          </button>
           {search.error && search.fetchedQuery === query && (
             <p {...stylex.props(ui.error)} role="alert">
               {search.error}
