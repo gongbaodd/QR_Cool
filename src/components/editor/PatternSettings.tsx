@@ -339,17 +339,6 @@ export default function PatternSettings({
           })}
         </div>
       </fieldset>
-
-      <label {...stylex.props(ui.label, ui.detailsLabel)}>
-        Rim
-        <input
-          {...stylex.props(ui.checkbox)}
-          type="checkbox"
-          checked={settings.rimModules !== 0}
-          onChange={(e) => onSettings({ rimModules: e.target.checked ? 1 : 0, rimRounded: false })}
-        />{' '}
-        Add Rim (1 module)
-      </label>
     </div>
   )
 }

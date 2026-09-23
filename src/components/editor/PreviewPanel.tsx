@@ -92,11 +92,17 @@ const styles = stylex.create({
   regionCaption: { margin: '10px 0 0', color: tokens.muted, textAlign: 'center' },
   fillToolbar: {
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
     alignSelf: 'stretch',
-    justifyContent: 'flex-start',
     gap: 10,
-    flexWrap: 'wrap',
+  },
+  fillActions: {
+    display: 'flex',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    justifyContent: 'space-between',
+    gap: 10,
   },
   note: {
     display: 'flex',
@@ -191,6 +197,7 @@ export default function PreviewPanel({
     return () => window.removeEventListener('keydown', onKey)
   }, [fillActive])
   const ready = externallyReady && !!dimensions && !!placement && !!posterUrl && current
+  const rimActive = pattern.settings.rimModules !== 0
   return (
     <section {...stylex.props(styles.panel)} aria-labelledby="preview-title" aria-busy={busy}>
       <div {...stylex.props(styles.heading)}>
@@ -239,17 +246,27 @@ export default function PreviewPanel({
         <>
           <div {...stylex.props(styles.regionPreview)}>
             <div {...stylex.props(styles.fillToolbar)}>
-              <button
-                {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
-                type="button"
-                aria-pressed={fillActive}
-                onClick={() => {
-                  setFillStatus(null)
-                  setFillActive((active) => !active)
-                }}
-              >
-                🪣 Fill region
-              </button>
+              <div {...stylex.props(styles.fillActions)}>
+                <button
+                  {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
+                  type="button"
+                  aria-pressed={fillActive}
+                  onClick={() => {
+                    setFillStatus(null)
+                    setFillActive((active) => !active)
+                  }}
+                >
+                  {fillActive ? '✓ Filling region' : '🪣 Fill region'}
+                </button>
+                <button
+                  {...stylex.props(ui.button, rimActive && ui.fontCardSelected)}
+                  type="button"
+                  aria-pressed={rimActive}
+                  onClick={() => pattern.onSettings({ rimModules: rimActive ? 0 : 1, rimRounded: false })}
+                >
+                  {rimActive ? '✓ Rim added' : '＋ Add Rim'}
+                </button>
+              </div>
               {fillActive && <span {...stylex.props(ui.hint)}>Click an enclosed area to fill it. Esc exits fill.</span>}
             </div>
             <RegionPreview
