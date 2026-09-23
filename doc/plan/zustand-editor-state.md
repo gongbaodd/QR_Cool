@@ -17,7 +17,7 @@ This plan supersedes the prohibition on a global state library in `reactive-edit
 - `AGENTS.md`, `README.md`, and `doc/plan/reactive-editor-layout.md`.
 - `src/lib/editor/state.ts`, `schema.ts`, and `text-mask.ts`.
 - `src/components/editor/Editor.tsx` and all four existing `hooks/use-*.ts` files.
-- `PreviewPanel.tsx`, `MaskPanel.tsx`, `QrDetailsPanel.tsx`, `EditorHeader.tsx`, and `ResponsiveEditorPanel.tsx`.
+- `PreviewPanel.tsx`, `MaskPanel.tsx`, `PatternSettings.tsx`, `EditorHeader.tsx`, and `ResponsiveEditorPanel.tsx`.
 - `src/lib/editor/worker/editor-worker-client.ts`, `editor-worker.ts`, and the revision/settle logic in `engine/engine.ts`.
 - `test/state.test.ts`, `test/engine.test.ts`, and `vitest.config.ts`.
 - The installed Next.js guide at `node_modules/next/dist/docs/01-app/01-getting-started/05-server-and-client-components.md` before writing code.
@@ -37,7 +37,7 @@ Prefer primitive/reference selectors; use `useShallow` when selecting an object 
 | `Editor.tsx`                        | poster and mask Files                                                                                                               | Zustand `sources` branch                                              |
 | `use-mask-selection.ts`             | origin, maskText, maskFontId, selectedIcon, maskBusy                                                                                | Zustand `maskSelection` branch                                        |
 | `use-icon-search.ts`                | results, total, loading, error, fetchedQuery, galleryMode                                                                           | Zustand `iconSearch` branch                                           |
-| `Editor.tsx`                        | maskOpen, detailsOpen                                                                                                               | Zustand `panels` branch                                               |
+| `Editor.tsx`                        | maskOpen, patternSettingsOpen                                                                                                      | Zustand `panels` branch                                               |
 | `Editor.tsx` and `use-blob-urls.ts` | poster/prepared/artifact object URLs                                                                                                | Existing UI resource hooks, outside the store                         |
 | Runtime hooks                       | timers, pending-operation tokens, signatures, waiters, abort controllers, worker proxy                                              | Hook refs/runtime handles, outside observable state                   |
 | Canvas and dialogs                  | decoded images, mask pixels, Konva/DOM refs, viewport, hover, showMask, marker dialog, media query state, focus, thumbnail failures | Existing component-local state/refs                                   |
@@ -148,7 +148,7 @@ Checkpoint: rapid edits cannot produce a file/revision mismatch or stale export;
 - [x] Wrap the workspace in `EditorStoreProvider` inside the editor client boundary. Remove `useReducer`, duplicate shared `useState`, `searchQueryRef`, and the old broad `edit/dispatch` prop wiring from `Editor.tsx`.
 - [x] Subscribe the header to draft/validation/status and commit actions; keep input focus refs local.
 - [x] Subscribe Mask selection and the gallery to their branches/selectors. Mount each controller once above their consumers, not once per panel or per breakpoint.
-- [x] Subscribe QR details and Pattern settings to committed content/settings and named actions. Keep generic controls presentational where useful; thin connected wrappers are acceptable.
+- [x] Subscribe Pattern settings to committed settings and named actions. Keep generic controls presentational where useful; thin connected wrappers are acceptable.
 - [x] Subscribe the preview to prepared/placement/result/readiness and panel state. Create object URLs at this boundary. Preserve lazy Canvas/ResultPanel/MarkerDialog/IconGallery loading and all existing StyleX markup.
 - [x] Keep panel trigger refs, native dialog focus behavior, canvas drag/hover/resize state, and marker-dialog state out of the store. Pass DOM refs and runtime callbacks as narrow props when needed; removing every prop is not the goal.
 - [x] Avoid a root `useEditorStore(s => s)` subscription or bundling every branch into one selector. Controller callbacks should be stable where practical. Use memoized section boundaries if parent controller updates would otherwise rerender unrelated panels; do not memoize every control indiscriminately.

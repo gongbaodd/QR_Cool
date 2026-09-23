@@ -254,11 +254,9 @@ function MiniPixelQrPreview({
 }
 
 export default function PatternSettings({
-  content,
   settings,
   onSettings,
 }: {
-  content: string
   settings: Settings
   onSettings: (patch: Partial<Settings>) => void
 }) {

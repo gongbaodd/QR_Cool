@@ -34,7 +34,7 @@ export interface IconSearchState {
 
 export interface PanelsState {
   maskOpen: boolean
-  detailsOpen: boolean
+  patternSettingsOpen: boolean
 }
 
 export interface EditorStoreState {
@@ -66,7 +66,7 @@ export interface EditorActions {
   failSearch: (query: string, message: string) => void
   closeGallery: () => void
   setMaskOpen: (open: boolean) => void
-  setDetailsOpen: (open: boolean) => void
+  setPatternSettingsOpen: (open: boolean) => void
   setResultView: (result: boolean) => void
   startEngine: (mode: 'prepare' | 'assemble', revision: number) => void
   acceptPrepared: (data: Prepared) => void
@@ -91,7 +91,7 @@ const initialIconSearch = (): IconSearchState => ({
   fetchedQuery: '',
   galleryMode: false,
 })
-const initialPanels = (): PanelsState => ({ maskOpen: false, detailsOpen: false })
+const initialPanels = (): PanelsState => ({ maskOpen: false, patternSettingsOpen: false })
 
 function editDocument(document: State, patch: Parameters<typeof reducer>[1] & { type: 'edit' }): State {
   return reducer(document, patch)
@@ -249,7 +249,8 @@ export function createEditorStore(): StoreApi<EditorStoreState> {
         })),
       closeGallery: () => set((current) => ({ iconSearch: { ...current.iconSearch, galleryMode: false } })),
       setMaskOpen: (maskOpen) => set((current) => ({ panels: { ...current.panels, maskOpen } })),
-      setDetailsOpen: (detailsOpen) => set((current) => ({ panels: { ...current.panels, detailsOpen } })),
+      setPatternSettingsOpen: (patternSettingsOpen) =>
+        set((current) => ({ panels: { ...current.panels, patternSettingsOpen } })),
       setResultView: (result) => set((current) => ({ document: reducer(current.document, { type: 'view', result }) })),
       startEngine: (mode, revision) =>
         set((current) => ({ document: reducer(current.document, { type: 'busy', mode, revision }) })),

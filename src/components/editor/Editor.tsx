@@ -20,7 +20,7 @@ import {
 import EditorHeader from './EditorHeader'
 import PreviewPanel from './PreviewPanel'
 import MaskPanel from './MaskPanel'
-import QrDetailsPanel from './QrDetailsPanel'
+import PatternSettings from './PatternSettings'
 import ResponsiveEditorPanel from './ResponsiveEditorPanel'
 import PreparationError from './PreparationError'
 import { useBlobUrls } from './hooks/use-blob-urls'
@@ -73,7 +73,7 @@ function EditorWorkspace() {
   const { request } = useEngineRequest()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const maskTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const detailsTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const patternSettingsTriggerRef = useRef<HTMLButtonElement | null>(null)
   const initialization = useRef(0)
 
   const previews = useBlobUrls(
@@ -95,7 +95,7 @@ function EditorWorkspace() {
   const visibleError = useEditorStore(selectVisibleContentError)
   const current = useEditorStore(selectCurrent)
   const maskOpen = useEditorStore((state) => state.panels.maskOpen)
-  const detailsOpen = useEditorStore((state) => state.panels.detailsOpen)
+  const patternSettingsOpen = useEditorStore((state) => state.panels.patternSettingsOpen)
   const busy = useEditorStore((state) => !!state.document.busy || state.maskSelection.busy || state.iconSearch.loading)
   const canAssemble = useEditorStore(selectCanAssemble)
 
@@ -193,13 +193,12 @@ function EditorWorkspace() {
           onMove={actions.movePlacement}
           onReturnToEditing={() => actions.setResultView(false)}
           onMaskOpen={() => actions.setMaskOpen(true)}
-          onDetailsOpen={() => actions.setDetailsOpen(true)}
+          onPatternSettingsOpen={() => actions.setPatternSettingsOpen(true)}
           maskOpen={maskOpen}
-          detailsOpen={detailsOpen}
+          patternSettingsOpen={patternSettingsOpen}
           maskTriggerRef={maskTriggerRef}
-          detailsTriggerRef={detailsTriggerRef}
+          patternSettingsTriggerRef={patternSettingsTriggerRef}
           pattern={{
-            content: editorDocument.content,
             settings: editorDocument.settings,
             onSettings: actions.patchSettings,
           }}
@@ -210,18 +209,16 @@ function EditorWorkspace() {
         />
         <div {...stylex.props(styles.side)}>
           <ResponsiveEditorPanel
-            id="qr-details-panel"
+            id="pattern-settings-panel"
             side="right"
-            title="QR details"
-            open={detailsOpen}
-            onOpenChange={actions.setDetailsOpen}
-            triggerRef={detailsTriggerRef}
+            title="Pattern settings"
+            open={patternSettingsOpen}
+            onOpenChange={actions.setPatternSettingsOpen}
+            triggerRef={patternSettingsTriggerRef}
           >
-            <QrDetailsPanel
-              content={editorDocument.content}
+            <PatternSettings
               settings={editorDocument.settings}
               onSettings={actions.patchSettings}
-              error={preparationError}
             />
           </ResponsiveEditorPanel>
         </div>

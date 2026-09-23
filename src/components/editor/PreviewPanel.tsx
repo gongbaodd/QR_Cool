@@ -124,11 +124,11 @@ export default function PreviewPanel({
   onMove,
   onReturnToEditing,
   onMaskOpen,
-  onDetailsOpen,
+  onPatternSettingsOpen,
   maskOpen,
-  detailsOpen,
+  patternSettingsOpen,
   maskTriggerRef,
-  detailsTriggerRef,
+  patternSettingsTriggerRef,
   pattern,
   onAssemble,
   assembleBusy,
@@ -152,13 +152,12 @@ export default function PreviewPanel({
   onMove: (box: Placement) => void
   onReturnToEditing: () => void
   onMaskOpen: () => void
-  onDetailsOpen: () => void
+  onPatternSettingsOpen: () => void
   maskOpen: boolean
-  detailsOpen: boolean
+  patternSettingsOpen: boolean
   maskTriggerRef: RefObject<HTMLButtonElement | null>
-  detailsTriggerRef: RefObject<HTMLButtonElement | null>
+  patternSettingsTriggerRef: RefObject<HTMLButtonElement | null>
   pattern: {
-    content: string
     settings: Settings
     onSettings: (patch: Partial<Settings>) => void
   }
@@ -190,14 +189,14 @@ export default function PreviewPanel({
             Mask
           </button>
           <button
-            ref={detailsTriggerRef}
+            ref={patternSettingsTriggerRef}
             {...stylex.props(ui.button)}
             type="button"
-            aria-controls="qr-details-panel"
-            aria-expanded={detailsOpen}
-            onClick={onDetailsOpen}
+            aria-controls="pattern-settings-panel"
+            aria-expanded={patternSettingsOpen}
+            onClick={onPatternSettingsOpen}
           >
-            QR details
+            Pattern settings
           </button>
         </div>
         {dimensions && (
