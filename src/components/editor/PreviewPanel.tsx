@@ -18,7 +18,6 @@ const MarkerDialog = dynamic(() => import('./MarkerDialog'))
 const styles = stylex.create({
   panel: { minWidth: 0, paddingBlock: 24, paddingInline: 24 },
   heading: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 },
-  title: { margin: '6px 0', fontSize: 26, fontWeight: 400, '@media (max-width: 900px)': { fontSize: 22 } },
   actions: { display: 'flex', gap: 8, flexWrap: 'wrap', '@media (min-width: 901px)': { display: 'none' } },
   badge: {
     whiteSpace: 'nowrap',
@@ -780,14 +779,8 @@ export default function PreviewPanel({
     </div>
   ) : null
   return (
-    <section {...stylex.props(styles.panel)} aria-labelledby="preview-title" aria-busy={busy}>
+    <section {...stylex.props(styles.panel)} aria-label="Poster preview" aria-busy={busy}>
       <div {...stylex.props(styles.heading)}>
-        <div>
-          <span {...stylex.props(ui.eyebrow)}>PREVIEW CANVAS</span>
-          <h2 id="preview-title" {...stylex.props(styles.title)}>
-            {showingResult ? 'Ready for the real world.' : 'Live poster preview'}
-          </h2>
-        </div>
         <div {...stylex.props(styles.actions)}>
           <button
             ref={maskTriggerRef}
