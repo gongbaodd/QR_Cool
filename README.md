@@ -49,7 +49,7 @@ Pattern settings provide pixel style (`square`, `rounded`, `dot` matching [qrcod
 
 ## Styling
 
-Component styles are authored in [StyleX](https://stylexjs.com). The browser receives compiled atomic styles for the editor; React-Toastify supplies its own notification styles and uses the editor palette.
+The hand-drawn visual style is derived from [Wired Elements](https://wiredjs.com/). The controls are app-specific React components styled in [StyleX](https://stylexjs.com), rather than imported Wired Elements components. The browser receives compiled atomic styles for the editor; React-Toastify supplies its own notification styles and uses the editor palette.
 
 - `src/styles/tokens.stylex.ts` is the single home for the palette, the hand-drawn border-radius/shadow set, and the type stack. `src/styles/ui.stylex.ts` holds the recipes shared by more than one surface (buttons, fields, hints, cards), and every component keeps its own layout styles next to its JSX.
 - `babel.config.json` compiles `stylex.create()`/`stylex.props()` calls and `postcss.config.mjs` replaces the `@stylex` directive in `src/app/globals.css` with the collected rules. Next.js 16.0.3 and later run both under Turbopack, so `pnpm dev`, `pnpm build`, and `pnpm start` are unchanged.
