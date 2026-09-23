@@ -12,7 +12,10 @@ const styles = stylex.create({
     minWidth: 0,
     color: tokens.ink,
     backgroundColor: tokens.paper,
-    border: 0,
+    border: 'none',
+    borderWidth: 0,
+    borderStyle: 'none',
+    outline: 'none',
     '@media (min-width: 901px)': {
       position: 'static',
       width: 'auto',
