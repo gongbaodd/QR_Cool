@@ -329,6 +329,7 @@ export async function assemblePayload(
     rimModules: flat.rimModules,
     rimRounded: flat.rimRounded,
     pixelStyle: flat.pixelStyle,
+    transparentBlank: input.transparentBlank ?? false,
   })
   if (!result.report.qualified)
     throw new QrPosterError(

@@ -15,6 +15,7 @@ export interface DraftState {
 export interface SourcesState {
   poster: File | null
   mask: File | null
+  transparentBlank: boolean
 }
 
 export interface MaskSelectionState {
@@ -57,7 +58,7 @@ export interface EditorActions {
   patchSettings: (patch: Partial<Settings>) => void
   setSeed: (seed: number) => void
   movePlacement: (placement: Placement) => void
-  initializeSources: (poster: File, mask: File, seed: number) => void
+  initializeSources: (poster: File, mask: File, seed: number, transparentBlank?: boolean) => void
   replaceMask: (mask: File) => void
   setMaskBusy: (busy: boolean) => void
   setMaskText: (text: string) => void
@@ -78,7 +79,7 @@ export interface EditorActions {
 }
 
 const initialDraft = (): DraftState => ({ content: '', error: null, blurred: false })
-const initialSources = (): SourcesState => ({ poster: null, mask: null })
+const initialSources = (): SourcesState => ({ poster: null, mask: null, transparentBlank: false })
 const initialMaskSelection = (): MaskSelectionState => ({
   origin: 'auto',
   text: 'A',
@@ -175,7 +176,7 @@ export function createEditorStore() {
                 }),
               }
             }),
-          initializeSources: (poster, mask, seed) =>
+          initializeSources: (poster, mask, seed, transparentBlank = false) =>
             set((current) => {
               if (current.sources.poster || current.sources.mask) return current
               let document = editDocument(current.document, {
@@ -190,7 +191,7 @@ export function createEditorStore() {
                   message: 'Each PNG must be 10 MiB or smaller.',
                   field: 'mask',
                 })
-              return { sources: { poster, mask }, document }
+              return { sources: { poster, mask, transparentBlank }, document }
             }),
           replaceMask: (mask) =>
             set((current) => {

@@ -51,6 +51,7 @@ export function useEngineRequest(): EditorRequest {
       try {
         const input: EngineInput = {
           posterBytes: await toTransferredBytes(sourcePoster),
+          transparentBlank: current.sources.transparentBlank,
           content: document.content,
           settings: document.settings,
         }
@@ -138,6 +139,7 @@ async function toTransferredBytes(file: File): Promise<Uint8Array> {
 function toAssembleInput(input: EngineInput, settings: Settings): AssembleInput {
   return {
     posterBytes: input.posterBytes,
+    transparentBlank: input.transparentBlank ?? false,
     ...(input.maskBytes ? { maskBytes: input.maskBytes } : {}),
     content: input.content,
     placement: input.placement as AssembleInput['placement'],

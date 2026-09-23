@@ -1,11 +1,37 @@
 /**
  * Pure-TS pixel operations shared by pixel-writing backends. The sharp backend keeps its
- * own native compositing so its bytes stay bit-identical; these helpers implement the same
- * document semantics for browser-style backends (exact integer arithmetic, no resampling
- * ambiguity beyond the documented nearest-neighbor tie rule).
+ * own native compositing for existing opaque paths so their bytes stay bit-identical. Shared
+ * pixel helpers cover operations that need identical semantics in both environments, including
+ * source-over into the transparent blank poster.
  */
 
 import type { RawImage } from './types'
+
+/** Source-over composites one unpremultiplied RGBA pixel into another in place. */
+export function compositePixelOver(
+  source: Uint8Array,
+  sourceOffset: number,
+  destination: Uint8Array,
+  destinationOffset: number,
+  sourceAlphaOverride?: number,
+): void {
+  const sourceAlpha = (sourceAlphaOverride ?? source[sourceOffset + 3]!) / 255
+  if (sourceAlpha === 0) return
+  const destinationAlpha = destination[destinationOffset + 3]! / 255
+  const outputAlpha = sourceAlpha + destinationAlpha * (1 - sourceAlpha)
+  if (outputAlpha === 0) {
+    destination.fill(0, destinationOffset, destinationOffset + 4)
+    return
+  }
+  for (let channel = 0; channel < 3; channel++) {
+    const sourceValue = source[sourceOffset + channel]!
+    const destinationValue = destination[destinationOffset + channel]!
+    destination[destinationOffset + channel] = Math.round(
+      (sourceValue * sourceAlpha + destinationValue * destinationAlpha * (1 - sourceAlpha)) / outputAlpha,
+    )
+  }
+  destination[destinationOffset + 3] = Math.round(outputAlpha * 255)
+}
 
 /** Flattens alpha over an opaque white background: `out = c*a/255 + 255*(1 - a/255)`, truncated. */
 export function flattenOverWhite(data: Uint8Array): Uint8Array {

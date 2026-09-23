@@ -199,6 +199,7 @@ function EditorWorkspace() {
           new File([posterBlob], BLANK_POSTER_FILENAME, { type: 'image/png' }),
           new File([maskBlob], BLANK_MASK_FILENAME, { type: 'image/png' }),
           freshSeed(),
+          true,
         )
       }, 'image/png')
     }, 'image/png')

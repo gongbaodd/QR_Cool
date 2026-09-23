@@ -26,6 +26,8 @@ export interface PatternRenderWindow {
 }
 
 export interface PatternRenderOptions {
+  /** Background behind rendered modules. Transparent is reserved for ink-only poster overlays. */
+  background?: 'white' | 'transparent'
   /** Light modules drawn around the matrix; matches the toolkit's default margin of 2. */
   marginModules?: number
   /** Visible sub-rectangle of the full code canvas, in code pixels. */
@@ -194,10 +196,13 @@ export async function renderPattern(
     return matrix[row]![column]!
   }
 
+  const backgroundMode = options.background ?? 'white'
   const background =
-    include === undefined
-      ? `<rect width="${codeSize}" height="${codeSize}" fill="#ffffff"/>`
-      : `<path fill="#ffffff" d="${includedCells(include, totalModules, modulePixels)}"/>`
+    backgroundMode === 'transparent'
+      ? ''
+      : include === undefined
+        ? `<rect width="${codeSize}" height="${codeSize}" fill="#ffffff"/>`
+        : `<path fill="#ffffff" d="${includedCells(include, totalModules, modulePixels)}"/>`
 
   let foreground = ''
   if (pixelStyle === 'square') {
@@ -282,7 +287,9 @@ export async function renderPattern(
     foreground +
     '</svg>'
 
-  const rendered = await imaging().renderSvgToPng(svg, { flatten: include === undefined })
+  const rendered = await imaging().renderSvgToPng(svg, {
+    flatten: backgroundMode === 'white' && include === undefined,
+  })
   if (rendered.width !== window.width || rendered.height !== window.height) {
     throw new QrPosterError(
       'IMAGE_PROCESSING_FAILED',

@@ -15,13 +15,25 @@ const styles = stylex.create({
     boxShadow: tokens.shadowLg,
   },
   poster: {
+    display: 'block',
     maxWidth: '100%',
     maxHeight: 650,
     objectFit: 'contain',
+    borderRadius: 10,
+  },
+  posterFrame: {
+    display: 'inline-block',
+    maxWidth: '100%',
     borderWidth: 2,
     borderStyle: 'solid',
     borderColor: tokens.ink,
     borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    backgroundImage:
+      'linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%), linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%)',
+    backgroundPosition: '0 0, 8px 8px',
+    backgroundSize: '16px 16px',
   },
   actions: {
     display: 'flex',
@@ -61,7 +73,9 @@ export default function ResultPanel({
 }) {
   return (
     <div {...stylex.props(styles.result)}>
-      <img {...stylex.props(styles.poster)} src={artifacts['poster.png']} alt="Assembled artistic QR poster" />
+      <div {...stylex.props(styles.posterFrame)}>
+        <img {...stylex.props(styles.poster)} src={artifacts['poster.png']} alt="Assembled artistic QR poster" />
+      </div>
       <div {...stylex.props(styles.actions)}>
         <a {...stylex.props(ui.primary)} href={artifacts['poster.png']} download="poster.png">
           Download poster.png

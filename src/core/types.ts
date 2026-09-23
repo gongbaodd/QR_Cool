@@ -100,6 +100,7 @@ export interface VerificationCheck {
     | 'qrPlateCorners'
     | 'moduleCut'
     | 'alphaPreserved'
+    | 'transparentBackground'
   passed: boolean
   decodedText?: string
   decoder?: 'zxing' | 'jsqr'

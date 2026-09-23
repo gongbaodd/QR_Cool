@@ -30,6 +30,7 @@ import {
 } from './pattern'
 import type { PixelStyle } from './pattern'
 import { buildCutSvg } from './pattern-cut'
+import { compositePixelOver } from './imaging/pixels'
 import { transparentQrBackground, verifyQrVariant } from './qr'
 import type { AssembleReport, BoundingBox, QrPlacement, ResolvedLayout, VerificationCheck } from './types'
 
@@ -71,6 +72,7 @@ export async function assembleResolved(
     rimModules?: number
     rimRounded?: boolean
     pixelStyle?: PixelStyle
+    transparentBlank?: boolean
   },
 ) {
   if ((layout.placement.rotation ?? 0) !== 0) return assembleRotated(layout, options)
@@ -81,9 +83,8 @@ export async function assembleResolved(
  * The 0° golden path, byte-for-byte the former `assembleResolved` body: the generator's
  * marker-free matrix is sampled against the painted region on the placed QR's own lattice,
  * only modules that sit entirely inside the region are drawn, and the QR plate is cut out
- * as a hole on that same lattice. Pixels outside the region, pixels in modules the region
- * only partly covers, and the whole alpha channel are preserved, so nothing is ever punched
- * transparent and no drawn edge crosses a module.
+ * as a hole on that same lattice. Uploaded posters keep their source alpha. The generated
+ * transparent blank mode writes ink and the QR plate onto a transparent canvas.
  */
 async function assembleUpright(
   layout: ResolvedLayout,
@@ -94,6 +95,7 @@ async function assembleUpright(
     rimModules?: number
     rimRounded?: boolean
     pixelStyle?: PixelStyle
+    transparentBlank?: boolean
   },
 ) {
   const startedAt = Date.now()
@@ -112,6 +114,7 @@ async function assembleUpright(
   const radius = options.radius ?? 2 * pitch
   const rimModulesCount = options.rimModules ?? DEFAULT_RIM_MODULES
   const rimRounded = options.rimRounded ?? false
+  const transparentBlank = options.transparentBlank ?? false
   if (!Number.isInteger(rimModulesCount) || rimModulesCount < 0 || rimModulesCount > 5)
     throw new QrPosterError('INVALID_INPUT', 'rimModules must be an integer between 0 and 5.')
   // The plate copies the normalized QR verbatim at its placement position, but keeps a light band
@@ -217,6 +220,15 @@ async function assembleUpright(
     const alpha = coverage[index]!
     if (alpha === 0) continue
     const offset = index * 4
+    if (transparentBlank) {
+      const textureAlpha = Math.round((render.data[offset + 3]! * alpha) / 255)
+      if (textureAlpha === 0) continue
+      cutLayer[offset] = render.data[offset]!
+      cutLayer[offset + 1] = render.data[offset + 1]!
+      cutLayer[offset + 2] = render.data[offset + 2]!
+      cutLayer[offset + 3] = textureAlpha
+      continue
+    }
     if (alpha === 255 || !rimRounded) {
       cutLayer[offset] = render.data[offset]!
       cutLayer[offset + 1] = render.data[offset + 1]!
@@ -253,6 +265,11 @@ async function assembleUpright(
       }
       const alpha = coverage[index]!
       if (alpha === 0) continue
+      if (transparentBlank) {
+        const textureAlpha = Math.round((render.data[offset + 3]! * alpha) / 255)
+        if (textureAlpha > 0) compositePixelOver(render.data, offset, output, offset, textureAlpha)
+        continue
+      }
       if (alpha === 255 || !rimRounded) {
         for (let channel = 0; channel < 3; channel++) output[offset + channel] = render.data[offset + channel]!
       } else {
@@ -271,6 +288,7 @@ async function assembleUpright(
   let plateCornersPassed = true
   let moduleCutPassed = true
   let alphaPassed = true
+  let transparentBackgroundPassed = true
   let cornerTexturePixels = 0
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
@@ -289,20 +307,33 @@ async function assembleUpright(
         if (value !== poster.data[offset + channel]!) changed = true
         if (!regionMask.data[index] && value !== poster.data[offset + channel]!) outsidePassed = false
         if (isPlate && value !== qrRaw[plateSource + channel]!) qrPassed = false
-        if (isCorner && value !== render.data[offset + channel]!) plateCornersPassed = false
+        if (isCorner) {
+          const expected =
+            transparentBlank && channel === 3
+              ? Math.round((render.data[offset + 3]! * coverage[index]!) / 255)
+              : render.data[offset + channel]!
+          if (value !== expected) plateCornersPassed = false
+        }
       }
       // Square rim: whole modules or nothing. Rounded rim: antialiased coverage may change pixels
       // where coverage is partial, so allow any pixel with coverage >0.
       const allowed = rimRounded ? hasCoverage || isPlate : isDrawn || isPlate
       if (changed && !allowed) moduleCutPassed = false
       if (output[offset + 3] !== poster.data[offset + 3]!) alphaPassed = false
+      if (transparentBlank) {
+        const expectedAlpha = isPlate
+          ? qrRaw[plateSource + 3]!
+          : Math.round((render.data[offset + 3]! * coverage[index]!) / 255)
+        if (poster.data[offset + 3] !== 0 || output[offset + 3] !== expectedAlpha)
+          transparentBackgroundPassed = false
+      }
     }
   }
 
   const assembled = await rgbaToPng(output, width, height)
 
   // The quiet zone is trimmed to one module, so the assembled poster is deliberately not
-  // decode-verified; only the QR input, the geometry, and the untouched alpha channel are checked.
+  // decode-verified; only the QR input, geometry, and the applicable alpha contract are checked.
   // phoneScan stays untested.
   const checks: VerificationCheck[] = [
     {
@@ -317,7 +348,9 @@ async function assembleUpright(
     { name: 'qrPixels', passed: qrPassed },
     { name: 'qrPlateCorners', passed: plateCornersPassed },
     { name: 'moduleCut', passed: moduleCutPassed },
-    { name: 'alphaPreserved', passed: alphaPassed },
+    ...(transparentBlank
+      ? [{ name: 'transparentBackground' as const, passed: transparentBackgroundPassed }]
+      : [{ name: 'alphaPreserved' as const, passed: alphaPassed }]),
   ]
   const qualified = checks.every((check) => check.passed)
 
@@ -491,6 +524,7 @@ async function assembleRotated(
     rimModules?: number
     rimRounded?: boolean
     pixelStyle?: PixelStyle
+    transparentBlank?: boolean
   },
 ) {
   const startedAt = Date.now()
@@ -518,6 +552,7 @@ async function assembleRotated(
   const radius = options.radius ?? 2 * pitch
   const rimModulesCount = options.rimModules ?? DEFAULT_RIM_MODULES
   const rimRounded = options.rimRounded ?? false
+  const transparentBlank = options.transparentBlank ?? false
   if (!Number.isInteger(rimModulesCount) || rimModulesCount < 0 || rimModulesCount > 5)
     throw new QrPosterError('INVALID_INPUT', 'rimModules must be an integer between 0 and 5.')
   const codeGrid: BoundingBox = {
@@ -619,6 +654,15 @@ async function assembleRotated(
     const alpha = coverage[index]!
     if (alpha === 0) continue
     const offset = index * 4
+    if (transparentBlank) {
+      const textureAlpha = Math.round((render.data[offset + 3]! * alpha) / 255)
+      if (textureAlpha === 0) continue
+      cutLayer[offset] = render.data[offset]!
+      cutLayer[offset + 1] = render.data[offset + 1]!
+      cutLayer[offset + 2] = render.data[offset + 2]!
+      cutLayer[offset + 3] = textureAlpha
+      continue
+    }
     if (alpha === 255 || !rimRounded) {
       cutLayer[offset] = render.data[offset]!
       cutLayer[offset + 1] = render.data[offset + 1]!
@@ -657,7 +701,11 @@ async function assembleRotated(
       const alpha = coverage[index]!
       if (alpha === 0) continue
       for (let channel = 0; channel < 3; channel++) overlay[offset + channel] = render.data[offset + channel]!
-      overlay[offset + 3] = alpha === 255 || !rimRounded ? 255 : alpha
+      overlay[offset + 3] = transparentBlank
+        ? Math.round((render.data[offset + 3]! * alpha) / 255)
+        : alpha === 255 || !rimRounded
+          ? 255
+          : alpha
     }
   }
 
@@ -669,6 +717,7 @@ async function assembleRotated(
   let plateCornersPassed = true
   let moduleCutPassed = true
   let alphaPassed = true
+  let transparentBackgroundPassed = true
   let cornerTexturePixels = 0
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
@@ -696,6 +745,10 @@ async function assembleRotated(
             if (value !== poster.data[offset + channel]!) changed = true
             output[offset + channel] = value
           }
+        } else if (srcA > 0 && transparentBlank) {
+          compositePixelOver(overlay, overlayOffset!, output, offset)
+          for (let channel = 0; channel < 4; channel++)
+            if (output[offset + channel] !== poster.data[offset + channel]) changed = true
         } else if (srcA > 0) {
           for (let channel = 0; channel < 3; channel++) {
             const dst = output[offset + channel]!
@@ -719,6 +772,11 @@ async function assembleRotated(
       const allowed = rimRounded ? srcA > 0 || isPlate : isDrawn || isPlate
       if (changed && !allowed) moduleCutPassed = false
       if (output[offset + 3] !== poster.data[offset + 3]!) alphaPassed = false
+      if (transparentBlank) {
+        const expectedAlpha = regionMask.data[index] && inFrame ? overlay[overlayOffset! + 3]! : 0
+        if (poster.data[offset + 3] !== 0 || output[offset + 3] !== expectedAlpha)
+          transparentBackgroundPassed = false
+      }
       if (isCorner) cornerTexturePixels++
     }
   }
@@ -726,7 +784,7 @@ async function assembleRotated(
   const assembled = await rgbaToPng(output, width, height)
 
   // The quiet zone is trimmed to one module, so the assembled poster is deliberately not
-  // decode-verified; only the QR input, the geometry, and the untouched alpha channel are checked.
+  // decode-verified; only the QR input, geometry, and the applicable alpha contract are checked.
   // phoneScan stays untested.
   const checks: VerificationCheck[] = [
     {
@@ -741,7 +799,9 @@ async function assembleRotated(
     { name: 'qrPixels', passed: qrPassed },
     { name: 'qrPlateCorners', passed: plateCornersPassed },
     { name: 'moduleCut', passed: moduleCutPassed },
-    { name: 'alphaPreserved', passed: alphaPassed },
+    ...(transparentBlank
+      ? [{ name: 'transparentBackground' as const, passed: transparentBackgroundPassed }]
+      : [{ name: 'alphaPreserved' as const, passed: alphaPassed }]),
   ]
   const qualified = checks.every((check) => check.passed)
 

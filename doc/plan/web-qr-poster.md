@@ -125,10 +125,12 @@ Return structured errors `{ code, message, field?, revision }`: 400 for malforme
 3. Generate the seeded marker-free texture and phase-lock it to the QR lattice, with the existing extra-module crop headroom.
 4. Draw only complete modules entirely inside the region and canvas, in the chosen pixel style. Force the outer 0–5 safe-module rings dark (rounded rim is antialiased); the plate does not seed this rim. Rounded keeps the blended wedge geometry from `qrcode.antfu.me`.
 5. Cut the current module plate and overlay the exact normalized QR pixels belonging to it, keeping the existing finder-only band of one module and corner behavior.
-6. Preserve pixels outside the region, partially covered modules, and the original alpha channel. Reject layouts with no remaining texture.
+6. Preserve pixels outside the region, partially covered modules, and uploaded-poster alpha. The built-in transparent blank canvas keeps transparent pixels outside ink and the opaque QR plate. Reject layouts with no remaining texture.
 7. Run all existing mandatory schema-8 checks. Keep `poster`, `posterHalfScale`, and `posterJpeg80` in skipped checks and `phoneScan: untested`; do not present the artistic result as scan-certified. Show a concise result note: “Artistic margins can affect scanning. Test the downloaded poster with your phone.”
 
 The live QR preview and downloadable `qr.png` are transparent for light/background pixels, so the checkerboard makes their transparency visible. The assembly plate continues to use the opaque normalized QR; transparency in the standalone QR artifact must not change the downloaded poster or its pixel-verification contract.
+
+The built-in Blank canvas starts transparent. In blank-canvas exports, mask-selected texture modules use the same white background as the marker's light areas; unpainted canvas remains transparent. The QR plate keeps its opaque light pixels. The result preview shows exported transparency over a checkerboard. Uploaded posters keep their original pixel and alpha behavior.
 
 The full normalized QR square is the placement constraint; the smaller module plate is the actual compositing footprint. Keep that distinction in engine tests and do not enlarge the plate to the preview bounding box.
 

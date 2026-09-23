@@ -18,6 +18,7 @@ export interface EngineError {
 /** Engine input: source bytes plus the current editor revision. */
 export interface EngineInput {
   posterBytes: Uint8Array
+  transparentBlank?: boolean
   content: string
   maskBytes?: Uint8Array
   placement?: Placement
