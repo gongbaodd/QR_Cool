@@ -46,22 +46,17 @@ export default function MaskPanel({
   const query = mask.text.trim()
   const searchState = searchControlState(query, search.fetchedQuery, search.results.length)
   return (
-    <section {...stylex.props(styles.panel)} aria-labelledby="mask-panel-title">
+    <section {...stylex.props(styles.panel)} aria-label="Mask selection">
       <div {...stylex.props(styles.card)}>
         <span {...stylex.props(ui.eyebrow)}>MASK SELECTION</span>
-        <h2 id="mask-panel-title" {...stylex.props(ui.sectionHeading)}>
-          Mask selection
-        </h2>
-        <p {...stylex.props(styles.status)} role="status">
-          {mask.isFollowingInput
-            ? `Following input · ${mask.isBlank ? 'blank' : mask.effectiveMask}`
-            : `Custom mask · ${mask.isIconMode ? 'icon' : mask.isBlank ? 'blank' : mask.effectiveMask}`}
-        </p>
-        <p {...stylex.props(ui.hint)}>
-          {mask.isFollowingInput
-            ? 'Generate a new value to update this mask automatically.'
-            : 'This mask stays fixed while the QR content changes.'}
-        </p>
+        {!mask.isFollowingInput && (
+          <>
+            <p {...stylex.props(styles.status)} role="status">
+              {`Custom mask · ${mask.isIconMode ? 'icon' : mask.isBlank ? 'blank' : mask.effectiveMask}`}
+            </p>
+            <p {...stylex.props(ui.hint)}>This mask stays fixed while the QR content changes.</p>
+          </>
+        )}
         {!mask.isFollowingInput && (
           <button {...stylex.props(ui.button, ui.textButton)} type="button" onClick={mask.followInput}>
             Follow input
