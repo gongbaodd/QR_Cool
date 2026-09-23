@@ -703,6 +703,34 @@ export default function PreviewPanel({
     !!posterUrl &&
     !!previews['qr.png'] &&
     (!regionOnly || busy || placementInvalid)
+  const fillToolbar = editingPreview ? (
+    <div {...stylex.props(styles.fillToolbar)}>
+      <div {...stylex.props(styles.fillActions)}>
+        <button
+          {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
+          type="button"
+          aria-pressed={fillActive}
+          disabled={!sourceMaskReady || fillPending || busy}
+          onClick={() => {
+            setFillStatus(null)
+            setFillActive((active) => !active)
+          }}
+        >
+          {fillActive ? '✓ Filling region' : '🪣 Fill region'}
+        </button>
+        <button
+          {...stylex.props(ui.button, rimActive && ui.fontCardSelected)}
+          type="button"
+          aria-pressed={rimActive}
+          onClick={() => pattern.onSettings({ rimModules: rimActive ? 0 : 1, rimRounded: false })}
+        >
+          {rimActive ? '✓ Rim added' : '＋ Add Rim'}
+        </button>
+      </div>
+      {fillActive && <span {...stylex.props(ui.hint)}>Click an enclosed area to fill it. Esc exits fill.</span>}
+      {fillStatus && <p {...stylex.props(ui.hint, ui.status)} role="status">{fillStatus}</p>}
+    </div>
+  ) : null
   return (
     <section {...stylex.props(styles.panel)} aria-labelledby="preview-title" aria-busy={busy}>
       <div {...stylex.props(styles.heading)}>
@@ -745,34 +773,6 @@ export default function PreviewPanel({
           Updating preview…
         </p>
       )}
-      {editingPreview && (
-        <div {...stylex.props(styles.fillToolbar)}>
-          <div {...stylex.props(styles.fillActions)}>
-            <button
-              {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
-              type="button"
-              aria-pressed={fillActive}
-              disabled={!sourceMaskReady || fillPending || busy}
-              onClick={() => {
-                setFillStatus(null)
-                setFillActive((active) => !active)
-              }}
-            >
-              {fillActive ? '✓ Filling region' : '🪣 Fill region'}
-            </button>
-            <button
-              {...stylex.props(ui.button, rimActive && ui.fontCardSelected)}
-              type="button"
-              aria-pressed={rimActive}
-              onClick={() => pattern.onSettings({ rimModules: rimActive ? 0 : 1, rimRounded: false })}
-            >
-              {rimActive ? '✓ Rim added' : '＋ Add Rim'}
-            </button>
-          </div>
-          {fillActive && <span {...stylex.props(ui.hint)}>Click an enclosed area to fill it. Esc exits fill.</span>}
-          {fillStatus && <p {...stylex.props(ui.hint, ui.status)} role="status">{fillStatus}</p>}
-        </div>
-      )}
       {showingResult && result ? (
         <ResultPanel result={result} artifacts={artifacts} onReturnToEditing={onReturnToEditing} />
       ) : keepPlacementCanvas ? (
@@ -793,6 +793,7 @@ export default function PreviewPanel({
             fillReady={sourceMaskReady && !fillPending && !busy}
             onFillAt={fillAt}
           />
+          {fillToolbar}
           <div {...stylex.props(styles.exportControls)}>
             <button
               {...stylex.props(ui.button, ui.primary)}
@@ -818,6 +819,7 @@ export default function PreviewPanel({
               fillReady={sourceMaskReady && !fillPending && !busy}
               onFillAt={fillAt}
             />
+            {fillToolbar}
           </div>
           <p {...stylex.props(styles.regionCaption)}>
             Selected region · {error ? 'the QR code does not fit inside this region.' : regionOnly ? 'enter text or a URL to add a QR code.' : 'updating the QR preview…'}
