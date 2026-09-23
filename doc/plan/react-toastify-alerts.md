@@ -8,14 +8,14 @@ Show editor errors and action feedback in React-Toastify notifications outside t
 
 ## Current layout changes
 
-| Source | Current presentation | Planned presentation |
-| --- | --- | --- |
-| Content validation | `EditorHeader.tsx` replaces the header status with an inline alert; `Editor.tsx` can add the same draft error below the whole editor | One content-error toast, with `aria-invalid` and a stable field description |
-| Preparation, assembly, and placement | `PreviewPanel.tsx` adds an alert below the preview; `Editor.tsx` also adds `PreparationError` with Retry | One document-error toast; worker failures offer the matching Retry action, while invalid placement stays editable and blocks assembly |
-| Icon search | `MaskPanel.tsx` inserts an alert into the panel | One icon-search toast tied to the active query |
-| Region fill | `PreviewPanel.tsx` inserts fill success, open-area warning, save progress, and failure text above the preview | Toasts for outcomes and failures; a single progress toast may be updated to success or error |
-| Preview refresh | `PreviewPanel.tsx` inserts an “Updating preview…” banner above the toolbar | Keep progress on existing busy controls and `aria-busy`; remove the inserted banner |
-| Fill instructions | Toggling Fill region inserts an instruction line above the canvas | Keep the instruction in a toolbar slot with a fixed height, or in control help that does not change the preview position |
+| Source                               | Current presentation                                                                                                                 | Planned presentation                                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Content validation                   | `EditorHeader.tsx` replaces the header status with an inline alert; `Editor.tsx` can add the same draft error below the whole editor | One content-error toast, with `aria-invalid` and a stable field description                                                           |
+| Preparation, assembly, and placement | `PreviewPanel.tsx` adds an alert below the preview; `Editor.tsx` also adds `PreparationError` with Retry                             | One document-error toast; worker failures offer the matching Retry action, while invalid placement stays editable and blocks assembly |
+| Icon search                          | `MaskPanel.tsx` inserts an alert into the panel                                                                                      | One icon-search toast tied to the active query                                                                                        |
+| Region fill                          | `PreviewPanel.tsx` inserts fill success, open-area warning, save progress, and failure text above the preview                        | Toasts for outcomes and failures; a single progress toast may be updated to success or error                                          |
+| Preview refresh                      | `PreviewPanel.tsx` inserts an “Updating preview…” banner above the toolbar                                                           | Keep progress on existing busy controls and `aria-busy`; remove the inserted banner                                                   |
+| Fill instructions                    | Toggling Fill region inserts an instruction line above the canvas                                                                    | Keep the instruction in a toolbar slot with a fixed height, or in control help that does not change the preview position              |
 
 Static labels, selected-mask descriptions, and persistent scanning guidance remain part of their controls and panels. They convey context rather than event alerts.
 

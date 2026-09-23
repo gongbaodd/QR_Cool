@@ -5,12 +5,7 @@ import { buildManualRegionMask, detectRegionMask } from '@/core/mask'
 import { createEditorEngine, type EngineOutcome } from '@/lib/editor/engine'
 import { nodeImaging } from '@/core/imaging/node'
 import { MAX_IMAGE_BYTES, MAX_PIXELS } from '@/lib/editor/schema'
-import {
-  BLANK_POSTER_HEIGHT,
-  BLANK_POSTER_WIDTH,
-  buildBlankMaskRgba,
-  buildBlankPosterRgba,
-} from '@/lib/editor/blank'
+import { BLANK_POSTER_HEIGHT, BLANK_POSTER_WIDTH, buildBlankMaskRgba, buildBlankPosterRgba } from '@/lib/editor/blank'
 
 const settings = { seed: 7, qrMargin: 1 as const, plateCorners: 'texture' as const }
 

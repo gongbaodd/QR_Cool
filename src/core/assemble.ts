@@ -11,7 +11,13 @@ import {
   moduleCellIndex,
   renderModuleCoverage,
 } from './module-cut'
-import { posterToPlatePoint, qrWorkingFrame, regionPixelBounds, sampleMaskIntoQrFrame, assertFrameHoldsPlacement } from './rotate'
+import {
+  posterToPlatePoint,
+  qrWorkingFrame,
+  regionPixelBounds,
+  sampleMaskIntoQrFrame,
+  assertFrameHoldsPlacement,
+} from './rotate'
 import type { QrFrame } from './rotate'
 import {
   PATTERN_ALPHABET,

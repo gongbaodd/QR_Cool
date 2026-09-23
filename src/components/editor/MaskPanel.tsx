@@ -72,12 +72,7 @@ export default function MaskPanel({
         <div {...stylex.props(styles.cardTop)}>
           <span {...stylex.props(ui.eyebrow)}>MASK SELECTION</span>
           {isDialog && (
-            <button
-              ref={closeButtonRef}
-              {...stylex.props(ui.button, ui.textButton)}
-              type="button"
-              onClick={onClose}
-            >
+            <button ref={closeButtonRef} {...stylex.props(ui.button, ui.textButton)} type="button" onClick={onClose}>
               Close
             </button>
           )}

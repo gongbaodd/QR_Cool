@@ -81,12 +81,12 @@ Render hit targets inside the existing QR `Group`, after the QR image and before
 
 There are normally four targets:
 
-| ID | Kind | Size | Opens |
-| --- | --- | --- | --- |
-| `tl` | finder | 7×7 modules | Finder settings |
-| `tr` | finder | 7×7 modules | Finder settings |
-| `bl` | finder | 7×7 modules | Finder settings |
-| `br` | sub | 5×5 modules | Sub-marker settings |
+| ID   | Kind   | Size        | Opens               |
+| ---- | ------ | ----------- | ------------------- |
+| `tl` | finder | 7×7 modules | Finder settings     |
+| `tr` | finder | 7×7 modules | Finder settings     |
+| `bl` | finder | 7×7 modules | Finder settings     |
+| `br` | sub    | 5×5 modules | Sub-marker settings |
 
 Version 1 has no alignment marker, so omit `br` there.
 
@@ -293,14 +293,14 @@ Only update its hint, for example:
 
 ## 8. File changes
 
-| File | Change |
-| --- | --- |
-| `src/components/editor/Canvas.tsx` | Inline marker geometry; render Konva hit `Rect`s; hover state; call `onMarkerClick(kind)`. |
-| `src/components/editor/MarkerDialog.tsx` | **New and only new component.** Native dialog reused for finder/sub settings. |
-| `src/components/editor/PreviewPanel.tsx` | Own `markerDialog` state; wire Canvas → MarkerDialog; pass existing settings callbacks. |
-| `src/components/editor/PatternSettings.tsx` | Remove marker controls; keep ECC / pixel / seed / rim. |
-| `src/components/editor/steps/StepAdjust.tsx` | Update hint only. |
-| schema / reducer / worker / engine / `qr.ts` | **No change.** |
+| File                                         | Change                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `src/components/editor/Canvas.tsx`           | Inline marker geometry; render Konva hit `Rect`s; hover state; call `onMarkerClick(kind)`. |
+| `src/components/editor/MarkerDialog.tsx`     | **New and only new component.** Native dialog reused for finder/sub settings.              |
+| `src/components/editor/PreviewPanel.tsx`     | Own `markerDialog` state; wire Canvas → MarkerDialog; pass existing settings callbacks.    |
+| `src/components/editor/PatternSettings.tsx`  | Remove marker controls; keep ECC / pixel / seed / rim.                                     |
+| `src/components/editor/steps/StepAdjust.tsx` | Update hint only.                                                                          |
+| schema / reducer / worker / engine / `qr.ts` | **No change.**                                                                             |
 
 No new third-party package should be added to `package.json`.
 

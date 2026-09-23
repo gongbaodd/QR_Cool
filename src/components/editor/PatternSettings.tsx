@@ -287,12 +287,7 @@ export default function PatternSettings({
       <div {...stylex.props(styles.panelTop)}>
         <h2 {...stylex.props(styles.heading)}>Pattern settings</h2>
         {isDialog && (
-          <button
-            ref={closeButtonRef}
-            {...stylex.props(ui.button, ui.textButton)}
-            type="button"
-            onClick={onClose}
-          >
+          <button ref={closeButtonRef} {...stylex.props(ui.button, ui.textButton)} type="button" onClick={onClose}>
             Close
           </button>
         )}
@@ -332,11 +327,7 @@ export default function PatternSettings({
 
       <fieldset {...stylex.props(styles.eccFieldset)}>
         <legend {...stylex.props(styles.eccLegend)}>Pixel style</legend>
-        <div
-          {...stylex.props(styles.pixelGrid)}
-          role="radiogroup"
-          aria-label="Pixel style"
-        >
+        <div {...stylex.props(styles.pixelGrid)} role="radiogroup" aria-label="Pixel style">
           {PIXEL_OPTIONS.map((opt) => {
             const selected = pixelStyle === opt.value
             return (

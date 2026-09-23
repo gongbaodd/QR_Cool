@@ -37,12 +37,7 @@ export function boxIsInsideMask(mask: RegionMask, x: number, y: number, size: nu
 function validateManualPlacement(mask: RegionMask, totalModules: number, box: QrBoxInput): QrPlacement {
   const { x, y, size } = box
   const rotation = canonicalizeRotation(box.rotation)
-  if (
-    ![x, y, size].every(Number.isInteger) ||
-    x < 0 ||
-    y < 0 ||
-    size <= 0
-  )
+  if (![x, y, size].every(Number.isInteger) || x < 0 || y < 0 || size <= 0)
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
       'QR position must contain non-negative integer x,y coordinates and a positive integer size.',

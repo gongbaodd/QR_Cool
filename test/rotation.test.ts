@@ -322,7 +322,12 @@ describe('regionPixelBounds', () => {
 
 describe('rotated working frame contains the inverse-mapped region', () => {
   /** Every selected poster pixel centre must map to a working pixel inside the frame. */
-  function assertRegionFitsFrame(mask: Uint8Array, width: number, height: number, placement: Parameters<typeof qrWorkingFrame>[0]) {
+  function assertRegionFitsFrame(
+    mask: Uint8Array,
+    width: number,
+    height: number,
+    placement: Parameters<typeof qrWorkingFrame>[0],
+  ) {
     const bounds = regionPixelBounds({ data: mask, width, height })
     const frame = qrWorkingFrame(placement, bounds)
     for (let y = bounds.y0; y < bounds.y1; y++) {
@@ -544,7 +549,11 @@ describe('engine rotation end to end', () => {
     }
     for (let y = 40; y < 331; y++) for (let x = 40; x < 361; x++) select(x, y)
     for (let y = 331; y < 361; y++) for (let x = 40; x < 100; x++) select(x, y)
-    const maskBytes = new Uint8Array(await sharp(maskRgba, { raw: { width: posterWidth, height: posterHeight, channels: 4 } }).png().toBuffer())
+    const maskBytes = new Uint8Array(
+      await sharp(maskRgba, { raw: { width: posterWidth, height: posterHeight, channels: 4 } })
+        .png()
+        .toBuffer(),
+    )
 
     const session = await makeEngine()
     const prepared = assertOk(await session.prepare({ posterBytes: white, maskBytes, content }, 1))
@@ -562,7 +571,9 @@ describe('engine rotation end to end', () => {
       if (sizeFactor <= 0.2) throw new Error('no rotated placement fits the tapered fixture region')
     }
 
-    const result = assertOk(await session.assemble({ posterBytes: white, maskBytes, content, placement, ...settings }, 3))
+    const result = assertOk(
+      await session.assemble({ posterBytes: white, maskBytes, content, placement, ...settings }, 3),
+    )
     expect(result.report.placement.rotation).toBe(30)
     expect(result.report.qualified).toBe(true)
     expect(result.report.schemaVersion).toBe(8)
@@ -579,8 +590,11 @@ describe('engine rotation end to end', () => {
     const bounds = regionPixelBounds({ data: regionMask.data, width: posterWidth, height: posterHeight })
     expect(bounds).toEqual({ x0: 40, y0: 40, x1: 361, y1: 361 })
 
-    const expectedQrRaw = (await nodeImaging.decodePng(new Uint8Array(await result.artifacts['qr.png']!.arrayBuffer()))).data
-    const assembledData = (await nodeImaging.decodePng(new Uint8Array(await result.artifacts['poster.png']!.arrayBuffer()))).data
+    const expectedQrRaw = (await nodeImaging.decodePng(new Uint8Array(await result.artifacts['qr.png']!.arrayBuffer())))
+      .data
+    const assembledData = (
+      await nodeImaging.decodePng(new Uint8Array(await result.artifacts['poster.png']!.arrayBuffer()))
+    ).data
     const originalData = poster.data
 
     // Expected plate rectangles in plate-local coordinates (the placement box IS the plate

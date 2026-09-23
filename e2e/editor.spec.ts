@@ -396,7 +396,10 @@ test('marker dialogs open from the canvas and expose marker options', async ({ p
     string,
     { id: string; x: number; y: number; size: number }
   >[]
-  await tapMarker(page, rects.find((rect) => rect.id === 'tl')!)
+  await tapMarker(
+    page,
+    rects.find((rect) => rect.id === 'tl')!,
+  )
   const finderDialog = page.getByRole('dialog', { name: 'Finder marker' })
   await expect(finderDialog).toBeVisible()
   // the same accessible radiogroups now live inside the dialog
@@ -407,7 +410,10 @@ test('marker dialogs open from the canvas and expose marker options', async ({ p
   await page.getByRole('button', { name: 'Close marker settings' }).click()
   await expect(finderDialog).not.toBeVisible()
   // The bottom-right alignment marker opens the sub marker dialog.
-  await tapMarker(page, rects.find((rect) => rect.id === 'br')!)
+  await tapMarker(
+    page,
+    rects.find((rect) => rect.id === 'br')!,
+  )
   const subDialog = page.getByRole('dialog', { name: 'Sub marker' })
   await expect(subDialog).toBeVisible()
   const subMarker = page.getByRole('radiogroup', { name: 'Sub marker' })

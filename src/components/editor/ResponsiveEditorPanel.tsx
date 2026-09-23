@@ -63,9 +63,9 @@ export default function ResponsiveEditorPanel({
   children:
     | React.ReactNode
     | ((controls: {
-      close: () => void
-      closeButtonRef: React.RefObject<HTMLButtonElement | null>
-      isDialog: boolean
+        close: () => void
+        closeButtonRef: React.RefObject<HTMLButtonElement | null>
+        isDialog: boolean
       }) => React.ReactNode)
 }) {
   const dialogRef = useRef<HTMLDialogElement | null>(null)
@@ -127,11 +127,13 @@ export default function ResponsiveEditorPanel({
       }}
     >
       {hasCustomHeader ? (
-        (children as (controls: {
-          close: () => void
-          closeButtonRef: React.RefObject<HTMLButtonElement | null>
-          isDialog: boolean
-        }) => React.ReactNode)({ close, closeButtonRef, isDialog: mobile })
+        (
+          children as (controls: {
+            close: () => void
+            closeButtonRef: React.RefObject<HTMLButtonElement | null>
+            isDialog: boolean
+          }) => React.ReactNode
+        )({ close, closeButtonRef, isDialog: mobile })
       ) : (
         <>
           <div {...stylex.props(styles.close)}>

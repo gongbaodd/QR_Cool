@@ -184,17 +184,17 @@ region's bounds.
 1.  Compute the tight integer AABB of set pixels in the original region
     mask:
 
-``` ts
+```ts
 regionBounds = { x0, y0, x1, y1 } // x1/y1 exclusive
 ```
 
 2.  Map the four corners of that AABB through `posterToPlatePoint` and
     take their integer AABB in plate-local coordinates:
 
-``` ts
-left   = Math.floor(minPlateX)
-top    = Math.floor(minPlateY)
-right  = Math.ceil(maxPlateX)
+```ts
+left = Math.floor(minPlateX)
+top = Math.floor(minPlateY)
+right = Math.ceil(maxPlateX)
 bottom = Math.ceil(maxPlateY)
 ```
 
@@ -203,21 +203,21 @@ bottom = Math.ceil(maxPlateY)
     add arbitrary visual padding. The frame must cover every
     inverse-mapped region sample that can qualify for fill.
 
-``` ts
-width  = right - left
+```ts
+width = right - left
 height = bottom - top
 ```
 
 Working pixel `(wx, wy)` is plate-local `(wx + left, wy + top)`. The
 upright QR box in working space is:
 
-``` ts
+```ts
 { x: -left, y: -top, size: placement.size }
 ```
 
 Keep the coordinate spaces explicit:
 
-``` text
+```text
 QR-local square
       ↓
 working-frame coordinates

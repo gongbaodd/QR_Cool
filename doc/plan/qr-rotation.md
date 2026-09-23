@@ -27,12 +27,12 @@ flowchart LR
 
 ### Why
 
-| Option | Verdict | Why |
-| --- | --- | --- |
-| Rotate QR modules / finder geometry individually | **Reject** | Makes the QR engine understand rotation and requires special finder-origin and lattice logic. |
-| Restrict engine to quarter turns | **Reject** | Unnecessary product limitation; QR rotation itself is not restricted to 90°. |
-| Rotate an already encoded PNG repeatedly | **Reject** | Adds unnecessary decode/resample/encode passes and can accumulate raster degradation. |
-| **Generate one upright plate, then rotate/composite it once** | **Adopt** | Keeps QR generation unchanged, isolates rotation to placement/rendering, supports arbitrary angles, and minimizes special-case code. |
+| Option                                                        | Verdict    | Why                                                                                                                                  |
+| ------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Rotate QR modules / finder geometry individually              | **Reject** | Makes the QR engine understand rotation and requires special finder-origin and lattice logic.                                        |
+| Restrict engine to quarter turns                              | **Reject** | Unnecessary product limitation; QR rotation itself is not restricted to 90°.                                                         |
+| Rotate an already encoded PNG repeatedly                      | **Reject** | Adds unnecessary decode/resample/encode passes and can accumulate raster degradation.                                                |
+| **Generate one upright plate, then rotate/composite it once** | **Adopt**  | Keeps QR generation unchanged, isolates rotation to placement/rendering, supports arbitrary angles, and minimizes special-case code. |
 
 Rotation is therefore a property of **placement**, not QR generation or pattern settings.
 
@@ -119,10 +119,7 @@ A snap policy (45°, 15°, 90°, …) is out of scope and must not be encoded in
 Do not encode UI snap choices into the schema. There is no snap in this change.
 
 ```ts
-export const rotationSchema = z
-  .number()
-  .finite()
-  .default(0)
+export const rotationSchema = z.number().finite().default(0)
 
 export const placementSchema = z
   .object({
@@ -233,9 +230,7 @@ export interface Point {
   y: number
 }
 
-export function rotatedSquareCorners(
-  placement: Placement,
-): readonly [Point, Point, Point, Point]
+export function rotatedSquareCorners(placement: Placement): readonly [Point, Point, Point, Point]
 ```
 
 Implementation concept:
@@ -425,11 +420,7 @@ If the project already has a tested image-transform primitive that supports near
 Prefer one pure inverse-transform helper:
 
 ```ts
-export function posterToPlatePoint(
-  posterX: number,
-  posterY: number,
-  placement: Placement,
-): Point
+export function posterToPlatePoint(posterX: number, posterY: number, placement: Placement): Point
 ```
 
 Assembly can iterate the rotated plate's AABB, inverse-map each destination pixel into plate coordinates, and copy a nearest source pixel when the local point lies inside `[0, size) × [0, size)`.
@@ -472,21 +463,21 @@ Decode-verifying the final QR can remain out of scope unless the project already
 
 ## 10. Tests
 
-| Area | Cases |
-| --- | --- |
-| `canonicalizeRotation` | omitted → 0; `-45` → 315; `360` → 0; `405` → 45; `12.5` stays `12.5`; arbitrary finite angles preserved modulo 360. Do **not** round to 45°. |
-| `canonicalPlacement` | preserves arbitrary rotation (including non-multiples of 45°) while snapping x/y/size. |
-| rotated corners | 0°, ~30°, 45°, 90° known fixtures; centre remains fixed. 45° is a geometry stress case (largest AABB), not a UI snap. |
-| footprint / inverse transform | inside/outside samples around 0°, 45°, 90° boundaries. |
-| `fitsMask` | rotated square accepted when fully inside; rejected when a rotated corner/edge crosses the mask; irregular-mask regression. |
-| auto-place | emits `rotation: 0`. |
-| `applyPlacement` | recenter/QR module-count changes preserve rotation. |
-| Canvas commit | drag/resize preserve rotation; rotation commit stores the live angle, not a snapped multiple. |
-| Assembly 0° | remains bit-identical to the current golden path. |
-| Assembly non-zero (e.g. 30° and 45°) | qualified; only transformed footprint changes; nearest-neighbour mapping matches helper. |
-| Assembly 90° | qualified and consistent with the generic rotation path; no special quarter-turn implementation required. |
-| Cache | rotation-only prepare does not re-decode/regenerate QR source. |
-| Report | emitted placement contains canonical rotation. |
+| Area                                 | Cases                                                                                                                                        |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canonicalizeRotation`               | omitted → 0; `-45` → 315; `360` → 0; `405` → 45; `12.5` stays `12.5`; arbitrary finite angles preserved modulo 360. Do **not** round to 45°. |
+| `canonicalPlacement`                 | preserves arbitrary rotation (including non-multiples of 45°) while snapping x/y/size.                                                       |
+| rotated corners                      | 0°, ~30°, 45°, 90° known fixtures; centre remains fixed. 45° is a geometry stress case (largest AABB), not a UI snap.                        |
+| footprint / inverse transform        | inside/outside samples around 0°, 45°, 90° boundaries.                                                                                       |
+| `fitsMask`                           | rotated square accepted when fully inside; rejected when a rotated corner/edge crosses the mask; irregular-mask regression.                  |
+| auto-place                           | emits `rotation: 0`.                                                                                                                         |
+| `applyPlacement`                     | recenter/QR module-count changes preserve rotation.                                                                                          |
+| Canvas commit                        | drag/resize preserve rotation; rotation commit stores the live angle, not a snapped multiple.                                                |
+| Assembly 0°                          | remains bit-identical to the current golden path.                                                                                            |
+| Assembly non-zero (e.g. 30° and 45°) | qualified; only transformed footprint changes; nearest-neighbour mapping matches helper.                                                     |
+| Assembly 90°                         | qualified and consistent with the generic rotation path; no special quarter-turn implementation required.                                    |
+| Cache                                | rotation-only prepare does not re-decode/regenerate QR source.                                                                               |
+| Report                               | emitted placement contains canonical rotation.                                                                                               |
 
 Do not add Playwright/e2e in this change unless requested by `AGENTS.md` / maintainer policy.
 

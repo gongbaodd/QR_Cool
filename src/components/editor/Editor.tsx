@@ -4,11 +4,7 @@ import { useEffect, useRef } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { toast, ToastContainer } from 'react-toastify'
 import EditorStoreProvider, { useEditorStore, useEditorStoreApi } from './EditorStoreProvider'
-import {
-  selectCanAssemble,
-  selectCurrent,
-  selectVisibleContentError,
-} from '@/lib/editor/selectors'
+import { selectCanAssemble, selectCurrent, selectVisibleContentError } from '@/lib/editor/selectors'
 import {
   BLANK_MASK_FILENAME,
   BLANK_POSTER_FILENAME,
@@ -108,7 +104,12 @@ function EditorWorkspace() {
       toast.dismiss('editor-content-error')
       return
     }
-    const options = { toastId: 'editor-content-error', autoClose: false, role: 'alert' as const, ariaLabel: 'Content validation error' }
+    const options = {
+      toastId: 'editor-content-error',
+      autoClose: false,
+      role: 'alert' as const,
+      ariaLabel: 'Content validation error',
+    }
     if (toast.isActive('editor-content-error')) {
       toast.update('editor-content-error', { render: visibleError, type: 'error', ...options })
     } else {
@@ -128,17 +129,18 @@ function EditorWorkspace() {
       <div>
         <span>{message}</span>
         {canRetry && retryMode && (
-          <button
-            type="button"
-            {...stylex.props(ui.button, ui.textButton)}
-            onClick={() => void request(retryMode)}
-          >
+          <button type="button" {...stylex.props(ui.button, ui.textButton)} onClick={() => void request(retryMode)}>
             Retry {retryMode === 'prepare' ? 'preparation' : 'assembly'}
           </button>
         )}
       </div>
     )
-    const options = { toastId: 'editor-document-error', autoClose: false, role: 'alert' as const, ariaLabel: 'Preview error' }
+    const options = {
+      toastId: 'editor-document-error',
+      autoClose: false,
+      role: 'alert' as const,
+      ariaLabel: 'Preview error',
+    }
     if (toast.isActive('editor-document-error')) {
       toast.update('editor-document-error', { render: content, type: 'error', ...options })
     } else {
@@ -155,8 +157,17 @@ function EditorWorkspace() {
       toast.dismiss('editor-icon-search-error')
       return
     }
-    const content = <span>{message} Search: “{iconFetchedQuery}”.</span>
-    const options = { toastId: 'editor-icon-search-error', autoClose: false, role: 'alert' as const, ariaLabel: `Icon search failed for ${iconFetchedQuery}` }
+    const content = (
+      <span>
+        {message} Search: “{iconFetchedQuery}”.
+      </span>
+    )
+    const options = {
+      toastId: 'editor-icon-search-error',
+      autoClose: false,
+      role: 'alert' as const,
+      ariaLabel: `Icon search failed for ${iconFetchedQuery}`,
+    }
     if (toast.isActive('editor-icon-search-error')) {
       toast.update('editor-icon-search-error', { render: content, type: 'error', ...options })
     } else {
@@ -285,9 +296,7 @@ function EditorWorkspace() {
           error={preparationError}
           current={current}
           onMove={actions.movePlacement}
-          onMaskFillCommit={(mask) =>
-            actions.replaceMask(new File([mask], TEXT_MASK_FILENAME, { type: 'image/png' }))
-          }
+          onMaskFillCommit={(mask) => actions.replaceMask(new File([mask], TEXT_MASK_FILENAME, { type: 'image/png' }))}
           onReturnToEditing={() => actions.setResultView(false)}
           onMaskOpen={() => actions.setMaskOpen(true)}
           onPatternSettingsOpen={() => actions.setPatternSettingsOpen(true)}

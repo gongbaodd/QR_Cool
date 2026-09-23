@@ -112,33 +112,73 @@ const styles = stylex.create({
     backgroundSize: '16px 16px',
   },
   area: {
-    overflow: 'auto', maxHeight: 820, touchAction: 'pan-x pan-y', backgroundColor: '#fff', borderWidth: 2.5, borderStyle: 'solid',
-    borderColor: tokens.ink, borderRadius: tokens.sketchCard, boxShadow: tokens.shadowLg,
+    overflow: 'auto',
+    maxHeight: 820,
+    touchAction: 'pan-x pan-y',
+    backgroundColor: '#fff',
+    borderWidth: 2.5,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketchCard,
+    boxShadow: tokens.shadowLg,
     '@media (max-width: 700px)': { maxHeight: 560 },
   },
   tools: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, padding: 12,
-    position: 'sticky', top: 0, zIndex: 1, width: '100%', boxSizing: 'border-box', fontSize: 15, backgroundColor: tokens.highlightSoft, borderBottomWidth: 2,
-    borderBottomStyle: 'solid', borderBottomColor: tokens.ink,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 12,
+    padding: 12,
+    position: 'sticky',
+    top: 0,
+    zIndex: 1,
+    width: '100%',
+    boxSizing: 'border-box',
+    fontSize: 15,
+    backgroundColor: tokens.highlightSoft,
+    borderBottomWidth: 2,
+    borderBottomStyle: 'solid',
+    borderBottomColor: tokens.ink,
     '@media (max-width: 700px)': { gap: 8 },
   },
   scroll: {
-    padding: 18, backgroundColor: tokens.paper,
+    padding: 18,
+    backgroundColor: tokens.paper,
     ':focus-visible': {
-      outlineWidth: 3, outlineStyle: 'dashed', outlineColor: tokens.green, outlineOffset: 3, borderRadius: 6,
+      outlineWidth: 3,
+      outlineStyle: 'dashed',
+      outlineColor: tokens.green,
+      outlineOffset: 3,
+      borderRadius: 6,
     },
   },
   stageFrame: {
-    width: 'fit-content', marginInline: 'auto', borderWidth: 2, borderStyle: 'solid',
-    borderColor: tokens.ink, boxShadow: '0 8px 28px #163c2820', backgroundColor: '#fff',
+    width: 'fit-content',
+    marginInline: 'auto',
+    borderWidth: 2,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    boxShadow: '0 8px 28px #163c2820',
+    backgroundColor: '#fff',
     backgroundImage:
       'linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%), linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%)',
-    backgroundPosition: '0 0, 8px 8px', backgroundSize: '16px 16px',
+    backgroundPosition: '0 0, 8px 8px',
+    backgroundSize: '16px 16px',
   },
   footer: {
-    display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', paddingBlock: 12,
-    paddingInline: 14, fontSize: 14, color: tokens.muted, backgroundColor: tokens.card,
-    borderTopWidth: 2, borderTopStyle: 'solid', borderTopColor: tokens.ink,
+    display: 'flex',
+    gap: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBlock: 12,
+    paddingInline: 14,
+    fontSize: 14,
+    color: tokens.muted,
+    backgroundColor: tokens.card,
+    borderTopWidth: 2,
+    borderTopStyle: 'solid',
+    borderTopColor: tokens.ink,
     '@media (max-width: 1000px)': { flexWrap: 'wrap' },
   },
   nudges: { display: 'flex', gap: 8 },
@@ -213,7 +253,9 @@ function SourceRegionPreview({
     const overlay = context.createImageData(width, height)
     for (let pixel = 0; pixel < width * height; pixel++) {
       const offset = pixel * 4
-      const brightness = Math.round((299 * pixels[offset]! + 587 * pixels[offset + 1]! + 114 * pixels[offset + 2]!) / 1000)
+      const brightness = Math.round(
+        (299 * pixels[offset]! + 587 * pixels[offset + 1]! + 114 * pixels[offset + 2]!) / 1000,
+      )
       if (pixels[offset + 3]! < 128 || brightness < 128) continue
       overlay.data[offset] = 75
       overlay.data[offset + 1] = 224
@@ -232,7 +274,11 @@ function SourceRegionPreview({
       ref={canvasRef}
       {...stylex.props(styles.previewCanvas)}
       role="img"
-      aria-label={fillActive ? 'Poster with selected region highlighted; click an enclosed area to fill it' : 'Poster with selected region highlighted'}
+      aria-label={
+        fillActive
+          ? 'Poster with selected region highlighted; click an enclosed area to fill it'
+          : 'Poster with selected region highlighted'
+      }
       style={fillActive && fillReady ? { cursor: 'crosshair' } : undefined}
       onClick={(event) => {
         if (!fillActive || !fillReady || !canvasRef.current) return
@@ -349,7 +395,9 @@ function PosterCanvas({
         { id: 'tl', kind: 'finder', x: q * pitch, y: q * pitch, size: 7 * pitch },
         { id: 'tr', kind: 'finder', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
         { id: 'bl', kind: 'finder', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
-        ...(version >= 2 ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch } as const] : []),
+        ...(version >= 2
+          ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch } as const]
+          : []),
       ]
     : []
   useEffect(() => {
@@ -361,7 +409,9 @@ function PosterCanvas({
       { id: 'tl', kind: 'finder', x: q * pitch, y: q * pitch, size: 7 * pitch },
       { id: 'tr', kind: 'finder', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
       { id: 'bl', kind: 'finder', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
-      ...(Math.floor((modules - 21) / 4) >= 2 ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch }] : []),
+      ...(Math.floor((modules - 21) / 4) >= 2
+        ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch }]
+        : []),
     ].map((hit) => ({
       id: hit.id,
       kind: hit.kind,
@@ -377,9 +427,19 @@ function PosterCanvas({
   function liveBox(): PlacementInput {
     const current = node.current!
     const size = current.width() * current.scaleX()
-    return { x: current.x() - size / 2, y: current.y() - size / 2, size, rotation: canonicalizeRotation(current.rotation()) }
+    return {
+      x: current.x() - size / 2,
+      y: current.y() - size / 2,
+      size,
+      rotation: canonicalizeRotation(current.rotation()),
+    }
   }
-  if (!konva) return <div {...stylex.props(styles.loading)} role="status">Loading poster canvas…</div>
+  if (!konva)
+    return (
+      <div {...stylex.props(styles.loading)} role="status">
+        Loading poster canvas…
+      </div>
+    )
   const { Group, Stage, Layer, Image: CanvasImage, Rect, Transformer } = konva
   return (
     <div {...stylex.props(styles.area)} ref={wrapper}>
@@ -392,7 +452,12 @@ function PosterCanvas({
         aria-label="Poster canvas. Arrow keys move the QR; Shift moves ten pixels."
         onKeyDown={(event) => {
           const delta = event.shiftKey ? 10 : 1
-          const steps: Record<string, number[]> = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] }
+          const steps: Record<string, number[]> = {
+            ArrowLeft: [-delta, 0],
+            ArrowRight: [delta, 0],
+            ArrowUp: [0, -delta],
+            ArrowDown: [0, delta],
+          }
           const step = steps[event.key]
           if (step) {
             event.preventDefault()
@@ -436,10 +501,28 @@ function PosterCanvas({
                 dragDistance={1}
                 onDragStart={() => setHoverMarker(null)}
                 onDragMove={(event) => {
-                  const box = canonicalPlacement({ ...placement, x: event.target.x() - placement.size / 2, y: event.target.y() - placement.size / 2 }, modules)
+                  const box = canonicalPlacement(
+                    {
+                      ...placement,
+                      x: event.target.x() - placement.size / 2,
+                      y: event.target.y() - placement.size / 2,
+                    },
+                    modules,
+                  )
                   border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? '#dd3748' : '#087f67')
                 }}
-                onDragEnd={(event) => onChange(canonicalPlacement({ ...placement, x: event.target.x() - placement.size / 2, y: event.target.y() - placement.size / 2 }, modules))}
+                onDragEnd={(event) =>
+                  onChange(
+                    canonicalPlacement(
+                      {
+                        ...placement,
+                        x: event.target.x() - placement.size / 2,
+                        y: event.target.y() - placement.size / 2,
+                      },
+                      modules,
+                    ),
+                  )
+                }
                 onTransform={() => {
                   const box = canonicalPlacement(liveBox(), modules)
                   border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? '#dd3748' : '#087f67')
@@ -459,7 +542,15 @@ function PosterCanvas({
                 }}
               >
                 <Rect width={placement.size} height={placement.size} fill="transparent" />
-                <CanvasImage image={qrImage} x={margin} y={margin} width={displaySize} height={displaySize} crop={{ x: margin, y: margin, width: displaySize, height: displaySize }} imageSmoothingEnabled={false} />
+                <CanvasImage
+                  image={qrImage}
+                  x={margin}
+                  y={margin}
+                  width={displaySize}
+                  height={displaySize}
+                  crop={{ x: margin, y: margin, width: displaySize, height: displaySize }}
+                  imageSmoothingEnabled={false}
+                />
                 {markerHits.map((hit) => {
                   const hovered = hoverMarker === hit.id
                   return (
@@ -489,7 +580,14 @@ function PosterCanvas({
                     />
                   )
                 })}
-                <Rect ref={border} width={placement.size} height={placement.size} stroke={invalid ? '#dd3748' : '#087f67'} strokeWidth={2 / scale} listening={false} />
+                <Rect
+                  ref={border}
+                  width={placement.size}
+                  height={placement.size}
+                  stroke={invalid ? '#dd3748' : '#087f67'}
+                  strokeWidth={2 / scale}
+                  listening={false}
+                />
               </Group>
               <Transformer
                 ref={transformer}
@@ -513,12 +611,30 @@ function PosterCanvas({
         </div>
       </div>
       <div {...stylex.props(styles.footer)}>
-        <span>{fillActive ? 'Click the poster outside the QR to fill an enclosed area.' : 'Drag, resize, or rotate the QR.'}</span>
+        <span>
+          {fillActive ? 'Click the poster outside the QR to fill an enclosed area.' : 'Drag, resize, or rotate the QR.'}
+        </span>
         <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
-          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>←</button>
-          <button {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)} aria-label="Move up" onClick={() => nudge(0, -1)}>↑</button>
-          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move down" onClick={() => nudge(0, 1)}>↓</button>
-          <button {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)} aria-label="Move right" onClick={() => nudge(1, 0)}>→</button>
+          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>
+            ←
+          </button>
+          <button
+            {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)}
+            aria-label="Move up"
+            onClick={() => nudge(0, -1)}
+          >
+            ↑
+          </button>
+          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move down" onClick={() => nudge(0, 1)}>
+            ↓
+          </button>
+          <button
+            {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)}
+            aria-label="Move right"
+            onClick={() => nudge(1, 0)}
+          >
+            →
+          </button>
         </div>
       </div>
     </div>
@@ -667,7 +783,11 @@ export default function PreviewPanel({
     posterImage.src = posterUrl
     return () => {
       live = false
-      if (fillPendingRef.current || fillNotificationKind.current === 'error' || fillNotificationKind.current === 'warning') {
+      if (
+        fillPendingRef.current ||
+        fillNotificationKind.current === 'error' ||
+        fillNotificationKind.current === 'warning'
+      ) {
         toast.dismiss('editor-region-fill')
         fillNotificationKind.current = null
       }
@@ -765,11 +885,7 @@ export default function PreviewPanel({
   const rimActive = pattern.settings.rimModules !== 0
   const regionToolsVisible = !showingResult && !!posterUrl && !!sourceMaskUrl
   const keepPlacementCanvas =
-    !!dimensions &&
-    !!placement &&
-    !!posterUrl &&
-    !!previews['qr.png'] &&
-    (!regionOnly || busy || placementInvalid)
+    !!dimensions && !!placement && !!posterUrl && !!previews['qr.png'] && (!regionOnly || busy || placementInvalid)
   const fillToolbar = regionToolsVisible ? (
     <div {...stylex.props(styles.fillToolbar)}>
       <button
@@ -855,7 +971,9 @@ export default function PreviewPanel({
               {assembleBusy ? 'Assembling…' : 'Assemble poster'}
             </button>
             <span {...stylex.props(ui.hint)}>
-              {current ? 'Export is optional; editing stays reactive.' : 'Preview updating; placement remains editable.'}
+              {current
+                ? 'Export is optional; editing stays reactive.'
+                : 'Preview updating; placement remains editable.'}
             </span>
           </div>
         </div>
@@ -875,7 +993,12 @@ export default function PreviewPanel({
             </div>
           </div>
           <p {...stylex.props(styles.regionCaption)}>
-            Selected region · {error ? 'the QR code does not fit inside this region.' : regionOnly ? 'enter text or a URL to add a QR code.' : 'updating the QR preview…'}
+            Selected region ·{' '}
+            {error
+              ? 'the QR code does not fit inside this region.'
+              : regionOnly
+                ? 'enter text or a URL to add a QR code.'
+                : 'updating the QR preview…'}
           </p>
         </>
       ) : (

@@ -107,7 +107,11 @@ export function validatePlacement({
   const corners = settings.plateCorners === 'texture'
   // Generation is upright, so rotated placements keep the 0° plate semantics: code grid plus
   // finder arms, with the corner hand-back applied in the QR's frame instead of being skipped.
-  const plate = computePlateModules(lattice, [grid, ...arms, ...(corners ? [] : cornerBlocks)], corners ? cornerBlocks : [])
+  const plate = computePlateModules(
+    lattice,
+    [grid, ...arms, ...(corners ? [] : cornerBlocks)],
+    corners ? cornerBlocks : [],
+  )
   if (!safe.safe.some((cell, i) => cell && !rim[i] && !plate.cells[i]))
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',

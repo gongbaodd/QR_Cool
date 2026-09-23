@@ -561,9 +561,7 @@ export async function transparentQrBackground(png: Uint8Array): Promise<Uint8Arr
   const image = await imaging().decodePng(png)
   const pixels = Uint8Array.from(image.data)
   for (let offset = 0; offset < pixels.length; offset += 4) {
-    const luminance = Math.round(
-      (299 * pixels[offset]! + 587 * pixels[offset + 1]! + 114 * pixels[offset + 2]!) / 1000,
-    )
+    const luminance = Math.round((299 * pixels[offset]! + 587 * pixels[offset + 1]! + 114 * pixels[offset + 2]!) / 1000)
     pixels[offset] = 0
     pixels[offset + 1] = 0
     pixels[offset + 2] = 0

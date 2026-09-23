@@ -121,8 +121,14 @@ export default function EditorHeader({
         <button {...stylex.props(ui.button, ui.primary, styles.submit)} type="submit" disabled={busy}>
           {busy ? 'Applying…' : 'Generate'}
         </button>
-        <p id="content-hint" {...stylex.props(styles.status)} role="status">{status}</p>
-        {contentError && <span id="content-error" {...stylex.props(styles.srOnly)}>{contentError}</span>}
+        <p id="content-hint" {...stylex.props(styles.status)} role="status">
+          {status}
+        </p>
+        {contentError && (
+          <span id="content-error" {...stylex.props(styles.srOnly)}>
+            {contentError}
+          </span>
+        )}
         <div {...stylex.props(styles.examples)}>
           {QR_EXAMPLES.map((example) => (
             <button

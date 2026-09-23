@@ -58,11 +58,7 @@ export function placementInverse(box: RotatableBox): PlacementInverse {
 }
 
 /** Fast {@link plateToPosterPoint} over a precomputed {@link PlacementInverse}. */
-export function forwardMap(
-  inv: PlacementInverse,
-  localX: number,
-  localY: number,
-): { x: number; y: number } {
+export function forwardMap(inv: PlacementInverse, localX: number, localY: number): { x: number; y: number } {
   const dx = localX - inv.size / 2
   const dy = localY - inv.size / 2
   return {
@@ -72,11 +68,7 @@ export function forwardMap(
 }
 
 /** Fast {@link posterToPlatePoint} over a precomputed {@link PlacementInverse}. */
-export function inverseMap(
-  inv: PlacementInverse,
-  posterX: number,
-  posterY: number,
-): { x: number; y: number } {
+export function inverseMap(inv: PlacementInverse, posterX: number, posterY: number): { x: number; y: number } {
   const dx = posterX - inv.centerX
   const dy = posterY - inv.centerY
   return {
@@ -90,11 +82,7 @@ export function inverseMap(
  * poster coordinates: the same centre and angle the Konva preview uses, so
  * preview, validation, and assembly cannot disagree about the footprint.
  */
-export function plateToPosterPoint(
-  localX: number,
-  localY: number,
-  box: RotatableBox,
-): { x: number; y: number } {
+export function plateToPosterPoint(localX: number, localY: number, box: RotatableBox): { x: number; y: number } {
   return forwardMap(placementInverse(box), localX, localY)
 }
 
@@ -103,21 +91,14 @@ export function plateToPosterPoint(
  * into plate-local coordinates. Assembly and mask containment iterate
  * destination pixels and use this to find the source pixel they read.
  */
-export function posterToPlatePoint(
-  posterX: number,
-  posterY: number,
-  box: RotatableBox,
-): { x: number; y: number } {
+export function posterToPlatePoint(posterX: number, posterY: number, box: RotatableBox): { x: number; y: number } {
   return inverseMap(placementInverse(box), posterX, posterY)
 }
 
 /** The four corners of the rotated plate square, in consistent clockwise order. */
-export function rotatedSquareCorners(box: RotatableBox): readonly [
-  { x: number; y: number },
-  { x: number; y: number },
-  { x: number; y: number },
-  { x: number; y: number },
-] {
+export function rotatedSquareCorners(
+  box: RotatableBox,
+): readonly [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }, { x: number; y: number }] {
   return [
     plateToPosterPoint(0, 0, box),
     plateToPosterPoint(box.size, 0, box),
@@ -251,11 +232,7 @@ export function regionPixelBounds(mask: { data: Uint8Array; width: number; heigh
  * Nearest-neighbour sampling maps a poster pixel centre here and copies the
  * source pixel at `floor(x), floor(y)` when it does.
  */
-export function localPointInPlate(
-  localX: number,
-  localY: number,
-  size: number,
-): boolean {
+export function localPointInPlate(localX: number, localY: number, size: number): boolean {
   return localX >= 0 && localY >= 0 && localX < size && localY < size
 }
 

@@ -157,7 +157,14 @@ function MiniMarkerShapePreview({ shape }: { shape: 'square' | 'circle' | 'octag
     cy = 3.5
   if (shape === 'square') {
     return (
-      <svg viewBox="0 0 7 7" width={48} height={48} role="img" aria-label={`marker ${shape}`} style={{ display: 'block' }}>
+      <svg
+        viewBox="0 0 7 7"
+        width={48}
+        height={48}
+        role="img"
+        aria-label={`marker ${shape}`}
+        style={{ display: 'block' }}
+      >
         <rect width={7} height={7} fill="white" />
         <rect x={ox} y={oy} width={7} height={7} fill="black" />
         <rect x={1} y={1} width={5} height={5} fill="white" />
@@ -167,7 +174,14 @@ function MiniMarkerShapePreview({ shape }: { shape: 'square' | 'circle' | 'octag
   }
   if (shape === 'circle') {
     return (
-      <svg viewBox="0 0 7 7" width={48} height={48} role="img" aria-label={`marker ${shape}`} style={{ display: 'block' }}>
+      <svg
+        viewBox="0 0 7 7"
+        width={48}
+        height={48}
+        role="img"
+        aria-label={`marker ${shape}`}
+        style={{ display: 'block' }}
+      >
         <rect width={7} height={7} fill="white" />
         <circle cx={cx} cy={cy} r={3.5} fill="black" />
         <circle cx={cx} cy={cy} r={2.5} fill="white" />
@@ -179,7 +193,14 @@ function MiniMarkerShapePreview({ shape }: { shape: 'square' | 'circle' | 'octag
   const outerPts = `${cx + 1.07},${cy + 3.5} ${cx - 1.07},${cy + 3.5} ${cx - 3.5},${cy + 1.07} ${cx - 3.5},${cy - 1.07} ${cx - 1.07},${cy - 3.5} ${cx + 1.07},${cy - 3.5} ${cx + 3.5},${cy - 1.07} ${cx + 3.5},${cy + 1.07}`
   const innerPts = `${cx + 0.76},${cy + 2.5} ${cx - 0.76},${cy + 2.5} ${cx - 2.5},${cy + 0.76} ${cx - 2.5},${cy - 0.76} ${cx - 0.76},${cy - 2.5} ${cx + 0.76},${cy - 2.5} ${cx + 2.5},${cy - 0.76} ${cx + 2.5},${cy + 0.76}`
   return (
-    <svg viewBox="0 0 7 7" width={48} height={48} role="img" aria-label={`marker ${shape}`} style={{ display: 'block' }}>
+    <svg
+      viewBox="0 0 7 7"
+      width={48}
+      height={48}
+      role="img"
+      aria-label={`marker ${shape}`}
+      style={{ display: 'block' }}
+    >
       <rect width={7} height={7} fill="white" />
       <polygon points={outerPts} fill="black" />
       <polygon points={innerPts} fill="white" />
@@ -238,7 +259,14 @@ function MiniMarkerPixelPreview({ style }: { style: 'square' | 'rounded' }) {
   // Show two adjacent modules to illustrate pixel join
   if (style === 'square') {
     return (
-      <svg viewBox="0 0 2 1" width={48} height={32} role="img" aria-label={`pixel ${style}`} style={{ display: 'block' }}>
+      <svg
+        viewBox="0 0 2 1"
+        width={48}
+        height={32}
+        role="img"
+        aria-label={`pixel ${style}`}
+        style={{ display: 'block' }}
+      >
         <rect width={2} height={1} fill="white" />
         <rect x={0} y={0} width={1} height={1} fill="black" />
         <rect x={1} y={0} width={1} height={1} fill="black" />
@@ -276,11 +304,20 @@ function OptionCards<T extends string>({
   renderPreview: (value: T) => React.ReactNode
 }) {
   return (
-    <div {...stylex.props(styles.grid)} role="radiogroup" aria-label={ariaLabel} style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}>
+    <div
+      {...stylex.props(styles.grid)}
+      role="radiogroup"
+      aria-label={ariaLabel}
+      style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+    >
       {options.map((opt) => {
         const selected = value === opt.value
         return (
-          <label key={opt.value} {...stylex.props(styles.card, selected ? styles.cardSelected : null)} aria-selected={selected}>
+          <label
+            key={opt.value}
+            {...stylex.props(styles.card, selected ? styles.cardSelected : null)}
+            aria-selected={selected}
+          >
             <input
               type="radio"
               name={name}
@@ -348,18 +385,17 @@ export default function MarkerDialog({
   const markerInner = (settings.markerInner ?? 'circle') as 'square' | 'circle' | 'plus' | 'diamond'
   const markerSub = (settings.markerSub ?? 'square') as 'square' | 'circle'
   return (
-    <dialog
-      {...stylex.props(styles.dialog)}
-      ref={dialogRef}
-      closedby="any"
-      aria-labelledby={titleId}
-      onClose={onClose}
-    >
+    <dialog {...stylex.props(styles.dialog)} ref={dialogRef} closedby="any" aria-labelledby={titleId} onClose={onClose}>
       <div {...stylex.props(styles.header)}>
         <h3 {...stylex.props(styles.title)} id={titleId}>
           {finder ? 'Finder marker' : 'Sub marker'}
         </h3>
-        <button {...stylex.props(ui.button, ui.textButton)} type="button" aria-label="Close marker settings" onClick={onClose}>
+        <button
+          {...stylex.props(ui.button, ui.textButton)}
+          type="button"
+          aria-label="Close marker settings"
+          onClick={onClose}
+        >
           Close
         </button>
       </div>

@@ -181,7 +181,11 @@ export function useMaskSelection({ closeGallery }: MaskSelectionOptions): MaskSe
           const currentRevision = store.getState().document.revision
           store
             .getState()
-            .actions.failEngine(currentRevision, `Could not load the ${icon ? 'selected icon' : entry.label} mask. Please retry.`, 'mask')
+            .actions.failEngine(
+              currentRevision,
+              `Could not load the ${icon ? 'selected icon' : entry.label} mask. Please retry.`,
+              'mask',
+            )
         }
       } finally {
         if (currentToken === token.current) store.getState().actions.setMaskBusy(false)

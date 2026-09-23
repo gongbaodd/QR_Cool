@@ -112,11 +112,7 @@ export function computeFillRegion(
  * Fill an enclosed black area in a white-on-black mask image in place.
  * The one-pixel overlap sits beneath antialiased mask edges to avoid a seam.
  */
-export function fillMaskImageData(
-  image: ImageData,
-  seedX: number,
-  seedY: number,
-): number | null {
+export function fillMaskImageData(image: ImageData, seedX: number, seedY: number): number | null {
   const { width, height, data } = image
   const walls = new Uint8Array(width * height)
   for (let i = 0; i < walls.length; i++) {
@@ -151,8 +147,7 @@ export function fillMaskImageData(
   const original = new Uint8ClampedArray(data)
   for (let i = 0; i < width * height; i++) {
     const offset = i * 4
-    const luma =
-      (299 * original[offset]! + 587 * original[offset + 1]! + 114 * original[offset + 2]!) / 1000
+    const luma = (299 * original[offset]! + 587 * original[offset + 1]! + 114 * original[offset + 2]!) / 1000
     const coverage = (original[offset + 3]! / 255) * (luma / 255)
     const base = dilated[i] === 1 ? 255 : 0
     const out = Math.round(coverage * 255 + (1 - coverage) * base)

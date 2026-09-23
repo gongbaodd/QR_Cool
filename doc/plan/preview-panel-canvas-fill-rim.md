@@ -26,13 +26,13 @@ Status: **implemented**.
 
 ## Files expected to change during implementation
 
-| File | Work |
-| --- | --- |
-| `src/components/editor/PreviewPanel.tsx` | Own the shared toolbar and QR canvas behavior; coordinate fill and marker/placement interaction. |
-| `src/components/editor/Canvas.tsx` | Remove after moving its behavior into the panel. |
-| `src/components/editor/Editor.tsx` | Keep passing the editable `sourceMaskUrl`, prepared preview URLs, and existing callbacks; adjust props only as needed. |
-| `src/lib/editor/mask-fill.ts` | Reuse the current algorithm; extract only small browser-independent helpers if necessary. |
-| `README.md`, `doc/plan/web-qr-poster.md` | Update the shipped-behavior description once implemented. |
+| File                                     | Work                                                                                                                   |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `src/components/editor/PreviewPanel.tsx` | Own the shared toolbar and QR canvas behavior; coordinate fill and marker/placement interaction.                       |
+| `src/components/editor/Canvas.tsx`       | Remove after moving its behavior into the panel.                                                                       |
+| `src/components/editor/Editor.tsx`       | Keep passing the editable `sourceMaskUrl`, prepared preview URLs, and existing callbacks; adjust props only as needed. |
+| `src/lib/editor/mask-fill.ts`            | Reuse the current algorithm; extract only small browser-independent helpers if necessary.                              |
+| `README.md`, `doc/plan/web-qr-poster.md` | Update the shipped-behavior description once implemented.                                                              |
 
 ## Acceptance for the implementation
 
