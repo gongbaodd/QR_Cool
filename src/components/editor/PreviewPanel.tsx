@@ -681,6 +681,21 @@ export default function PreviewPanel({
   useEffect(() => {
     if (showFilledRegion && current && !busy) setShowFilledRegion(false)
   }, [showFilledRegion, current, busy])
+  useEffect(() => {
+    const toastId = 'editor-fill-mode'
+    if (!fillActive) {
+      toast.dismiss(toastId)
+      return
+    }
+    toast.info('Click an enclosed area to fill it. Press Esc to exit fill mode.', {
+      toastId,
+      autoClose: false,
+      closeOnClick: false,
+      role: 'status',
+      ariaLabel: 'Fill mode is active. Click an enclosed area to fill it. Press Escape to exit.',
+    })
+    return () => toast.dismiss(toastId)
+  }, [fillActive])
   function fillAt(x: number, y: number) {
     const image = sourceMaskImageData.current
     const canvas = sourceMaskCanvas
