@@ -21,10 +21,11 @@ export const ui = stylex.create({
       fontSize: '1.125rem',
     },
   },
-  eyebrow: {
-    fontSize: '0.875rem',
-    letterSpacing: '0.125em',
+  panelTitle: {
+    fontSize: '1rem',
+    fontWeight: 600,
     color: tokens.accentText,
+    margin: 0,
   },
   pageTitle: {
     fontSize: '2.125rem',

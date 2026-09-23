@@ -43,12 +43,6 @@ const styles = stylex.create({
     boxShadow: tokens.shadowLg,
   },
   panelTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  heading: {
-    fontSize: '1rem',
-    fontWeight: 600,
-    color: tokens.accentText,
-    margin: 0,
-  },
   eccFieldset: {
     borderWidth: 0,
     padding: 0,
@@ -543,7 +537,7 @@ export default function PatternSettings({
   return (
     <div {...stylex.props(styles.panel)}>
       <div {...stylex.props(styles.panelTop)}>
-        <h2 {...stylex.props(styles.heading)}>Pattern settings</h2>
+        <h2 {...stylex.props(ui.panelTitle)}>Pattern settings</h2>
         {isDialog && (
           <button ref={closeButtonRef} {...stylex.props(ui.button, ui.textButton)} type="button" onClick={onClose}>
             Close

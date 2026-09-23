@@ -81,7 +81,7 @@ export default function MaskPanel({
     <section {...stylex.props(styles.panel)} aria-label="Mask selection">
       <div {...stylex.props(styles.card)}>
         <div {...stylex.props(styles.cardTop)}>
-          <span {...stylex.props(ui.eyebrow)}>MASK SELECTION</span>
+          <h2 {...stylex.props(ui.panelTitle)}>MASK SELECTION</h2>
           {isDialog && (
             <button ref={closeButtonRef} {...stylex.props(ui.button, ui.textButton)} type="button" onClick={onClose}>
               Close
