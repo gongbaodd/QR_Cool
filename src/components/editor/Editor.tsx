@@ -28,6 +28,7 @@ import { useEngineRequest } from './hooks/use-engine-request'
 import { useIconSearch } from './hooks/use-icon-search'
 import { useMaskSelection } from './hooks/use-mask-selection'
 import { contentSchema } from '@/lib/editor/schema'
+import { TEXT_MASK_FILENAME } from '@/lib/editor/text-mask'
 import { ui } from '@/styles/ui.stylex'
 import { tokens } from '@/styles/tokens.stylex'
 
@@ -191,6 +192,9 @@ function EditorWorkspace() {
           error={preparationError}
           current={current}
           onMove={actions.movePlacement}
+          onMaskFillCommit={(mask) =>
+            actions.replaceMask(new File([mask], TEXT_MASK_FILENAME, { type: 'image/png' }))
+          }
           onReturnToEditing={() => actions.setResultView(false)}
           onMaskOpen={() => actions.setMaskOpen(true)}
           onPatternSettingsOpen={() => actions.setPatternSettingsOpen(true)}

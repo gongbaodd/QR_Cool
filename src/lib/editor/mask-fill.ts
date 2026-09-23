@@ -107,3 +107,59 @@ export function computeFillRegion(
     return filled
   }
 }
+
+/**
+ * Fill an enclosed black area in a white-on-black mask image in place.
+ * The one-pixel overlap sits beneath antialiased mask edges to avoid a seam.
+ */
+export function fillMaskImageData(
+  image: ImageData,
+  seedX: number,
+  seedY: number,
+): number | null {
+  const { width, height, data } = image
+  const walls = new Uint8Array(width * height)
+  for (let i = 0; i < walls.length; i++) {
+    const offset = i * 4
+    const luma = (299 * data[offset]! + 587 * data[offset + 1]! + 114 * data[offset + 2]!) / 1000
+    walls[i] = data[offset + 3]! >= 128 && luma >= 128 ? 1 : 0
+  }
+
+  const filled = computeFillRegion(walls, width, height, seedX, seedY)
+  if (!filled) return null
+  let painted = 0
+  for (let i = 0; i < filled.length; i++) if (filled[i] === 1) painted += 1
+  if (painted === 0) return null
+
+  const dilated = new Uint8Array(width * height)
+  dilated.set(filled)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (filled[y * width + x] !== 1) continue
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue
+          const nx = x + dx
+          const ny = y + dy
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
+          dilated[ny * width + nx] = 1
+        }
+      }
+    }
+  }
+
+  const original = new Uint8ClampedArray(data)
+  for (let i = 0; i < width * height; i++) {
+    const offset = i * 4
+    const luma =
+      (299 * original[offset]! + 587 * original[offset + 1]! + 114 * original[offset + 2]!) / 1000
+    const coverage = (original[offset + 3]! / 255) * (luma / 255)
+    const base = dilated[i] === 1 ? 255 : 0
+    const out = Math.round(coverage * 255 + (1 - coverage) * base)
+    data[offset] = out
+    data[offset + 1] = out
+    data[offset + 2] = out
+    data[offset + 3] = 255
+  }
+  return painted
+}

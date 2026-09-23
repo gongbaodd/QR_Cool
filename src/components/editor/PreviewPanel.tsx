@@ -1,6 +1,6 @@
 'use client'
 import dynamic from 'next/dynamic'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import type { Result } from '@/lib/editor/state'
@@ -75,8 +75,11 @@ const styles = stylex.create({
   canvas: { minWidth: 0 },
   regionPreview: {
     minHeight: 560,
-    display: 'grid',
-    placeItems: 'center',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
     padding: 24,
     backgroundColor: tokens.card,
     borderWidth: 2,
@@ -87,6 +90,7 @@ const styles = stylex.create({
     '@media (max-width: 900px)': { minHeight: 320 },
   },
   regionCaption: { margin: '10px 0 0', color: tokens.muted, textAlign: 'center' },
+  fillToolbar: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' },
   note: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -122,6 +126,7 @@ export default function PreviewPanel({
   error,
   current,
   onMove,
+  onMaskFillCommit,
   onReturnToEditing,
   onMaskOpen,
   onPatternSettingsOpen,
@@ -150,6 +155,7 @@ export default function PreviewPanel({
   error: string | null
   current: boolean
   onMove: (box: Placement) => void
+  onMaskFillCommit: (mask: Blob) => void
   onReturnToEditing: () => void
   onMaskOpen: () => void
   onPatternSettingsOpen: () => void
@@ -167,6 +173,16 @@ export default function PreviewPanel({
   canAssemble: boolean
 }) {
   const [markerDialog, setMarkerDialog] = useState<'finder' | 'sub' | null>(null)
+  const [fillActive, setFillActive] = useState(false)
+  const [fillStatus, setFillStatus] = useState<string | null>(null)
+  useEffect(() => {
+    if (!fillActive) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFillActive(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fillActive])
   const ready = externallyReady && !!dimensions && !!placement && !!posterUrl && current
   return (
     <section {...stylex.props(styles.panel)} aria-labelledby="preview-title" aria-busy={busy}>
@@ -215,7 +231,32 @@ export default function PreviewPanel({
       ) : regionOnly && posterUrl && sourceMaskUrl ? (
         <>
           <div {...stylex.props(styles.regionPreview)}>
-            <RegionPreview poster={posterUrl} mask={sourceMaskUrl} />
+            <div {...stylex.props(styles.fillToolbar)}>
+              <button
+                {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
+                type="button"
+                aria-pressed={fillActive}
+                onClick={() => {
+                  setFillStatus(null)
+                  setFillActive((active) => !active)
+                }}
+              >
+                🪣 Fill region
+              </button>
+              {fillActive && <span {...stylex.props(ui.hint)}>Click an enclosed area to fill it. Esc exits fill.</span>}
+            </div>
+            <RegionPreview
+              poster={posterUrl}
+              mask={sourceMaskUrl}
+              fillActive={fillActive}
+              onFillCommit={onMaskFillCommit}
+              onFillStatus={setFillStatus}
+            />
+            {fillStatus && (
+              <p {...stylex.props(ui.hint, ui.status)} role="status">
+                {fillStatus}
+              </p>
+            )}
           </div>
           <p {...stylex.props(styles.regionCaption)}>
             Selected region · {error ? 'the QR code does not fit inside this region.' : 'enter text or a URL to add a QR code.'}

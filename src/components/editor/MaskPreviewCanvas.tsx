@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { fitTextMaskSize } from '@/lib/editor/text-mask'
 import type { IconItem } from '@/lib/editor/text-mask'
-import { computeFillRegion } from '@/lib/editor/mask-fill'
+import { fillMaskImageData } from '@/lib/editor/mask-fill'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
@@ -195,64 +195,10 @@ export default function MaskPreviewCanvas({
     if (seedX < 0 || seedY < 0 || seedX >= node.width || seedY >= node.height) return
     const context = node.getContext('2d')!
     const image = context.getImageData(0, 0, node.width, node.height)
-    const data = image.data
-    const width = node.width
-    const height = node.height
-    const walls = new Uint8Array(width * height)
-    for (let i = 0; i < walls.length; i++) {
-      const offset = i * 4
-      const luma = (299 * data[offset]! + 587 * data[offset + 1]! + 114 * data[offset + 2]!) / 1000
-      walls[i] = data[offset + 3]! >= 128 && luma >= 128 ? 1 : 0
-    }
-    const filled = computeFillRegion(walls, width, height, seedX, seedY)
-    if (!filled) {
+    const painted = fillMaskImageData(image, seedX, seedY)
+    if (painted === null) {
       setStatus('Open region — click inside an enclosed area.')
       return
-    }
-    let painted = 0
-    for (let i = 0; i < filled.length; i++) if (filled[i] === 1) painted += 1
-    if (painted === 0) {
-      setStatus('Nothing to fill here.')
-      return
-    }
-    // Hidden 1px overlap under the anti-aliased wall fringe so the binary
-    // fill edge does not leave a hairline seam. The dilated mask is only for
-    // rendering; the returned fill logic remains strictly binary.
-    const dilated = new Uint8Array(width * height)
-    dilated.set(filled)
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (filled[y * width + x] !== 1) continue
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue
-            const nx = x + dx
-            const ny = y + dy
-            if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
-            dilated[ny * width + nx] = 1
-          }
-        }
-      }
-    }
-    // Composite: white fill underneath, original anti-aliased artwork on top.
-    // Coverage is derived from the original luma/alpha, so the visual boundary
-    // stays the original anti-aliased edge (over black outside, over white
-    // inside where the dilated fill hides the binary seam).
-    const orig = new Uint8ClampedArray(data)
-    for (let i = 0; i < width * height; i++) {
-      const offset = i * 4
-      const r = orig[offset]!
-      const g = orig[offset + 1]!
-      const b = orig[offset + 2]!
-      const a = orig[offset + 3]!
-      const luma = (299 * r + 587 * g + 114 * b) / 1000
-      const coverage = (a / 255) * (luma / 255)
-      const base = dilated[i] === 1 ? 255 : 0
-      const out = Math.round(coverage * 255 + (1 - coverage) * base)
-      data[offset] = out
-      data[offset + 1] = out
-      data[offset + 2] = out
-      data[offset + 3] = 255
     }
     context.putImageData(image, 0, 0)
     setStatus(`Filled ${painted} pixels.`)
