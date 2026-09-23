@@ -183,7 +183,7 @@ function EditorWorkspace() {
           previews={previews}
           posterUrl={posterUrl}
           sourceMaskUrl={sourceMaskUrl}
-          maskOnly={!contentSchema.safeParse(editorDocument.content).success}
+          regionOnly={!contentSchema.safeParse(editorDocument.content).success || editorDocument.field === 'placement'}
           placement={editorDocument.placement}
           modules={editorDocument.prepared?.qrMetadata.totalModules ?? 0}
           invalid={!!editorDocument.error}

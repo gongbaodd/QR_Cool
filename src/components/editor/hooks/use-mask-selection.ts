@@ -146,9 +146,7 @@ export function useMaskSelection({ closeGallery }: MaskSelectionOptions): MaskSe
       ;(closeGallery ?? store.getState().actions.closeGallery)()
       try {
         let canvas: HTMLCanvasElement
-        if (entry.id === 'blank') {
-          canvas = drawBlankMask(width, height)
-        } else if (icon) {
+        if (icon) {
           const download = icon.download || icon.variants[0]?.download
           if (!download) throw new Error('icon unavailable')
           const svg = await fetch(download).then((response) => {
@@ -156,6 +154,8 @@ export function useMaskSelection({ closeGallery }: MaskSelectionOptions): MaskSe
             return response.text()
           })
           canvas = await drawIconMask(width, height, svg, defaultTextMaskSize(width, height))
+        } else if (entry.id === 'blank') {
+          canvas = drawBlankMask(width, height)
         } else {
           await document.fonts.load(`16px "${entry.family}"`)
           if (!document.fonts.check(`16px "${entry.family}"`)) throw new Error('font unavailable')
@@ -177,10 +177,11 @@ export function useMaskSelection({ closeGallery }: MaskSelectionOptions): MaskSe
         })
       } catch {
         if (currentToken === token.current) {
+          lastSignature.current = ''
           const currentRevision = store.getState().document.revision
           store
             .getState()
-            .actions.failEngine(currentRevision, `Could not load the ${entry.label} mask. Please retry.`, 'mask')
+            .actions.failEngine(currentRevision, `Could not load the ${icon ? 'selected icon' : entry.label} mask. Please retry.`, 'mask')
         }
       } finally {
         if (currentToken === token.current) store.getState().actions.setMaskBusy(false)

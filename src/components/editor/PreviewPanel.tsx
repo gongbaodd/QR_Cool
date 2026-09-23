@@ -114,7 +114,7 @@ export default function PreviewPanel({
   previews,
   posterUrl,
   sourceMaskUrl,
-  maskOnly,
+  regionOnly,
   placement,
   modules,
   invalid,
@@ -142,7 +142,7 @@ export default function PreviewPanel({
   previews: Record<string, string>
   posterUrl: string
   sourceMaskUrl: string
-  maskOnly: boolean
+  regionOnly: boolean
   placement: Placement | null
   modules: number
   invalid: boolean
@@ -214,12 +214,14 @@ export default function PreviewPanel({
       )}
       {showingResult && result ? (
         <ResultPanel result={result} artifacts={artifacts} onReturnToEditing={onReturnToEditing} />
-      ) : maskOnly && posterUrl && sourceMaskUrl ? (
+      ) : regionOnly && posterUrl && sourceMaskUrl ? (
         <>
           <div {...stylex.props(styles.regionPreview)}>
             <RegionPreview poster={posterUrl} mask={sourceMaskUrl} />
           </div>
-          <p {...stylex.props(styles.regionCaption)}>Selected region · enter text or a URL to add a QR code.</p>
+          <p {...stylex.props(styles.regionCaption)}>
+            Selected region · {error ? 'the QR code does not fit inside this region.' : 'enter text or a URL to add a QR code.'}
+          </p>
         </>
       ) : ready ? (
         <div {...stylex.props(styles.canvas)}>
