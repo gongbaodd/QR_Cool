@@ -48,8 +48,7 @@ const styles = stylex.create({
   },
   side: {
     minWidth: 0,
-    marginTop: 100,
-    '@media (max-width: 900px)': { marginTop: 0 },
+    marginTop: 48,
   },
 })
 
