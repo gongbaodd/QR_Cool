@@ -25,7 +25,7 @@ const styles = stylex.create({
   maskField: { marginTop: 0, marginBottom: 12, paddingInlineEnd: 60 },
   searchButton: {
     position: 'absolute',
-    top: '50%',
+    top: 'calc(50% - 20px)',
     right: 8,
     display: 'grid',
     placeItems: 'center',
@@ -33,7 +33,14 @@ const styles = stylex.create({
     height: 40,
     paddingBlock: 0,
     paddingInline: 0,
-    transform: 'translateY(-50%)',
+    transform: 'none',
+    transitionProperty: 'background-color',
+    transitionDuration: '0ms',
+    ':active': { transform: 'none', boxShadow: tokens.shadow },
+    ':disabled': { transform: 'none' },
+    ':hover:not(:disabled)': { transform: 'none' },
+    // Keep the hit area stationary; the shared sketch button's pressed motion
+    // makes this small control difficult to track while clicking.
   },
   searchIcon: { width: 22, height: 22, display: 'block' },
   blankGlyph: {
