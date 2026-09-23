@@ -187,7 +187,6 @@ function SourceRegionPreview({
   fillActive,
   fillReady,
   onFillAt,
-  toolbar,
 }: {
   poster: string
   maskCanvas: HTMLCanvasElement | null
@@ -195,7 +194,6 @@ function SourceRegionPreview({
   fillActive: boolean
   fillReady: boolean
   onFillAt: (x: number, y: number) => void
-  toolbar: ReactNode
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const posterImage = useImage(poster)
@@ -280,6 +278,7 @@ function PosterCanvas({
   fillActive,
   fillReady,
   onFillAt,
+  toolbar,
 }: {
   poster: string
   overlay: string
@@ -295,6 +294,7 @@ function PosterCanvas({
   fillActive: boolean
   fillReady: boolean
   onFillAt: (x: number, y: number) => void
+  toolbar: ReactNode
 }) {
   const [konva, setKonva] = useState<typeof import('react-konva') | null>(null)
   useEffect(() => {
