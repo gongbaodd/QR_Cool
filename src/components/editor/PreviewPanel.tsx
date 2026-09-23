@@ -147,7 +147,6 @@ const styles = stylex.create({
     color: tokens.muted,
     '@media (max-width: 600px)': { flexDirection: 'column', gap: 2 },
   },
-  fillHint: { minHeight: 18, maxHeight: 18, overflow: 'hidden', fontSize: 13, lineHeight: '18px', color: tokens.muted },
   exportControls: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' },
 })
 
@@ -742,6 +741,23 @@ export default function PreviewPanel({
   const ready = externallyReady && !!dimensions && !!placement && !!posterUrl && current
   const rimActive = pattern.settings.rimModules !== 0
   const editingPreview = !showingResult && !!posterUrl && !!sourceMaskUrl && (regionOnly || (!!dimensions && !!placement))
+  useEffect(() => {
+    const toastId = 'editor-fill-instructions'
+    if (fillActive && editingPreview) {
+      if (!toast.isActive(toastId)) {
+        toast.info('Click an enclosed area to fill it. Esc exits fill.', {
+          toastId,
+          autoClose: false,
+          closeButton: false,
+          role: 'status',
+          ariaLabel: 'Click an enclosed area to fill it. Press Escape to exit fill mode.',
+        })
+      }
+    } else {
+      toast.dismiss(toastId)
+    }
+    return () => toast.dismiss(toastId)
+  }, [fillActive, editingPreview])
   const keepPlacementCanvas =
     !!dimensions &&
     !!placement &&
@@ -755,8 +771,7 @@ export default function PreviewPanel({
           {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
           type="button"
           aria-pressed={fillActive}
-          aria-describedby="fill-instructions"
-          title="Click an enclosed area to fill it. Press Escape to exit fill mode."
+          aria-describedby={fillActive ? 'editor-fill-instructions' : undefined}
           disabled={!sourceMaskReady || fillPending || busy}
           onClick={() => {
             setFillActive((active) => !active)
@@ -773,9 +788,6 @@ export default function PreviewPanel({
           {rimActive ? '✓ Rim added' : '＋ Add Rim'}
         </button>
       </div>
-      <span id="fill-instructions" {...stylex.props(styles.fillHint)}>
-        Click an enclosed area to fill it. Esc exits fill.
-      </span>
     </div>
   ) : null
   return (
