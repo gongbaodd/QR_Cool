@@ -41,7 +41,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 ## Editor behavior and ownership
 
 - The editor is a single reactive workspace. Typing changes only the draft and validation state; **Generate** commits a valid value and is not an export or completion step. Draft edits must not start preparation, change the mask, or invalidate the current result.
-- Automatic mask selection follows committed content. Choosing mask text, a font, blank, or an icon switches to manual mode and keeps that choice across content changes; **Follow input** restores automatic derivation. The derived mask uses the Fathead font and the first ASCII letter or digit for plain text.
+- Automatic mask selection follows committed content until the user chooses mask text, a font, blank, or an icon; that choice then stays fixed across content changes. The derived mask uses the Fathead font and the first ASCII letter or digit for plain text.
 - `PreviewPanel` owns the editing canvas, marker interactions, and the shared Fill/Rim toolbar. Fill is an explicit source-mask operation available in both region-only and QR views; it must not use the rendered overlay or the placed QR as its source. The assembled-result view hides editing controls, and Escape exits fill mode.
 - Marker settings are transient local UI state. Use the existing canvas hit targets and one reusable native `<dialog>` for finder/alignment settings; do not add marker-dialog state to the editor store or introduce a general modal framework.
 - Desktop keeps mask selection, preview, and pattern settings visible together. Mobile reuses those same panel instances in native modal drawers with focus return, Escape/backdrop dismissal, and reduced-motion-safe presentation.

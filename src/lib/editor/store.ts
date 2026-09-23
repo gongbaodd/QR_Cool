@@ -64,7 +64,6 @@ export interface EditorActions {
   setMaskText: (text: string) => void
   selectMaskFont: (fontId: string) => void
   selectMaskIcon: (item: IconItem) => void
-  followMaskInput: () => void
   startSearch: (query: string) => void
   finishSearch: (query: string, results: IconItem[], total: number, open: boolean) => void
   failSearch: (query: string, message: string) => void
@@ -238,19 +237,6 @@ export function createEditorStore() {
                 selectedIcon: item,
               },
             })),
-          followMaskInput: () =>
-            set((current) => {
-              const suggested = deriveMaskLetter(current.document.content)
-              return {
-                maskSelection: {
-                  ...current.maskSelection,
-                  origin: 'auto',
-                  text: suggested || 'A',
-                  fontId: suggested ? 'fathead' : 'blank',
-                  selectedIcon: null,
-                },
-              }
-            }),
           startSearch: () =>
             set((current) => ({
               iconSearch: { ...current.iconSearch, loading: true, error: null, galleryMode: true },

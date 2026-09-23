@@ -12,8 +12,6 @@ import type { IconItem, TextMaskFont } from '@/lib/editor/text-mask'
 import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorStoreProvider'
 import {
   selectEffectiveMask,
-  selectIsBlank,
-  selectIsIconMode,
   selectMaskFont,
   selectSuggestedMask,
 } from '@/lib/editor/selectors'
@@ -98,14 +96,10 @@ export interface MaskSelection {
   selectedIconId: string | null
   selectedIcon: IconItem | null
   effectiveMask: string
-  isBlank: boolean
-  isIconMode: boolean
   origin: 'auto' | 'manual'
-  isFollowingInput: boolean
   busy: boolean
   selectFont: (fontId: string) => void
   selectIcon: (item: IconItem) => void
-  followInput: () => void
 }
 
 /** Reactive automatic/manual mask controller. */
@@ -120,8 +114,6 @@ export function useMaskSelection({ closeGallery }: MaskSelectionOptions): MaskSe
   const suggestedMask = useEditorStore(selectSuggestedMask)
   const maskFont = useEditorStore(selectMaskFont)
   const effectiveMask = useEditorStore(selectEffectiveMask)
-  const isBlank = useEditorStore(selectIsBlank)
-  const isIconMode = useEditorStore(selectIsIconMode)
   const token = useRef(0)
   const lastSignature = useRef('')
   const width = prepared?.width ?? DEFAULT_WIDTH
@@ -219,15 +211,6 @@ export function useMaskSelection({ closeGallery }: MaskSelectionOptions): MaskSe
     void renderMask('manual', effectiveMask || DEFAULT_AUTO_MASK, maskFontId, item)
     ;(closeGallery ?? store.getState().actions.closeGallery)()
   }
-  function followInput() {
-    store.getState().actions.followMaskInput()
-    void renderMask(
-      'auto',
-      suggestedMask || DEFAULT_AUTO_MASK,
-      suggestedMask ? DEFAULT_AUTO_MASK_FONT_ID : 'blank',
-      null,
-    )
-  }
   return {
     // Keep the editable mask text defaulted to A even while empty automatic
     // content uses the blank full-canvas mask visually.
@@ -238,13 +221,9 @@ export function useMaskSelection({ closeGallery }: MaskSelectionOptions): MaskSe
     selectedIconId: selectedIcon?.id ?? null,
     selectedIcon,
     effectiveMask,
-    isBlank,
-    isIconMode,
     origin,
-    isFollowingInput: origin === 'auto',
     busy: maskBusy,
     selectFont,
     selectIcon,
-    followInput,
   }
 }

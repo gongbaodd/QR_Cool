@@ -19,7 +19,6 @@ const styles = stylex.create({
     boxShadow: tokens.shadowLg,
   },
   cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  status: { fontSize: '0.9375rem', color: tokens.accentText, margin: 0 },
   fontGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 4.5rem), 1fr))',
@@ -88,19 +87,6 @@ export default function MaskPanel({
             </button>
           )}
         </div>
-        {!mask.isFollowingInput && (
-          <>
-            <p {...stylex.props(styles.status)} role="status">
-              {`Custom mask · ${mask.isIconMode ? 'icon' : mask.isBlank ? 'blank' : mask.effectiveMask}`}
-            </p>
-            <p {...stylex.props(ui.hint)}>This mask stays fixed while the QR content changes.</p>
-          </>
-        )}
-        {!mask.isFollowingInput && (
-          <button {...stylex.props(ui.button, ui.textButton)} type="button" onClick={mask.followInput}>
-            Follow input
-          </button>
-        )}
         <label {...stylex.props(ui.label)} htmlFor="maskSearch">
           Mask text or icon search
         </label>

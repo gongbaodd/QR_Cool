@@ -9,10 +9,6 @@ export const selectEffectiveMask = (state: EditorStoreState) => {
 }
 export const selectMaskFont = (state: EditorStoreState) =>
   TEXT_MASK_FONTS.find((entry) => entry.id === state.maskSelection.fontId) ?? TEXT_MASK_FONTS[1]!
-export const selectIsBlank = (state: EditorStoreState) =>
-  state.maskSelection.fontId === 'blank' && !state.maskSelection.selectedIcon
-export const selectIsIconMode = (state: EditorStoreState) => !!state.maskSelection.selectedIcon
-export const selectIsFollowingInput = (state: EditorStoreState) => state.maskSelection.origin === 'auto'
 export const selectTrimmedSearch = (state: EditorStoreState) => state.maskSelection.text.trim()
 export const selectPreparationError = (state: EditorStoreState) =>
   state.document.error && state.document.field !== 'content' ? state.document.error : null
