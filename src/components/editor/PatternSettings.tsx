@@ -21,7 +21,10 @@ const PIXEL_OPTIONS = [
 
 const styles = stylex.create({
   panel: {
+    minWidth: 0,
     padding: 18,
+    containerType: 'inline-size',
+    containerName: 'pattern-settings',
     backgroundColor: tokens.card,
     borderWidth: 2,
     borderStyle: 'solid',
@@ -47,21 +50,30 @@ const styles = stylex.create({
     marginBottom: 8,
     fontWeight: 600,
   },
-  eccHint: {
-    fontSize: 13,
-    color: tokens.muted,
-    marginBottom: 10,
-    lineHeight: 1.5,
-  },
   eccGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
     gap: 8,
-    '@media (max-width: 700px)': {
-      gridTemplateColumns: 'repeat(2, 1fr)',
+    '@container pattern-settings (max-width: 380px)': {
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    },
+    '@container pattern-settings (max-width: 240px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
+  },
+  pixelGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: 8,
+    '@container pattern-settings (max-width: 380px)': {
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    },
+    '@container pattern-settings (max-width: 240px)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
     },
   },
   eccCard: {
+    minWidth: 0,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -283,9 +295,6 @@ export default function PatternSettings({
       </div>
       <fieldset {...stylex.props(styles.eccFieldset)}>
         <legend {...stylex.props(styles.eccLegend)}>Error correction</legend>
-        <p {...stylex.props(styles.eccHint)}>
-          Higher levels survive more damage but make the code denser. Tap a preview to switch.
-        </p>
         <div {...stylex.props(styles.eccGrid)} role="radiogroup" aria-label="Error correction level">
           {ECC_OPTIONS.map((opt) => {
             const selected = ecc === opt.value
@@ -319,14 +328,10 @@ export default function PatternSettings({
 
       <fieldset {...stylex.props(styles.eccFieldset)}>
         <legend {...stylex.props(styles.eccLegend)}>Pixel style</legend>
-        <p {...stylex.props(styles.eccHint)}>
-          Shape of each QR module. Rounded blends neighbours like qrcode.antfu.me.
-        </p>
         <div
-          {...stylex.props(styles.eccGrid)}
+          {...stylex.props(styles.pixelGrid)}
           role="radiogroup"
           aria-label="Pixel style"
-          style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}
         >
           {PIXEL_OPTIONS.map((opt) => {
             const selected = pixelStyle === opt.value
