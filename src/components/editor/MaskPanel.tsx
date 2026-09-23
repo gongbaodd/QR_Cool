@@ -23,7 +23,7 @@ const styles = stylex.create({
   fontGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
   search: { marginTop: 4 },
   inputWrap: { position: 'relative', marginTop: 8 },
-  maskField: { marginTop: 0, paddingInlineEnd: 60 },
+  maskField: { marginTop: 0, marginBottom: 12, paddingInlineEnd: 60 },
   searchButton: {
     position: 'absolute',
     top: '50%',
