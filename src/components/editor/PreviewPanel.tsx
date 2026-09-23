@@ -517,6 +517,7 @@ export default function PreviewPanel({
   posterUrl,
   sourceMaskUrl,
   regionOnly,
+  placementInvalid,
   placement,
   modules,
   invalid,
@@ -546,6 +547,7 @@ export default function PreviewPanel({
   posterUrl: string
   sourceMaskUrl: string
   regionOnly: boolean
+  placementInvalid: boolean
   placement: Placement | null
   modules: number
   invalid: boolean
@@ -695,6 +697,12 @@ export default function PreviewPanel({
   const ready = externallyReady && !!dimensions && !!placement && !!posterUrl && current
   const rimActive = pattern.settings.rimModules !== 0
   const editingPreview = !showingResult && !!posterUrl && !!sourceMaskUrl && (regionOnly || (!!dimensions && !!placement))
+  const keepPlacementCanvas =
+    !!dimensions &&
+    !!placement &&
+    !!posterUrl &&
+    !!previews['qr.png'] &&
+    (!regionOnly || busy || placementInvalid)
   return (
     <section {...stylex.props(styles.panel)} aria-labelledby="preview-title" aria-busy={busy}>
       <div {...stylex.props(styles.heading)}>
@@ -767,23 +775,7 @@ export default function PreviewPanel({
       )}
       {showingResult && result ? (
         <ResultPanel result={result} artifacts={artifacts} onReturnToEditing={onReturnToEditing} />
-      ) : (regionOnly || showFilledRegion) && posterUrl && sourceMaskUrl ? (
-        <>
-          <div {...stylex.props(styles.regionPreview)}>
-            <SourceRegionPreview
-              poster={posterUrl}
-              maskCanvas={sourceMaskCanvas}
-              revision={maskRevision}
-              fillActive={fillActive}
-              fillReady={sourceMaskReady && !fillPending && !busy}
-              onFillAt={fillAt}
-            />
-          </div>
-          <p {...stylex.props(styles.regionCaption)}>
-            Selected region · {error ? 'the QR code does not fit inside this region.' : regionOnly ? 'enter text or a URL to add a QR code.' : 'updating the QR preview…'}
-          </p>
-        </>
-      ) : ready ? (
+      ) : keepPlacementCanvas ? (
         <div {...stylex.props(styles.canvas)}>
           <PosterCanvas
             mask={previews['region.png'] ?? ''}
@@ -810,9 +802,27 @@ export default function PreviewPanel({
             >
               {assembleBusy ? 'Assembling…' : 'Assemble poster'}
             </button>
-            <span {...stylex.props(ui.hint)}>Export is optional; editing stays reactive.</span>
+            <span {...stylex.props(ui.hint)}>
+              {current ? 'Export is optional; editing stays reactive.' : 'Preview updating; placement remains editable.'}
+            </span>
           </div>
         </div>
+      ) : (regionOnly || showFilledRegion) && posterUrl && sourceMaskUrl ? (
+        <>
+          <div {...stylex.props(styles.regionPreview)}>
+            <SourceRegionPreview
+              poster={posterUrl}
+              maskCanvas={sourceMaskCanvas}
+              revision={maskRevision}
+              fillActive={fillActive}
+              fillReady={sourceMaskReady && !fillPending && !busy}
+              onFillAt={fillAt}
+            />
+          </div>
+          <p {...stylex.props(styles.regionCaption)}>
+            Selected region · {error ? 'the QR code does not fit inside this region.' : regionOnly ? 'enter text or a URL to add a QR code.' : 'updating the QR preview…'}
+          </p>
+        </>
       ) : (
         <div {...stylex.props(busy ? styles.loading : styles.empty)}>
           {busy ? (

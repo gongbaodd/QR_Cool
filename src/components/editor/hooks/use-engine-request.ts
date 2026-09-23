@@ -10,7 +10,7 @@ import {
 import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorStoreProvider'
 
 export interface EditorRequest {
-  request: (mode: 'prepare' | 'assemble', automatic?: boolean) => Promise<void>
+  request: (mode: 'prepare' | 'assemble') => Promise<void>
 }
 
 /** Owns one editor's debounced worker session and drops stale lifecycle work. */
@@ -25,7 +25,7 @@ export function useEngineRequest(): EditorRequest {
   const operation = useRef(0)
 
   const request = useCallback(
-    async (mode: 'prepare' | 'assemble', automatic = false) => {
+    async (mode: 'prepare' | 'assemble') => {
       if (mode === 'assemble' && timer.current) {
         clearTimeout(timer.current)
         timer.current = null
@@ -54,7 +54,7 @@ export function useEngineRequest(): EditorRequest {
           settings: document.settings,
         }
         if (sourceMask) input.maskBytes = await toTransferredBytes(sourceMask)
-        if (!automatic && document.placement) {
+        if (document.placement) {
           input.placement = document.placement
           if (mode === 'prepare' && document.prepared)
             input.previousTotalModules = document.prepared.qrMetadata.totalModules
@@ -101,7 +101,7 @@ export function useEngineRequest(): EditorRequest {
     if (!poster || maskBusy) return
     timer.current = setTimeout(() => {
       timer.current = null
-      void request('prepare', true)
+      void request('prepare')
     }, 450)
     return () => {
       if (timer.current) clearTimeout(timer.current)
