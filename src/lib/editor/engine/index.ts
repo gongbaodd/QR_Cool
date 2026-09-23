@@ -25,6 +25,7 @@ export type AssembleInput = EngineInput & {
   pixelStyle?: Settings['pixelStyle']
   finderMarkers?: Settings['finderMarkers']
   markerSub?: Settings['markerSub']
+  colors?: Settings['colors']
 }
 
 /** The Comlink-exposed surface: every call goes through {@link EngineOutcome}. */

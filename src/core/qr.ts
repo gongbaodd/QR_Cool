@@ -7,6 +7,8 @@ import { cropRgba } from './imaging/pixels'
 import { PATTERN_PIXEL_STYLE, renderPattern } from './pattern'
 import type { PixelStyle } from './pattern'
 import { QrPosterError } from './errors'
+import type { QrPalette } from './palette'
+import { DEFAULT_PALETTE, hexToRgb } from './palette'
 import type { LoadedPng } from './image'
 import { decodePng, luma, rgbaToPng } from './image'
 import type { QrMetadata, QrSourceTrim, VerificationCheck } from './types'
@@ -48,6 +50,7 @@ export async function generateQrFromContent(
   markerInner: MarkerInner = 'circle',
   markerSub: MarkerSub = 'square',
   finderMarkers?: FinderMarkerSettingsMap,
+  palette: QrPalette = DEFAULT_PALETTE,
 ): Promise<GeneratedQr> {
   if (content.trim().length === 0)
     throw new QrPosterError('INVALID_INPUT', '--content must not be empty or whitespace-only.')
@@ -71,6 +74,8 @@ export async function generateQrFromContent(
 
   // Base layer: all modules except finder cells and, for circular sub markers, alignment cells.
   const basePng = await renderPattern(encoded.data, pitch, pixelStyle, {
+    ink: palette.pixel,
+    light: palette.background,
     skipInk: (moduleX, moduleY) => {
       const x = moduleX - marginModules
       const y = moduleY - marginModules
@@ -89,10 +94,11 @@ export async function generateQrFromContent(
     pitch,
     marginModules,
     finderMarkers ?? { tl: fallback, tr: fallback, bl: fallback },
+    palette,
   )
   if (finderSvg) overlays.push(finderSvg)
   if (markerSub === 'circle') {
-    const alignmentSvg = buildAlignmentSvg(encoded, pitch, marginModules)
+    const alignmentSvg = buildAlignmentSvg(encoded, pitch, marginModules, palette)
     if (alignmentSvg) overlays.push(alignmentSvg)
   }
 
@@ -108,7 +114,9 @@ function buildFinderSvg(
   pitch: number,
   marginModules: number,
   markers: FinderMarkerSettingsMap,
+  palette: QrPalette,
 ): string {
+  const { marker: ink, background: light } = palette
   const size = (modules + marginModules * 2) * pitch
   const origins = [
     ['tl', 0, 0],
@@ -127,74 +135,74 @@ function buildFinderSvg(
       const rx = rounded ? pitch * 0.35 : 0
       // outer 7x7 dark
       parts.push(
-        `<rect x="${ox}" y="${oy}" width="${7 * pitch}" height="${7 * pitch}" fill="#000" rx="${rx}" ry="${rx}"/>`,
+        `<rect x="${ox}" y="${oy}" width="${7 * pitch}" height="${7 * pitch}" fill="${ink}" rx="${rx}" ry="${rx}"/>`,
       )
       // white 5x5
       parts.push(
-        `<rect x="${ox + pitch}" y="${oy + pitch}" width="${5 * pitch}" height="${5 * pitch}" fill="#fff" rx="${rx * 0.6}" ry="${rx * 0.6}"/>`,
+        `<rect x="${ox + pitch}" y="${oy + pitch}" width="${5 * pitch}" height="${5 * pitch}" fill="${light}" rx="${rx * 0.6}" ry="${rx * 0.6}"/>`,
       )
       // inner shape
       if (inner === 'square') {
         parts.push(
-          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="#000" rx="${rx * 0.5}" ry="${rx * 0.5}"/>`,
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="${ink}" rx="${rx * 0.5}" ry="${rx * 0.5}"/>`,
         )
       } else if (inner === 'circle') {
-        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`)
+        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="${ink}"/>`)
       } else if (inner === 'plus') {
         // plus = cross of 3 modules
         parts.push(
-          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="#000"/>`,
+          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="${ink}"/>`,
         )
         parts.push(
-          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="#000"/>`,
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="${ink}"/>`,
         )
       } else if (inner === 'diamond') {
         parts.push(
-          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="#000"/>`,
+          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="${ink}"/>`,
         )
       }
     } else if (shape === 'circle') {
-      parts.push(`<circle cx="${cx}" cy="${cy}" r="${3.5 * pitch}" fill="#000"/>`)
-      parts.push(`<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="#fff"/>`)
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${3.5 * pitch}" fill="${ink}"/>`)
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="${light}"/>`)
       if (inner === 'square') {
         parts.push(
-          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="#000"/>`,
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="${ink}"/>`,
         )
       } else if (inner === 'circle') {
-        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`)
+        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="${ink}"/>`)
       } else if (inner === 'plus') {
         parts.push(
-          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="#000"/>`,
+          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="${ink}"/>`,
         )
         parts.push(
-          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="#000"/>`,
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="${ink}"/>`,
         )
       } else if (inner === 'diamond') {
         parts.push(
-          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="#000"/>`,
+          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="${ink}"/>`,
         )
       }
     } else if (shape === 'octagon') {
       const outer = octagonPoints(cx, cy, 3.5 * pitch)
       const innerWhite = octagonPoints(cx, cy, 2.5 * pitch)
-      parts.push(`<polygon points="${outer}" fill="#000"/>`)
-      parts.push(`<polygon points="${innerWhite}" fill="#fff"/>`)
+      parts.push(`<polygon points="${outer}" fill="${ink}"/>`)
+      parts.push(`<polygon points="${innerWhite}" fill="${light}"/>`)
       if (inner === 'square') {
         parts.push(
-          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="#000"/>`,
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="${ink}"/>`,
         )
       } else if (inner === 'circle') {
-        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#000"/>`)
+        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="${ink}"/>`)
       } else if (inner === 'plus') {
         parts.push(
-          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="#000"/>`,
+          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="${ink}"/>`,
         )
         parts.push(
-          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="#000"/>`,
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="${ink}"/>`,
         )
       } else if (inner === 'diamond') {
         parts.push(
-          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="#000"/>`,
+          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="${ink}"/>`,
         )
       }
     }
@@ -219,7 +227,13 @@ function octagonPoints(cx: number, cy: number, size: number): string {
   return pts.map(([x, y]) => `${cx + x},${cy + y}`).join(' ')
 }
 
-function buildAlignmentSvg(encoded: ReturnType<typeof encode>, pitch: number, marginModules: number): string | null {
+function buildAlignmentSvg(
+  encoded: ReturnType<typeof encode>,
+  pitch: number,
+  marginModules: number,
+  palette: QrPalette,
+): string | null {
+  const { marker: ink, background: light } = palette
   const size = encoded.size
   const total = (size + marginModules * 2) * pitch
   const visited = new Set<string>()
@@ -264,9 +278,9 @@ function buildAlignmentSvg(encoded: ReturnType<typeof encode>, pitch: number, ma
   for (const { minX, minY } of blocks) {
     const cx = (marginModules + minX + 2.5) * pitch
     const cy = (marginModules + minY + 2.5) * pitch
-    parts.push(`<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="#000"/>`)
-    parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="#fff"/>`)
-    parts.push(`<circle cx="${cx}" cy="${cy}" r="${0.5 * pitch}" fill="#000"/>`)
+    parts.push(`<circle cx="${cx}" cy="${cy}" r="${2.5 * pitch}" fill="${ink}"/>`)
+    parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="${light}"/>`)
+    parts.push(`<circle cx="${cx}" cy="${cy}" r="${0.5 * pitch}" fill="${ink}"/>`)
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}">${parts.join('')}</svg>`
 }
@@ -564,18 +578,31 @@ export async function normalizeQr(image: LoadedPng, targetSize: number): Promise
   return imaging().normalizeQrPng(image.file, targetSize)
 }
 
-/** Converts the normalized QR's white/light pixels to alpha for preview and standalone PNG export. */
-export async function transparentQrBackground(png: Uint8Array): Promise<Uint8Array> {
+/**
+ * Converts the normalized QR's light pixels to alpha for preview and standalone PNG export.
+ * The alpha ramps linearly between the palette's ink lightness and background lightness, and
+ * RGB channels keep each pixel's own color, so colored palettes stay visible on transparency.
+ * The default black/white palette reproduces the historical `alpha = 255 - luminance` behavior.
+ */
+export async function transparentQrBackground(
+  png: Uint8Array,
+  palette: QrPalette = DEFAULT_PALETTE,
+): Promise<Uint8Array> {
   const image = await imaging().decodePng(png)
   const pixels = Uint8Array.from(image.data)
+  const lightLuma = luma(...hexToRgb(palette.background))
+  const inkLuma = Math.max(luma(...hexToRgb(palette.pixel)), luma(...hexToRgb(palette.marker)))
+  const span = Math.max(1, lightLuma - inkLuma)
   for (let offset = 0; offset < pixels.length; offset += 4) {
     const luminance = Math.round((299 * pixels[offset]! + 587 * pixels[offset + 1]! + 114 * pixels[offset + 2]!) / 1000)
-    pixels[offset] = 0
-    pixels[offset + 1] = 0
-    pixels[offset + 2] = 0
-    pixels[offset + 3] = Math.min(pixels[offset + 3]!, 255 - luminance)
+    const scaled = Math.round((255 * (lightLuma - luminance)) / span)
+    pixels[offset + 3] = Math.min(pixels[offset + 3]!, clampByte(scaled))
   }
   return imaging().encodePngRgba(pixels, image.width, image.height)
+}
+
+function clampByte(value: number): number {
+  return Math.min(255, Math.max(0, value))
 }
 
 export async function verifyQrVariant(

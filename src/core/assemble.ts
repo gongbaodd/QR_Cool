@@ -33,6 +33,8 @@ import type { PixelStyle } from './pattern'
 import { buildCutSvg } from './pattern-cut'
 import { compositePixelOver } from './imaging/pixels'
 import { transparentQrBackground, verifyQrVariant } from './qr'
+import { DEFAULT_PALETTE, hexToRgb } from './palette'
+import type { QrPalette } from './palette'
 import type { AssembleReport, BoundingBox, QrPlacement, ResolvedLayout, VerificationCheck } from './types'
 
 /** Quiet-zone modules the QR input profile carries; the plate band is cut out of them. */
@@ -75,6 +77,7 @@ export async function assembleResolved(
     regionMargin?: boolean
     pixelStyle?: PixelStyle
     transparentBlank?: boolean
+    palette?: QrPalette
   },
 ) {
   if ((layout.placement.rotation ?? 0) !== 0) return assembleRotated(layout, options)
@@ -99,6 +102,7 @@ async function assembleUpright(
     regionMargin?: boolean
     pixelStyle?: PixelStyle
     transparentBlank?: boolean
+    palette?: QrPalette
   },
 ) {
   const startedAt = Date.now()
@@ -118,6 +122,8 @@ async function assembleUpright(
   const rimModulesCount = options.rimModules ?? DEFAULT_RIM_MODULES
   const rimRounded = options.rimRounded ?? false
   const transparentBlank = options.transparentBlank ?? false
+  const palette = options.palette ?? DEFAULT_PALETTE
+  const light = hexToRgb(palette.background)
   if (!Number.isInteger(rimModulesCount) || rimModulesCount < 0 || rimModulesCount > 5)
     throw new QrPosterError('INVALID_INPUT', 'rimModules must be an integer between 0 and 5.')
   // The plate copies the normalized QR verbatim. Its light band is limited to the three finder
@@ -212,6 +218,8 @@ async function assembleUpright(
     marginModules: pattern.marginModules,
     window: { ...pattern.crop, width, height },
     include,
+    ink: palette.pixel,
+    light: palette.background,
   })
   const render = await decodePng(texturePng, 'pattern.png', 'rendered pattern')
   const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
@@ -248,9 +256,9 @@ async function assembleUpright(
     } else {
       // Antialiased edge: blend texture over transparent background.
       const srcA = alpha / 255
-      cutLayer[offset] = Math.round(render.data[offset]! * srcA + 255 * (1 - srcA))
-      cutLayer[offset + 1] = Math.round(render.data[offset + 1]! * srcA + 255 * (1 - srcA))
-      cutLayer[offset + 2] = Math.round(render.data[offset + 2]! * srcA + 255 * (1 - srcA))
+      cutLayer[offset] = Math.round(render.data[offset]! * srcA + light[0] * (1 - srcA))
+      cutLayer[offset + 1] = Math.round(render.data[offset + 1]! * srcA + light[1] * (1 - srcA))
+      cutLayer[offset + 2] = Math.round(render.data[offset + 2]! * srcA + light[2] * (1 - srcA))
       cutLayer[offset + 3] = alpha
     }
   }
@@ -384,7 +392,7 @@ async function assembleUpright(
   }
 
   const regionMaskPng = await renderRegionMask(regionMask)
-  const transparentQr = await transparentQrBackground(normalizedQr)
+  const transparentQr = await transparentQrBackground(normalizedQr, palette)
   const [posterSha, qrSha, cutPngSha, cutSvgSha, textSha] = await Promise.all([
     imaging().sha256Hex(assembled),
     imaging().sha256Hex(transparentQr),
@@ -452,6 +460,7 @@ async function assembleUpright(
       modulePixels: pitch,
       pixelStyle,
       alignment: { alignedToQr: true, phase: { x: phaseX, y: phaseY } },
+      colors: palette,
       removedTypes: [...REMOVED_TYPES],
       markerRefill: PATTERN_MARKER_REFILL,
       refilledModules: pattern.refilledModules,
@@ -538,6 +547,7 @@ async function assembleRotated(
     regionMargin?: boolean
     pixelStyle?: PixelStyle
     transparentBlank?: boolean
+    palette?: QrPalette
   },
 ) {
   const startedAt = Date.now()
@@ -566,6 +576,8 @@ async function assembleRotated(
   const rimModulesCount = options.rimModules ?? DEFAULT_RIM_MODULES
   const rimRounded = options.rimRounded ?? false
   const transparentBlank = options.transparentBlank ?? false
+  const palette = options.palette ?? DEFAULT_PALETTE
+  const light = hexToRgb(palette.background)
   if (!Number.isInteger(rimModulesCount) || rimModulesCount < 0 || rimModulesCount > 5)
     throw new QrPosterError('INVALID_INPUT', 'rimModules must be an integer between 0 and 5.')
   const codeGrid: BoundingBox = {
@@ -659,6 +671,8 @@ async function assembleRotated(
     marginModules: pattern.marginModules,
     window: { ...pattern.crop, width: frame.width, height: frame.height },
     include,
+    ink: palette.pixel,
+    light: palette.background,
   })
   const render = await decodePng(texturePng, 'pattern.png', 'rendered pattern')
   const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
@@ -693,9 +707,9 @@ async function assembleRotated(
       cutLayer[offset + 3] = 255
     } else {
       const srcA = alpha / 255
-      cutLayer[offset] = Math.round(render.data[offset]! * srcA + 255 * (1 - srcA))
-      cutLayer[offset + 1] = Math.round(render.data[offset + 1]! * srcA + 255 * (1 - srcA))
-      cutLayer[offset + 2] = Math.round(render.data[offset + 2]! * srcA + 255 * (1 - srcA))
+      cutLayer[offset] = Math.round(render.data[offset]! * srcA + light[0] * (1 - srcA))
+      cutLayer[offset + 1] = Math.round(render.data[offset + 1]! * srcA + light[1] * (1 - srcA))
+      cutLayer[offset + 2] = Math.round(render.data[offset + 2]! * srcA + light[2] * (1 - srcA))
       cutLayer[offset + 3] = alpha
     }
   }
@@ -850,7 +864,7 @@ async function assembleRotated(
   }
 
   const regionMaskPng = await renderRegionMask(regionMask)
-  const transparentQr = await transparentQrBackground(normalizedQr)
+  const transparentQr = await transparentQrBackground(normalizedQr, palette)
   const [posterSha, qrSha, cutPngSha, cutSvgSha, textSha] = await Promise.all([
     imaging().sha256Hex(assembled),
     imaging().sha256Hex(transparentQr),
@@ -918,6 +932,7 @@ async function assembleRotated(
       modulePixels: pitch,
       pixelStyle,
       alignment: { alignedToQr: true, phase: { x: phaseX, y: phaseY } },
+      colors: palette,
       removedTypes: [...REMOVED_TYPES],
       markerRefill: PATTERN_MARKER_REFILL,
       refilledModules: pattern.refilledModules,

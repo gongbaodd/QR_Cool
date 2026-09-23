@@ -51,3 +51,30 @@ describe('QR center pattern', () => {
     },
   )
 })
+
+describe('pattern palette', () => {
+  const matrix = [
+    [true, false],
+    [false, true],
+  ]
+
+  it('renders dark modules in the ink color and light cells in the light color', async () => {
+    const pitch = 8
+    const png = await renderPattern(matrix, pitch, 'square', { marginModules: 0, ink: '#0d47a1', light: '#eef3fa' })
+    const image = await decodePng(png, 'colored-pattern.png', 'colored pattern')
+    const at = (pixelX: number, pixelY: number): [number, number, number, number] => {
+      const offset = (pixelY * pitch * 2 + pixelX) * 4
+      return [image.data[offset]!, image.data[offset + 1]!, image.data[offset + 2]!, image.data[offset + 3]!]
+    }
+    expect(at(4, 4)).toEqual([0x0d, 0x47, 0xa1, 255])
+    expect(at(12, 12)).toEqual([0x0d, 0x47, 0xa1, 255])
+    expect(at(12, 4)).toEqual([0xee, 0xf3, 0xfa, 255])
+    expect(at(4, 12)).toEqual([0xee, 0xf3, 0xfa, 255])
+  })
+
+  it('defaults stay byte-identical, with or without explicit colors', async () => {
+    const omitted = await renderPattern(matrix, 8, 'dot', {})
+    const defaults = await renderPattern(matrix, 8, 'dot', { ink: '#000000', light: '#ffffff' })
+    expect(Buffer.from(omitted).equals(Buffer.from(defaults))).toBe(true)
+  })
+})

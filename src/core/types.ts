@@ -378,6 +378,12 @@ export interface AssembleReport {
   }
   placement: QrPlacement
   pattern: PatternReport['pattern'] & {
+    /** The settings palette the generated QR and the texture were rendered with. */
+    colors: {
+      pixel: string
+      marker: string
+      background: string
+    }
     /**
      * The texture window is phase-locked to the placed QR, so both share one module lattice.
      * `phase` is the residual offset of the texture's module boundaries from the QR lattice:

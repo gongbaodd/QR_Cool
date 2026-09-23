@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DEFAULT_PALETTE, HEX_PATTERN } from '@/core/palette'
 import { canonicalizeRotation, localPointInPlate, posterToPlatePoint, rotatedFootprintBounds } from '@/core/rotate'
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -58,6 +59,13 @@ export const settingsSchema = z
         bl: { style: 'rounded', shape: 'circle', inner: 'circle' },
       }),
     markerSub: z.enum(['square', 'circle']).default('square'),
+    colors: z
+      .object({
+        pixel: z.string().regex(HEX_PATTERN),
+        marker: z.string().regex(HEX_PATTERN),
+        background: z.string().regex(HEX_PATTERN),
+      })
+      .default(DEFAULT_PALETTE),
   })
   .strict()
 export const requestSchema = z

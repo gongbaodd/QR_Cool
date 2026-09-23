@@ -2,6 +2,7 @@ import { QrCodeDataType, encode } from 'uqr'
 import type { QrCodeGenerateResult } from 'uqr'
 import { imaging } from './imaging'
 import { QrPosterError } from './errors'
+import { normalizeHex } from './palette'
 
 /** Project defaults: ecc 'M', 2-module margin, dot pixel style, auto mask. */
 export const PATTERN_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -10,6 +11,9 @@ export const PATTERN_PIXEL_STYLE = 'dot' as const
 export const PATTERN_PIXEL_STYLES = ['square', 'rounded', 'dot'] as const
 export type PixelStyle = (typeof PATTERN_PIXEL_STYLES)[number]
 export const PATTERN_MARKER_REFILL = 'seeded-random' as const
+/** Render ink and light colors; the palette overrides parse as hex. */
+export const PATTERN_INK = '#000000' as const
+export const PATTERN_LIGHT = '#ffffff' as const
 /** Light modules the toolkit draws around the code; the texture's own quiet zone. */
 export const PATTERN_QUIET_ZONE_MODULES = 2 as const
 
@@ -42,6 +46,10 @@ export interface PatternRenderOptions {
   include?: (moduleX: number, moduleY: number) => boolean
   /** Suppresses black geometry for selected cells while retaining the white canvas beneath them. */
   skipInk?: (moduleX: number, moduleY: number) => boolean
+  /** Ink color of the dark geometry, replacing the default #000000. */
+  ink?: string
+  /** Light color for the canvas and light modules, replacing the default #ffffff. */
+  light?: string
 }
 
 export interface PosterPatternOptions {
@@ -197,12 +205,14 @@ export async function renderPattern(
   }
 
   const backgroundMode = options.background ?? 'white'
+  const ink = normalizeHex(options.ink ?? '') ?? PATTERN_INK
+  const light = normalizeHex(options.light ?? '') ?? PATTERN_LIGHT
   const background =
     backgroundMode === 'transparent'
       ? ''
       : include === undefined
-        ? `<rect width="${codeSize}" height="${codeSize}" fill="#ffffff"/>`
-        : `<path fill="#ffffff" d="${includedCells(include, totalModules, modulePixels)}"/>`
+        ? `<rect width="${codeSize}" height="${codeSize}" fill="${light}"/>`
+        : `<path fill="${light}" d="${includedCells(include, totalModules, modulePixels)}"/>`
 
   let foreground = ''
   if (pixelStyle === 'square') {
@@ -217,7 +227,7 @@ export async function renderPattern(
         rects.push(`M${ox},${oy}h${modulePixels}v${modulePixels}h-${modulePixels}Z`)
       }
     }
-    foreground = `<path fill="#000000" d="${rects.join('')}"/>`
+    foreground = `<path fill="${ink}" d="${rects.join('')}"/>`
   } else if (pixelStyle === 'dot') {
     const half = modulePixels / 2
     const circles: string[] = []
@@ -233,7 +243,7 @@ export async function renderPattern(
         )
       }
     }
-    foreground = `<path fill="#000000" d="${circles.join('')}"/>`
+    foreground = `<path fill="${ink}" d="${circles.join('')}"/>`
   } else {
     const half = modulePixels / 2
     const radius = half + WEDGE_RADIUS_PADDING
@@ -277,7 +287,7 @@ export async function renderPattern(
         }
       }
     }
-    foreground = `<path fill="#000000" d="${circles.join('')}"/><path fill="#000000" d="${wedges.join('')}"/>`
+    foreground = `<path fill="${ink}" d="${circles.join('')}"/><path fill="${ink}" d="${wedges.join('')}"/>`
   }
 
   const svg =

@@ -57,6 +57,7 @@ function qrCacheKey(input: Pick<EngineInput, 'content' | 'settings'>): string {
     s.pixelStyle ?? engineDefaults.pixelStyle,
     JSON.stringify(s.finderMarkers ?? engineDefaults.finderMarkers),
     s.markerSub ?? engineDefaults.markerSub,
+    JSON.stringify(s.colors ?? engineDefaults.colors),
   ].join('\u0000')
 }
 
@@ -85,7 +86,8 @@ export class EditorEngine {
     if (revision > this.latestRevision) this.latestRevision = revision
     try {
       const resolved = await this.resolveLayout(input)
-      const value = await toPreparedPayload(this.imaging, resolved.layout, resolved.validation)
+      const palette = { ...engineDefaults.colors, ...input.settings?.colors }
+      const value = await toPreparedPayload(this.imaging, resolved.layout, resolved.validation, palette)
       return this.settle(revision, { ok: true, value })
     } catch (error) {
       return this.settle(revision, { ok: false, error: toEngineError(error) })

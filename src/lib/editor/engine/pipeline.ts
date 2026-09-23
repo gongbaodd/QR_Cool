@@ -20,6 +20,7 @@ import {
   normalizeQr,
   transparentQrBackground,
 } from '@/core/qr'
+import { DEFAULT_PALETTE, paletteGuard, type QrPalette } from '@/core/palette'
 import { buildModuleLattice, computeSafeArea, computePlateModules, computeRegionBands } from '@/core/module-cut'
 import { selectPatternVersion } from '@/core/pattern'
 import { qrWorkingFrame, sampleMaskIntoQrFrame, assertFrameHoldsPlacement } from '@/core/rotate'
@@ -54,6 +55,7 @@ export const engineDefaults: Settings = {
     bl: { style: 'rounded', shape: 'circle', inner: 'circle' },
   },
   markerSub: 'square',
+  colors: { ...DEFAULT_PALETTE },
 }
 
 /** Client-side replacement for the old sharp-metadata `readImage`. */
@@ -158,15 +160,24 @@ export interface QrBundle {
 
 export async function resolveQr(imaging: Imaging, input: EngineInput): Promise<QrBundle> {
   contentSchema.parse(input.content)
+  const settings = { ...engineDefaults, ...input.settings }
+  const palette: QrPalette = { ...engineDefaults.colors, ...settings.colors }
+  const guard = paletteGuard(palette)
+  if (!guard.ok)
+    throw new QrPosterError(
+      'COLOR_INVALID',
+      `Invalid pattern colors: ${guard.issues.map((issue) => issue.message).join(' ')}`,
+    )
   const generated = await generateQrFromContent(
     input.content,
-    input.settings?.ecc ?? engineDefaults.ecc,
-    input.settings?.pixelStyle ?? engineDefaults.pixelStyle,
+    settings.ecc,
+    settings.pixelStyle,
     undefined,
     undefined,
     undefined,
-    input.settings?.markerSub ?? engineDefaults.markerSub,
-    input.settings?.finderMarkers ?? engineDefaults.finderMarkers,
+    settings.markerSub,
+    settings.finderMarkers,
+    palette,
   )
   const qrSource = generated.image
   const decoded = {
@@ -273,6 +284,7 @@ export async function toPreparedPayload(
   imaging: Imaging,
   layout: ResolvedLayout,
   validation: string | null,
+  palette: QrPalette = DEFAULT_PALETTE,
 ): Promise<PreparedPayload> {
   const { poster, regionMask, qrMetadata, placement, normalizedQr } = layout
   const overlay = new Uint8Array(poster.width * poster.height * 4)
@@ -282,7 +294,7 @@ export async function toPreparedPayload(
     height: poster.height,
     mask: bytesToBlob('mask.png', await renderRegionMask(regionMask)),
     overlay: bytesToBlob('overlay.png', await rgbaToPng(overlay, poster.width, poster.height)),
-    qr: bytesToBlob('qr.png', await transparentQrBackground(normalizedQr)),
+    qr: bytesToBlob('qr.png', await transparentQrBackground(normalizedQr, palette)),
     qrMetadata: { totalModules: qrMetadata.totalModules, version: qrMetadata.version },
     placement: { x: placement.x, y: placement.y, size: placement.size, rotation: placement.rotation },
     validation,
@@ -304,6 +316,7 @@ export async function assemblePayload(
     pixelStyle?: Settings['pixelStyle']
     finderMarkers?: Settings['finderMarkers']
     markerSub?: Settings['markerSub']
+    colors?: Settings['colors']
   },
 ): Promise<AssemblePayload> {
   const flat = {
@@ -317,6 +330,7 @@ export async function assemblePayload(
     pixelStyle: input.pixelStyle ?? input.settings?.pixelStyle ?? engineDefaults.pixelStyle,
     finderMarkers: input.finderMarkers ?? input.settings?.finderMarkers ?? engineDefaults.finderMarkers,
     markerSub: input.markerSub ?? input.settings?.markerSub ?? engineDefaults.markerSub,
+    colors: input.colors ?? input.settings?.colors ?? engineDefaults.colors,
   }
   const { layout, validation } = await resolveBuffers(imaging, {
     ...input,
@@ -333,6 +347,7 @@ export async function assemblePayload(
     rimRounded: flat.rimRounded,
     pixelStyle: flat.pixelStyle,
     transparentBlank: input.transparentBlank ?? false,
+    palette: flat.colors,
   })
   if (!result.report.qualified)
     throw new QrPosterError(

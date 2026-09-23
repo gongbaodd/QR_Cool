@@ -1,8 +1,11 @@
 'use client'
-import type { RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { encode } from 'uqr'
+import '@simonwep/pickr/dist/themes/monolith.min.css'
 import type { Settings } from '@/lib/editor/schema'
+import { DEFAULT_PALETTE, normalizeHex, paletteGuard, suggestPalette, type QrPalette } from '@/core/palette'
+import { usePickr } from './hooks/use-pickr'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
@@ -139,19 +142,100 @@ const styles = stylex.create({
     color: tokens.muted,
     lineHeight: 1,
   },
+  colorsFieldset: {
+    borderWidth: 0,
+    padding: 0,
+    margin: '12px 0 0',
+  },
+  colorRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    marginBlock: 6,
+  },
+  colorButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    paddingInline: 10,
+    paddingBlock: 8,
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: 999,
+    boxShadow: tokens.shadowField,
+    cursor: 'pointer',
+    ':hover': { backgroundColor: tokens.highlightSoft },
+  },
+  colorChip: {
+    width: 22,
+    height: 22,
+    flex: 'none',
+    borderWidth: 1.5,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketchAlt,
+  },
+  colorLabel: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: tokens.ink,
+    lineHeight: 1,
+  },
+  colorHint: {
+    fontSize: 12.5,
+    color: tokens.danger,
+    margin: 0,
+    lineHeight: 1.4,
+  },
+  suggestedChip: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    paddingInline: 10,
+    paddingBlock: 6,
+    backgroundColor: 'white',
+    borderWidth: 1.5,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: 999,
+    cursor: 'pointer',
+    ':hover': { backgroundColor: tokens.highlightSoft },
+  },
+  suggestedDot: {
+    width: 14,
+    height: 14,
+    flex: 'none',
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketchAlt,
+  },
+  suggestedLabel: {
+    fontSize: 12.5,
+    color: tokens.ink,
+    fontWeight: 600,
+    lineHeight: 1,
+  },
 })
 
 function MiniPixelQrPreview({
   content,
   ecc,
   pixelStyle,
+  palette,
   allowEmpty = false,
 }: {
   content: string
   ecc: 'L' | 'M' | 'Q' | 'H'
   pixelStyle: 'square' | 'rounded' | 'dot'
+  palette?: QrPalette
   allowEmpty?: boolean
 }) {
+  const ink = palette?.pixel ?? 'black'
+  const light = palette?.background ?? 'white'
   const text = content.trim()
   if (!text && !allowEmpty) return <span {...stylex.props(styles.eccPreviewFallback)}>Generate content</span>
   if (/[\r\n]/.test(text)) return <span {...stylex.props(styles.eccPreviewFallback)}>Single line only</span>
@@ -187,10 +271,10 @@ function MiniPixelQrPreview({
         aria-label={`QR preview ${pixelStyle}`}
         style={{ display: 'block', width: 64, height: 64 }}
       >
-        <rect width={total} height={total} fill="white" />
+        <rect width={total} height={total} fill={light} />
         {rects.map((pos) => {
           const [x, y] = pos.split(',').map(Number) as [number, number]
-          return <rect key={pos} x={x} y={y} width={1} height={1} fill="black" />
+          return <rect key={pos} x={x} y={y} width={1} height={1} fill={ink} />
         })}
       </svg>
     )
@@ -211,10 +295,10 @@ function MiniPixelQrPreview({
         aria-label={`QR preview ${pixelStyle}`}
         style={{ display: 'block', width: 64, height: 64 }}
       >
-        <rect width={total} height={total} fill="white" />
+        <rect width={total} height={total} fill={light} />
         {dots.map((pos) => {
           const [x, y] = pos.split(',').map(Number) as [number, number]
-          return <circle key={pos} cx={x + 0.5} cy={y + 0.5} r={0.5} fill="black" />
+          return <circle key={pos} cx={x + 0.5} cy={y + 0.5} r={0.5} fill={ink} />
         })}
       </svg>
     )
@@ -260,10 +344,97 @@ function MiniPixelQrPreview({
       aria-label={`QR preview ${pixelStyle}`}
       style={{ display: 'block', width: 64, height: 64 }}
     >
-      <rect width={total} height={total} fill="white" />
-      <path fill="black" d={circles.join('')} />
-      <path fill="black" d={wedges.join('')} />
+      <rect width={total} height={total} fill={light} />
+      <path fill={ink} d={circles.join('')} />
+      <path fill={ink} d={wedges.join('')} />
     </svg>
+  )
+}
+
+type ColorKey = keyof QrPalette
+type RowCallbacks = {
+  onChange: (hex: string) => void
+  onCommit: (hex: string) => void
+  onCancel: () => void
+  onRevert: () => void
+}
+
+/** Hex text field: the keyboard path for a color row. Valid input attempts a commit, invalid input stays local. */
+function HexInput({ value, label, onCommit }: { value: string; label: string; onCommit: (hex: string) => void }) {
+  const [text, setText] = useState(value)
+  useEffect(() => {
+    setText(value)
+  }, [value])
+  const handle = (next: string) => {
+    setText(next)
+    const normalized = normalizeHex(next)
+    if (normalized) onCommit(normalized)
+  }
+  return (
+    <input
+      type="text"
+      spellCheck={false}
+      value={text}
+      aria-label={`${label} hex color`}
+      onChange={(event) => handle(event.target.value.trim())}
+      onBlur={() => setText(value)}
+      style={{ width: 96, fontFamily: 'ui-monospace, monospace', fontSize: 14 }}
+    />
+  )
+}
+
+/**
+ * One color row: pickr swatch button, hex input, and — for marker/background — the
+ * suggested chip. The pickr popover renders inside the owning <dialog>; dragged
+ * edits stay pending locally and every commit attempt passes the palette guard.
+ */
+function ColorRow({
+  name,
+  label,
+  value,
+  guardMessage,
+  suggestion,
+  callbacks,
+  onSuggestion,
+}: {
+  name: ColorKey
+  label: string
+  value: string
+  guardMessage: string | null
+  suggestion: string | null
+  callbacks: RowCallbacks
+  onSuggestion?: () => void
+}) {
+  const pickrButtonRef = useRef<HTMLButtonElement | null>(null)
+  usePickr({ buttonRef: pickrButtonRef, color: value, callbacks })
+  return (
+    <div>
+      <div {...stylex.props(styles.colorRow)}>
+        <button
+          ref={pickrButtonRef}
+          type="button"
+          {...stylex.props(styles.colorButton)}
+          aria-haspopup="dialog"
+          aria-label={`${label} color, currently ${value}. Opens the ${name} color picker`}
+        >
+          <span {...stylex.props(styles.colorChip)} style={{ backgroundColor: value }} />
+          <span {...stylex.props(styles.colorLabel)}>{label}</span>
+        </button>
+        <HexInput value={value} label={label} onCommit={callbacks.onCommit} />
+        {suggestion && onSuggestion && (
+          <button
+            type="button"
+            {...stylex.props(styles.suggestedChip)}
+            aria-label={`Apply suggested ${label} color ${suggestion}`}
+            onClick={onSuggestion}
+          >
+            <span {...stylex.props(styles.suggestedDot)} style={{ backgroundColor: suggestion }} />
+            <span {...stylex.props(styles.suggestedLabel)}>Suggested</span>
+          </button>
+        )}
+      </div>
+      {guardMessage && <p {...stylex.props(styles.colorHint)}>{guardMessage}</p>}
+    </div>
   )
 }
 
@@ -282,6 +453,75 @@ export default function PatternSettings({
 }) {
   const ecc = (settings.ecc ?? 'M') as 'L' | 'M' | 'Q' | 'H'
   const pixelStyle = (settings.pixelStyle ?? 'dot') as 'square' | 'rounded' | 'dot'
+  const committed: QrPalette = settings.colors ?? DEFAULT_PALETTE
+  // Transient local UI state (the MarkerDialog precedent): uncommitted colors and which
+  // rows the user customized this session. Only guard-passing palettes reach the store.
+  const [pending, setPending] = useState<QrPalette | null>(null)
+  const [customized, setCustomized] = useState<{ marker: boolean; background: boolean }>({
+    marker: false,
+    background: false,
+  })
+  const view: QrPalette = pending ?? committed
+  const guard = paletteGuard(view)
+  const suggestions = suggestPalette(view.pixel)
+  const hintFor = (key: ColorKey): string | null =>
+    guard.issues
+      .filter((i) => i.color === key)
+      .map((i) => i.message)
+      .join(' ') || null
+  const samePalette = (left: QrPalette, right: QrPalette): boolean =>
+    left.pixel === right.pixel && left.marker === right.marker && left.background === right.background
+  /** Commits when the guard passes; otherwise keeps the pending colors visible with the inline hint. */
+  const attempt = (next: QrPalette) => {
+    if (paletteGuard(next).ok) {
+      setPending(null)
+      onSettings({ colors: next })
+    } else {
+      setPending(next)
+    }
+  }
+  const revertRow = (key: ColorKey) => {
+    setPending((current) => {
+      if (!current) return null
+      const next: QrPalette = { ...current, [key]: committed[key] }
+      return samePalette(next, committed) ? null : next
+    })
+  }
+  const pixelCallbacks = {
+    onChange: (hex: string) => setPending((current) => ({ ...(current ?? committed), pixel: hex })),
+    onCommit: (hex: string) => {
+      const suggested = suggestPalette(hex)
+      attempt({
+        pixel: hex,
+        marker: customized.marker ? view.marker : suggested.marker,
+        background: customized.background ? view.background : suggested.background,
+      })
+    },
+    onCancel: () => revertRow('pixel'),
+    onRevert: () => revertRow('pixel'),
+  }
+  const markerCallbacks = {
+    onChange: (hex: string) => setPending((current) => ({ ...(current ?? committed), marker: hex })),
+    onCommit: (hex: string) => {
+      setCustomized((current) => ({ ...current, marker: true }))
+      attempt({ ...view, marker: hex })
+    },
+    onCancel: () => revertRow('marker'),
+    onRevert: () => revertRow('marker'),
+  }
+  const backgroundCallbacks = {
+    onChange: (hex: string) => setPending((current) => ({ ...(current ?? committed), background: hex })),
+    onCommit: (hex: string) => {
+      setCustomized((current) => ({ ...current, background: true }))
+      attempt({ ...view, background: hex })
+    },
+    onCancel: () => revertRow('background'),
+    onRevert: () => revertRow('background'),
+  }
+  const applySuggestion = (key: 'marker' | 'background') => {
+    setCustomized((current) => ({ ...current, [key]: false }))
+    attempt({ ...view, [key]: suggestPalette(view.pixel)[key] })
+  }
   return (
     <div {...stylex.props(styles.panel)}>
       <div {...stylex.props(styles.panelTop)}>
@@ -313,7 +553,13 @@ export default function PatternSettings({
                   aria-label={`${opt.value} ${opt.hint} ${opt.recovery}`}
                 />
                 <span {...stylex.props(styles.eccPreviewBox)}>
-                  <MiniPixelQrPreview content="" ecc={opt.value} pixelStyle="rounded" allowEmpty />
+                  <MiniPixelQrPreview
+                    content=""
+                    ecc={opt.value}
+                    pixelStyle="rounded"
+                    allowEmpty
+                    palette={settings.colors}
+                  />
                 </span>
                 <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
                 <span {...stylex.props(styles.eccRecovery)}>
@@ -346,7 +592,13 @@ export default function PatternSettings({
                   aria-label={`${opt.value} ${opt.hint}`}
                 />
                 <span {...stylex.props(styles.eccPreviewBox)}>
-                  <MiniPixelQrPreview content="" ecc={ecc} pixelStyle={opt.value} allowEmpty />
+                  <MiniPixelQrPreview
+                    content=""
+                    ecc={ecc}
+                    pixelStyle={opt.value}
+                    allowEmpty
+                    palette={settings.colors}
+                  />
                 </span>
                 <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
                 <span {...stylex.props(styles.eccRecovery)}>{opt.hint}</span>
@@ -354,6 +606,36 @@ export default function PatternSettings({
             )
           })}
         </div>
+      </fieldset>
+
+      <fieldset {...stylex.props(styles.colorsFieldset)}>
+        <legend {...stylex.props(styles.eccLegend)}>Colors</legend>
+        <ColorRow
+          name="pixel"
+          label="Pixel"
+          value={view.pixel}
+          guardMessage={hintFor('pixel')}
+          suggestion={null}
+          callbacks={pixelCallbacks}
+        />
+        <ColorRow
+          name="marker"
+          label="Marker"
+          value={view.marker}
+          guardMessage={hintFor('marker')}
+          suggestion={suggestions.marker}
+          callbacks={markerCallbacks}
+          onSuggestion={() => applySuggestion('marker')}
+        />
+        <ColorRow
+          name="background"
+          label="Background"
+          value={view.background}
+          guardMessage={hintFor('background')}
+          suggestion={suggestions.background}
+          callbacks={backgroundCallbacks}
+          onSuggestion={() => applySuggestion('background')}
+        />
       </fieldset>
     </div>
   )

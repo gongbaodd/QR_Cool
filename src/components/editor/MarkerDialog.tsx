@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useId, useRef } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { DEFAULT_PALETTE } from '@/core/palette'
+import type { QrPalette } from '@/core/palette'
 import type { Settings } from '@/lib/editor/schema'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
@@ -149,7 +151,9 @@ const styles = stylex.create({
   },
 })
 
-function MiniMarkerShapePreview({ shape }: { shape: 'square' | 'circle' | 'octagon' }) {
+function MiniMarkerShapePreview({ shape, palette }: { shape: 'square' | 'circle' | 'octagon'; palette: QrPalette }) {
+  const ink = palette.marker
+  const light = palette.background
   // 7x7 finder preview normalized to 64px
   const ox = 0,
     oy = 0,
@@ -165,10 +169,10 @@ function MiniMarkerShapePreview({ shape }: { shape: 'square' | 'circle' | 'octag
         aria-label={`marker ${shape}`}
         style={{ display: 'block' }}
       >
-        <rect width={7} height={7} fill="white" />
-        <rect x={ox} y={oy} width={7} height={7} fill="black" />
-        <rect x={1} y={1} width={5} height={5} fill="white" />
-        <rect x={2} y={2} width={3} height={3} fill="black" />
+        <rect width={7} height={7} fill={light} />
+        <rect x={ox} y={oy} width={7} height={7} fill={ink} />
+        <rect x={1} y={1} width={5} height={5} fill={light} />
+        <rect x={2} y={2} width={3} height={3} fill={ink} />
       </svg>
     )
   }
@@ -182,10 +186,10 @@ function MiniMarkerShapePreview({ shape }: { shape: 'square' | 'circle' | 'octag
         aria-label={`marker ${shape}`}
         style={{ display: 'block' }}
       >
-        <rect width={7} height={7} fill="white" />
-        <circle cx={cx} cy={cy} r={3.5} fill="black" />
-        <circle cx={cx} cy={cy} r={2.5} fill="white" />
-        <circle cx={cx} cy={cy} r={1.5} fill="black" />
+        <rect width={7} height={7} fill={light} />
+        <circle cx={cx} cy={cy} r={3.5} fill={ink} />
+        <circle cx={cx} cy={cy} r={2.5} fill={light} />
+        <circle cx={cx} cy={cy} r={1.5} fill={ink} />
       </svg>
     )
   }
@@ -201,61 +205,73 @@ function MiniMarkerShapePreview({ shape }: { shape: 'square' | 'circle' | 'octag
       aria-label={`marker ${shape}`}
       style={{ display: 'block' }}
     >
-      <rect width={7} height={7} fill="white" />
-      <polygon points={outerPts} fill="black" />
-      <polygon points={innerPts} fill="white" />
-      <circle cx={cx} cy={cy} r={1.5} fill="black" />
+      <rect width={7} height={7} fill={light} />
+      <polygon points={outerPts} fill={ink} />
+      <polygon points={innerPts} fill={light} />
+      <circle cx={cx} cy={cy} r={1.5} fill={ink} />
     </svg>
   )
 }
 
-function MiniMarkerInnerPreview({ inner }: { inner: 'square' | 'circle' | 'plus' | 'diamond' }) {
+function MiniMarkerInnerPreview({
+  inner,
+  palette,
+}: {
+  inner: 'square' | 'circle' | 'plus' | 'diamond'
+  palette: QrPalette
+}) {
+  const ink = palette.marker
+  const light = palette.background
   const cx = 3.5,
     cy = 3.5
   return (
     <svg viewBox="0 0 7 7" width={48} height={48} role="img" aria-label={`inner ${inner}`} style={{ display: 'block' }}>
-      <rect width={7} height={7} fill="white" />
-      <rect x={0} y={0} width={7} height={7} fill="black" />
-      <rect x={1} y={1} width={5} height={5} fill="white" />
-      {inner === 'square' && <rect x={2} y={2} width={3} height={3} fill="black" />}
-      {inner === 'circle' && <circle cx={cx} cy={cy} r={1.5} fill="black" />}
+      <rect width={7} height={7} fill={light} />
+      <rect x={0} y={0} width={7} height={7} fill={ink} />
+      <rect x={1} y={1} width={5} height={5} fill={light} />
+      {inner === 'square' && <rect x={2} y={2} width={3} height={3} fill={ink} />}
+      {inner === 'circle' && <circle cx={cx} cy={cy} r={1.5} fill={ink} />}
       {inner === 'plus' && (
         <>
-          <rect x={cx - 0.5} y={cy - 1.5} width={1} height={3} fill="black" />
-          <rect x={cx - 1.5} y={cy - 0.5} width={3} height={1} fill="black" />
+          <rect x={cx - 0.5} y={cy - 1.5} width={1} height={3} fill={ink} />
+          <rect x={cx - 1.5} y={cy - 0.5} width={3} height={1} fill={ink} />
         </>
       )}
       {inner === 'diamond' && (
-        <polygon points={`${cx},${cy - 1.5} ${cx + 1.5},${cy} ${cx},${cy + 1.5} ${cx - 1.5},${cy}`} fill="black" />
+        <polygon points={`${cx},${cy - 1.5} ${cx + 1.5},${cy} ${cx},${cy + 1.5} ${cx - 1.5},${cy}`} fill={ink} />
       )}
     </svg>
   )
 }
 
-function MiniSubMarkerPreview({ sub }: { sub: 'square' | 'circle' }) {
+function MiniSubMarkerPreview({ sub, palette }: { sub: 'square' | 'circle'; palette: QrPalette }) {
+  const ink = palette.marker
+  const light = palette.background
   const cx = 2.5,
     cy = 2.5
   if (sub === 'square') {
     return (
       <svg viewBox="0 0 5 5" width={48} height={48} role="img" aria-label={`sub ${sub}`} style={{ display: 'block' }}>
-        <rect width={5} height={5} fill="white" />
-        <rect x={0} y={0} width={5} height={5} fill="black" />
-        <rect x={1} y={1} width={3} height={3} fill="white" />
-        <rect x={2} y={2} width={1} height={1} fill="black" />
+        <rect width={5} height={5} fill={light} />
+        <rect x={0} y={0} width={5} height={5} fill={ink} />
+        <rect x={1} y={1} width={3} height={3} fill={light} />
+        <rect x={2} y={2} width={1} height={1} fill={ink} />
       </svg>
     )
   }
   return (
     <svg viewBox="0 0 5 5" width={48} height={48} role="img" aria-label={`sub ${sub}`} style={{ display: 'block' }}>
-      <rect width={5} height={5} fill="white" />
-      <circle cx={cx} cy={cy} r={2.5} fill="black" />
-      <circle cx={cx} cy={cy} r={1.5} fill="white" />
-      <circle cx={cx} cy={cy} r={0.5} fill="black" />
+      <rect width={5} height={5} fill={light} />
+      <circle cx={cx} cy={cy} r={2.5} fill={ink} />
+      <circle cx={cx} cy={cy} r={1.5} fill={light} />
+      <circle cx={cx} cy={cy} r={0.5} fill={ink} />
     </svg>
   )
 }
 
-function MiniMarkerPixelPreview({ style }: { style: 'square' | 'rounded' }) {
+function MiniMarkerPixelPreview({ style, palette }: { style: 'square' | 'rounded'; palette: QrPalette }) {
+  const ink = palette.marker
+  const light = palette.background
   // Show two adjacent modules to illustrate pixel join
   if (style === 'square') {
     return (
@@ -267,20 +283,20 @@ function MiniMarkerPixelPreview({ style }: { style: 'square' | 'rounded' }) {
         aria-label={`pixel ${style}`}
         style={{ display: 'block' }}
       >
-        <rect width={2} height={1} fill="white" />
-        <rect x={0} y={0} width={1} height={1} fill="black" />
-        <rect x={1} y={0} width={1} height={1} fill="black" />
+        <rect width={2} height={1} fill={light} />
+        <rect x={0} y={0} width={1} height={1} fill={ink} />
+        <rect x={1} y={0} width={1} height={1} fill={ink} />
       </svg>
     )
   }
   return (
     <svg viewBox="0 0 2 1" width={48} height={32} role="img" aria-label={`pixel ${style}`} style={{ display: 'block' }}>
-      <rect width={2} height={1} fill="white" />
-      <circle cx={0.5} cy={0.5} r={0.5} fill="black" />
-      <circle cx={1.5} cy={0.5} r={0.5} fill="black" />
+      <rect width={2} height={1} fill={light} />
+      <circle cx={0.5} cy={0.5} r={0.5} fill={ink} />
+      <circle cx={1.5} cy={0.5} r={0.5} fill={ink} />
       <path
         d="M0,0 L0,0.5 A0.5,0.5 0 0 1 0.5,0 Z M1.5,0 A0.5,0.5 0 0 0 2,0.5 L2,0 Z M0,1 L0,0.5 A0.5,0.5 0 0 0 0.5,1 Z M1.5,1 A0.5,0.5 0 0 1 2,0.5 L2,1 Z"
-        fill="black"
+        fill={ink}
       />
     </svg>
   )
@@ -386,6 +402,7 @@ export default function MarkerDialog({
   const markerShape = finderMarker.shape
   const markerInner = finderMarker.inner
   const markerSub = (settings.markerSub ?? 'square') as 'square' | 'circle'
+  const palette = settings.colors ?? DEFAULT_PALETTE
   const updateFinder = (patch: Partial<typeof finderMarker>) =>
     onSettings({ finderMarkers: { ...settings.finderMarkers, [finderId]: { ...finderMarker, ...patch } } })
   return (
@@ -415,7 +432,7 @@ export default function MarkerDialog({
               columns={2}
               ariaLabel="Marker pixel style"
               onSelect={(markerStyleValue) => updateFinder({ style: markerStyleValue })}
-              renderPreview={(value) => <MiniMarkerPixelPreview style={value} />}
+              renderPreview={(value) => <MiniMarkerPixelPreview style={value} palette={palette} />}
             />
           </fieldset>
           <fieldset {...stylex.props(styles.fieldset)}>
@@ -428,7 +445,7 @@ export default function MarkerDialog({
               columns={3}
               ariaLabel="Marker shape"
               onSelect={(markerShapeValue) => updateFinder({ shape: markerShapeValue })}
-              renderPreview={(value) => <MiniMarkerShapePreview shape={value} />}
+              renderPreview={(value) => <MiniMarkerShapePreview shape={value} palette={palette} />}
             />
           </fieldset>
           <fieldset {...stylex.props(styles.fieldset)}>
@@ -441,7 +458,7 @@ export default function MarkerDialog({
               columns={4}
               ariaLabel="Marker inner"
               onSelect={(markerInnerValue) => updateFinder({ inner: markerInnerValue })}
-              renderPreview={(value) => <MiniMarkerInnerPreview inner={value} />}
+              renderPreview={(value) => <MiniMarkerInnerPreview inner={value} palette={palette} />}
             />
           </fieldset>
           <button
@@ -463,7 +480,7 @@ export default function MarkerDialog({
             columns={2}
             ariaLabel="Sub marker"
             onSelect={(markerSubValue) => onSettings({ markerSub: markerSubValue })}
-            renderPreview={(value) => <MiniSubMarkerPreview sub={value} />}
+            renderPreview={(value) => <MiniSubMarkerPreview sub={value} palette={palette} />}
           />
         </fieldset>
       )}

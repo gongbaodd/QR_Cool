@@ -629,12 +629,10 @@ describe('engine rotation end to end', () => {
         const sourceX = Math.floor(local.x)
         const sourceY = Math.floor(local.y)
         const qrOffset = (sourceY * placementBox.size + sourceX) * 4
-        const qrAlpha = expectedQrRaw[qrOffset + 3]!
         for (let channel = 0; channel < 4; channel++) {
-          const expected =
-            channel === 3
-              ? 255
-              : Math.round((expectedQrRaw[qrOffset + channel]! * qrAlpha + 255 * (255 - qrAlpha)) / 255)
+          // The transparent QR artifact keeps each pixel's own RGB (palette-aware):
+          // the plate copies the opaque normalized QR, so RGB is verbatim and alpha is 255.
+          const expected = channel === 3 ? 255 : expectedQrRaw[qrOffset + channel]!
           expect(assembledData[index * 4 + channel]).toBe(expected)
         }
         plateChecked++

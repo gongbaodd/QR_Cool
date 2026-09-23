@@ -1,4 +1,5 @@
 import type { Placement, Settings } from './schema'
+import { DEFAULT_PALETTE } from '@/core/palette'
 export interface Prepared {
   apiVersion: 1
   revision: number
@@ -47,6 +48,7 @@ export function createInitialState(): State {
         bl: { style: 'rounded', shape: 'circle', inner: 'circle' },
       },
       markerSub: 'square',
+      colors: { ...DEFAULT_PALETTE },
     },
     prepared: null,
     placement: null,

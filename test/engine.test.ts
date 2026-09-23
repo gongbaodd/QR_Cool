@@ -397,6 +397,134 @@ describe('engine session cache', () => {
   })
 })
 
+describe('engine pattern colors', () => {
+  const palette = { pixel: '#0d47a1', marker: '#06305e', background: '#eef3fa' }
+  const coloredSettings: Parameters<EditorEngineApi['assemble']>[0] = { ...settings, colors: palette }
+
+  it('assembles a colored poster through every verification check and records the palette', async () => {
+    const session = await makeEngine()
+    const prepared = assertOk(
+      await session.prepare({ posterBytes, content, settings: { ...settings, colors: palette } }, 1),
+    )
+    const result = assertOk(
+      await session.assemble({ posterBytes, content, placement: prepared.placement, ...coloredSettings }, 1),
+    )
+    expect(result.report.verification.checks.every((c) => c.passed)).toBe(true)
+    expect(result.report.pattern.colors).toEqual(palette)
+    // The prepared transparent QR keeps its colored ink: a pixel with the ink RGB stays opaque.
+    const qrPng = await nodeImaging.decodePng(new Uint8Array(await prepared.qr.arrayBuffer()))
+    const [inkR, inkG, inkB] = [0x0d, 0x47, 0xa1]
+    let inkPixels = 0
+    for (let offset = 0; offset < qrPng.data.length; offset += 4) {
+      if (
+        qrPng.data[offset] === inkR &&
+        qrPng.data[offset + 1] === inkG &&
+        qrPng.data[offset + 2] === inkB &&
+        qrPng.data[offset + 3] === 255
+      )
+        inkPixels++
+    }
+    expect(inkPixels).toBeGreaterThan(0)
+  })
+
+  it('reuses the QR bundle for equal colors and regenerates it when the colors change', async () => {
+    const session = await makeEngine()
+    const digest = async (blob: Blob): Promise<string> =>
+      nodeImaging.sha256Hex(new Uint8Array(await blob.arrayBuffer()))
+    const first = assertOk(
+      await session.prepare({ posterBytes, content, settings: { ...settings, colors: palette } }, 1),
+    )
+    const second = assertOk(
+      await session.prepare({ posterBytes, content, settings: { ...settings, colors: palette } }, 2),
+    )
+    expect(await digest(second.qr)).toBe(await digest(first.qr))
+    const alt = { ...palette, pixel: '#101c2c', marker: '#06305e', background: '#f2f5f8' }
+    const third = assertOk(await session.prepare({ posterBytes, content, settings: { ...settings, colors: alt } }, 3))
+    expect(await digest(third.qr)).not.toBe(await digest(first.qr))
+  })
+
+  it('paints the region margin ring and rim cells in the palette colors', async () => {
+    const session = await makeEngine()
+    const prepared = assertOk(
+      await session.prepare(
+        { posterBytes, content, settings: { ...settings, colors: palette, regionMargin: true } },
+        1,
+      ),
+    )
+    const result = assertOk(
+      await session.assemble(
+        {
+          posterBytes,
+          content,
+          placement: prepared.placement,
+          ...coloredSettings,
+          regionMargin: true,
+        },
+        1,
+      ),
+    )
+    const pitch = result.report.cut.modulePixels
+    expect(result.report.qualified).toBe(true)
+    const source = await prepareSource(nodeImaging, posterBytes)
+    const lattice = buildModuleLattice(source.poster.width, source.poster.height, pitch, result.report.placement)
+    const safe = computeSafeArea(source.regionMask.data, source.poster.width, source.poster.height, lattice)
+    const { margin, rim } = computeRegionBands(safe.safe, lattice, settings.rimModules, true)
+    const poster = await nodeImaging.decodePng(new Uint8Array(await result.artifacts['poster.png']!.arrayBuffer()))
+    let marginChecked = 0
+    for (let index = 0; index < margin.length; index++) {
+      if (!margin[index]) continue
+      const x = lattice.x + (index % lattice.columns) * pitch
+      const y = lattice.y + Math.floor(index / lattice.columns) * pitch
+      if (
+        x >= prepared.placement.x &&
+        x < prepared.placement.x + prepared.placement.size &&
+        y >= prepared.placement.y &&
+        y < prepared.placement.y + prepared.placement.size
+      )
+        continue
+      expect(rim[index]).toBe(0)
+      const offset = (y * poster.width + x) * 4
+      expect(Array.from(poster.data.slice(offset, offset + 4))).toEqual([0xee, 0xf3, 0xfa, 255])
+      marginChecked++
+    }
+    expect(marginChecked).toBeGreaterThan(0)
+    // Rim modules are forced dark: 'dot' geometry puts ink exactly at the module center.
+    const rimCenter = (y: number, x: number): number =>
+      ((y + Math.floor(pitch / 2)) * poster.width + x + Math.floor(pitch / 2)) * 4
+    let rimChecked = 0
+    for (let index = 0; index < rim.length; index++) {
+      if (!rim[index]) continue
+      const x = lattice.x + (index % lattice.columns) * pitch
+      const y = lattice.y + Math.floor(index / lattice.columns) * pitch
+      // Rim modules under the plate hole are never drawn; only painted rim cells are checked.
+      if (
+        x >= prepared.placement.x &&
+        x < prepared.placement.x + prepared.placement.size &&
+        y >= prepared.placement.y &&
+        y < prepared.placement.y + prepared.placement.size
+      )
+        continue
+      const offset = rimCenter(y, x)
+      expect(poster.data.slice(offset, offset + 3).join()).toBe([0x0d, 0x47, 0xa1].join())
+      rimChecked++
+    }
+    expect(rimChecked).toBeGreaterThan(0)
+  })
+
+  it('rejects an unscannable palette before generation with COLOR_INVALID on the colors field', async () => {
+    const session = await makeEngine()
+    const outcome = await session.prepare(
+      {
+        posterBytes,
+        content,
+        settings: { ...settings, colors: { pixel: '#c0c0c0', marker: '#000000', background: '#ffffff' } },
+      },
+      1,
+    )
+    expect(assertError(outcome)).toMatchObject({ code: 'COLOR_INVALID', field: 'colors' })
+  })
+})
+
 describe('engine stale-revision suppression', () => {
   it('drops the settled result of an older revision when a newer one was requested', async () => {
     const session = await makeEngine()

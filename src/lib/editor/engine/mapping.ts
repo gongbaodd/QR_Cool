@@ -44,9 +44,11 @@ export function toEngineError(error: unknown): EngineError {
       ? 'mask'
       : error.code === 'QR_LAYOUT_INVALID'
         ? 'placement'
-        : error.code.startsWith('QR')
-          ? 'content'
-          : 'poster'
+        : error.code === 'COLOR_INVALID'
+          ? 'colors'
+          : error.code.startsWith('QR')
+            ? 'content'
+            : 'poster'
     return {
       code: error.code,
       message: (
