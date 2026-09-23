@@ -47,6 +47,17 @@ const styles = stylex.create({
     fontSize: 20,
     fontWeight: 400,
   },
+  loading: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+  },
+  progress: {
+    width: 180,
+    height: 12,
+    accentColor: tokens.ink,
+  },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
@@ -96,6 +107,7 @@ export default function IconGallery({
   query,
   total,
   items,
+  loading,
   selectedIconId,
   onSelect,
   onClose,
@@ -104,6 +116,7 @@ export default function IconGallery({
   query: string
   total: number
   items: IconItem[]
+  loading: boolean
   selectedIconId: string | null
   onSelect: (index: number) => void
   onClose: () => void
@@ -142,11 +155,12 @@ export default function IconGallery({
       closedby="any"
       aria-labelledby={titleId}
       aria-describedby={hintId}
+      aria-busy={loading}
       onClose={onClose}
     >
       <div {...stylex.props(styles.header)}>
         <h3 {...stylex.props(styles.title)} id={titleId}>
-          Icons for “{query}” — {total || items.length}
+          {loading ? `Searching icons for “${query}”…` : `Icons for “${query}” — ${total || items.length}`}
         </h3>
         <button
           {...stylex.props(ui.button, ui.textButton)}
@@ -158,29 +172,36 @@ export default function IconGallery({
         </button>
       </div>
       <p {...stylex.props(ui.hint)} id={hintId}>
-        Pick an icon to draw it as your mask region.
+        {loading ? 'Loading matching icons…' : 'Pick an icon to draw it as your mask region.'}
       </p>
-      <div {...stylex.props(styles.grid)} data-testid="icon-gallery">
-        {items.map((item, idx) => {
-          const selected = selectedIconId === item.id
-          return (
-            <button
-              key={item.id}
-              {...stylex.props(ui.button, ui.fontCard, selected && ui.fontCardSelected)}
-              type="button"
-              aria-label={`Gallery icon ${item.name}`}
-              title={`${item.vendor}/${item.name}`}
-              onClick={() => onSelect(idx)}
-            >
-              <span {...stylex.props(ui.fontGlyph)}>
-                <GalleryGlyph item={item} />
-              </span>
-              <span {...stylex.props(ui.fontName)}>{item.name}</span>
-            </button>
-          )
-        })}
-        {items.length === 0 && <p {...stylex.props(ui.hint)}>No icons to show.</p>}
-      </div>
+      {loading ? (
+        <div {...stylex.props(styles.loading)}>
+          <progress {...stylex.props(styles.progress)} aria-label="Searching icons" />
+          <span>Searching the icon library…</span>
+        </div>
+      ) : (
+        <div {...stylex.props(styles.grid)} data-testid="icon-gallery">
+          {items.map((item, idx) => {
+            const selected = selectedIconId === item.id
+            return (
+              <button
+                key={item.id}
+                {...stylex.props(ui.button, ui.fontCard, selected && ui.fontCardSelected)}
+                type="button"
+                aria-label={`Gallery icon ${item.name}`}
+                title={`${item.vendor}/${item.name}`}
+                onClick={() => onSelect(idx)}
+              >
+                <span {...stylex.props(ui.fontGlyph)}>
+                  <GalleryGlyph item={item} />
+                </span>
+                <span {...stylex.props(ui.fontName)}>{item.name}</span>
+              </button>
+            )
+          })}
+          {items.length === 0 && <p {...stylex.props(ui.hint)}>No icons to show.</p>}
+        </div>
+      )}
     </dialog>
   )
 }

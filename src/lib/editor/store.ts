@@ -253,7 +253,7 @@ export function createEditorStore() {
             }),
           startSearch: () =>
             set((current) => ({
-              iconSearch: { ...current.iconSearch, loading: true, error: null, galleryMode: false },
+              iconSearch: { ...current.iconSearch, loading: true, error: null, galleryMode: true },
             })),
           finishSearch: (query, results, total, open) =>
             set((current) => ({

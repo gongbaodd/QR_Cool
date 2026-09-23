@@ -358,6 +358,7 @@ function EditorWorkspace() {
         query={maskText.trim()}
         total={iconSearch.total}
         items={iconSearch.results}
+        loading={iconSearch.loading}
         selectedIconId={maskSelection.selectedIconId}
         onSelect={handleGallerySelect}
         onClose={iconSearch.closeGallery}

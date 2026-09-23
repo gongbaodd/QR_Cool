@@ -59,7 +59,7 @@ export function useIconSearch(): IconSearch {
         query,
         items,
         data.total ?? items.length,
-        items.length > 0 && latest.maskSelection.text.trim() === query,
+        items.length > 0 && latest.maskSelection.text.trim() === query && latest.iconSearch.galleryMode,
       )
     } catch {
       if (token !== requestToken.current || controller.signal.aborted) return
