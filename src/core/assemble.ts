@@ -369,7 +369,9 @@ async function assembleUpright(
       'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
   )
   if (regionMargin)
-    warnings.push(`A one-module light margin follows the selected region inside its edge (${marginModuleCount} whole modules).`)
+    warnings.push(
+      `A one-module light margin follows the selected region inside its edge (${marginModuleCount} whole modules).`,
+    )
   if (safeArea.partialModules > 0) {
     warnings.push(
       `${safeArea.partialModules} module(s) crossed the painted region's edge and kept the original ` +
@@ -833,7 +835,9 @@ async function assembleRotated(
       'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
   )
   if (regionMargin)
-    warnings.push(`A one-module light margin follows the selected region inside its edge (${marginModuleCount} whole modules).`)
+    warnings.push(
+      `A one-module light margin follows the selected region inside its edge (${marginModuleCount} whole modules).`,
+    )
   if (safeArea.partialModules > 0) {
     warnings.push(
       `${safeArea.partialModules} module(s) crossed the painted region's edge in the QR's frame and kept the ` +

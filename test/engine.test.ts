@@ -146,12 +146,28 @@ describe('engine pipeline: artifact parity with the former server orchestration'
 
   it('paints a one-module light margin along the selected region without widening the QR plate', async () => {
     const session = await makeEngine()
-    const prepared = assertOk(await session.prepare({
-      posterBytes, content, settings: { ...settings, regionMargin: true },
-    }, 1))
-    const result = assertOk(await session.assemble({
-      posterBytes, content, placement: prepared.placement, ...settings, regionMargin: true,
-    }, 1))
+    const prepared = assertOk(
+      await session.prepare(
+        {
+          posterBytes,
+          content,
+          settings: { ...settings, regionMargin: true },
+        },
+        1,
+      ),
+    )
+    const result = assertOk(
+      await session.assemble(
+        {
+          posterBytes,
+          content,
+          placement: prepared.placement,
+          ...settings,
+          regionMargin: true,
+        },
+        1,
+      ),
+    )
     const pitch = result.report.cut.modulePixels
     expect(result.report.qualified).toBe(true)
     expect(result.report.qrPlate.band).toBe('markers')
@@ -168,11 +184,16 @@ describe('engine pipeline: artifact parity with the former server orchestration'
       if (!margin[index]) continue
       const x = lattice.x + (index % lattice.columns) * pitch
       const y = lattice.y + Math.floor(index / lattice.columns) * pitch
-      if (x >= prepared.placement.x && x < prepared.placement.x + prepared.placement.size &&
-        y >= prepared.placement.y && y < prepared.placement.y + prepared.placement.size) continue
+      if (
+        x >= prepared.placement.x &&
+        x < prepared.placement.x + prepared.placement.size &&
+        y >= prepared.placement.y &&
+        y < prepared.placement.y + prepared.placement.size
+      )
+        continue
       expect(rim[index]).toBe(0)
       const offset = (y * poster.width + x) * 4
-      expect([...poster.data.slice(offset, offset + 4)]).toEqual([255, 255, 255, 255])
+      expect(poster.data.slice(offset, offset + 4)).toEqual([255, 255, 255, 255])
       checked++
     }
     expect(checked).toBeGreaterThan(0)
