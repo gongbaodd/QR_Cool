@@ -36,13 +36,11 @@ export function useEngineRequest(): EditorRequest {
       const sourcePoster = current.sources.poster
       const sourceMask = current.sources.mask
       const validContent = contentSchema.safeParse(document.content).success
-      const previewContent =
-        mode === 'prepare' && current.maskSelection.origin === 'manual' && !validContent ? 'A' : document.content
       if (
         !sourcePoster ||
         sourcePoster.size > MAX_IMAGE_BYTES ||
         (sourceMask && sourceMask.size > MAX_IMAGE_BYTES) ||
-        (!validContent && previewContent === document.content) ||
+        !validContent ||
         (mode === 'assemble' && !selectCanAssemble(current))
       )
         return
@@ -52,7 +50,7 @@ export function useEngineRequest(): EditorRequest {
       try {
         const input: EngineInput = {
           posterBytes: await toTransferredBytes(sourcePoster),
-          content: previewContent,
+          content: document.content,
           settings: document.settings,
         }
         if (sourceMask) input.maskBytes = await toTransferredBytes(sourceMask)

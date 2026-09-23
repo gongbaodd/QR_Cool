@@ -27,6 +27,7 @@ import { useBlobUrls } from './hooks/use-blob-urls'
 import { useEngineRequest } from './hooks/use-engine-request'
 import { useIconSearch } from './hooks/use-icon-search'
 import { useMaskSelection } from './hooks/use-mask-selection'
+import { contentSchema } from '@/lib/editor/schema'
 import { ui } from '@/styles/ui.stylex'
 import { tokens } from '@/styles/tokens.stylex'
 
@@ -86,7 +87,10 @@ function EditorWorkspace() {
   )
   const artifacts = useBlobUrls(editorDocument.result?.artifacts ?? {})
   const posterUrls = useBlobUrls(poster ? { poster } : {})
+  const sourceMask = useEditorStore((state) => state.sources.mask)
+  const sourceMaskUrls = useBlobUrls(sourceMask ? { mask: sourceMask } : {})
   const posterUrl = posterUrls.poster ?? ''
+  const sourceMaskUrl = sourceMaskUrls.mask ?? ''
   const preparationError = useEditorStore(selectPreparationError)
   const visibleError = useEditorStore(selectVisibleContentError)
   const current = useEditorStore(selectCurrent)
@@ -178,6 +182,8 @@ function EditorWorkspace() {
           artifacts={artifacts}
           previews={previews}
           posterUrl={posterUrl}
+          sourceMaskUrl={sourceMaskUrl}
+          maskOnly={!contentSchema.safeParse(editorDocument.content).success}
           placement={editorDocument.placement}
           modules={editorDocument.prepared?.qrMetadata.totalModules ?? 0}
           invalid={!!editorDocument.error}

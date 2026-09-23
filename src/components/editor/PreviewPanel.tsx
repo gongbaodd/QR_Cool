@@ -9,6 +9,7 @@ import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
 const Canvas = dynamic(() => import('./Canvas'), { ssr: false })
+const RegionPreview = dynamic(() => import('./RegionPreview'), { ssr: false })
 const ResultPanel = dynamic(() => import('./ResultPanel'))
 const MarkerDialog = dynamic(() => import('./MarkerDialog'))
 const styles = stylex.create({
@@ -72,6 +73,20 @@ const styles = stylex.create({
     '@media (max-width: 900px)': { minHeight: 320 },
   },
   canvas: { minWidth: 0 },
+  regionPreview: {
+    minHeight: 560,
+    display: 'grid',
+    placeItems: 'center',
+    padding: 24,
+    backgroundColor: tokens.card,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketchCard,
+    boxShadow: tokens.shadowLg,
+    '@media (max-width: 900px)': { minHeight: 320 },
+  },
+  regionCaption: { margin: '10px 0 0', color: tokens.muted, textAlign: 'center' },
   note: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -98,6 +113,8 @@ export default function PreviewPanel({
   artifacts,
   previews,
   posterUrl,
+  sourceMaskUrl,
+  maskOnly,
   placement,
   modules,
   invalid,
@@ -124,6 +141,8 @@ export default function PreviewPanel({
   artifacts: Record<string, string>
   previews: Record<string, string>
   posterUrl: string
+  sourceMaskUrl: string
+  maskOnly: boolean
   placement: Placement | null
   modules: number
   invalid: boolean
@@ -195,6 +214,13 @@ export default function PreviewPanel({
       )}
       {showingResult && result ? (
         <ResultPanel result={result} artifacts={artifacts} onReturnToEditing={onReturnToEditing} />
+      ) : maskOnly && posterUrl && sourceMaskUrl ? (
+        <>
+          <div {...stylex.props(styles.regionPreview)}>
+            <RegionPreview poster={posterUrl} mask={sourceMaskUrl} />
+          </div>
+          <p {...stylex.props(styles.regionCaption)}>Selected region · enter text or a URL to add a QR code.</p>
+        </>
       ) : ready ? (
         <div {...stylex.props(styles.canvas)}>
           <Canvas
