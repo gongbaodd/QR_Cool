@@ -1,17 +1,16 @@
 'use client'
 import { createContext, useContext, useState, type PropsWithChildren } from 'react'
 import { useStore } from 'zustand'
-import type { StoreApi } from 'zustand/vanilla'
-import { createEditorStore, type EditorStoreState } from '@/lib/editor/store'
+import { createEditorStore, type EditorStore, type EditorStoreState } from '@/lib/editor/store'
 
-const EditorStoreContext = createContext<StoreApi<EditorStoreState> | null>(null)
+const EditorStoreContext = createContext<EditorStore | null>(null)
 
 export default function EditorStoreProvider({ children }: PropsWithChildren) {
   const [store] = useState(createEditorStore)
   return <EditorStoreContext.Provider value={store}>{children}</EditorStoreContext.Provider>
 }
 
-export function useEditorStoreApi(): StoreApi<EditorStoreState> {
+export function useEditorStoreApi(): EditorStore {
   const store = useContext(EditorStoreContext)
   if (!store) throw new Error('useEditorStoreApi must be used inside EditorStoreProvider')
   return store

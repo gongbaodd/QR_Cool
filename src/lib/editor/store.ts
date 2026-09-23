@@ -1,7 +1,9 @@
-import { createStore, type StoreApi } from 'zustand/vanilla'
+import { createStore } from 'zustand/vanilla'
+import { temporal } from 'zundo'
 import { contentSchema, canonicalPlacement, MAX_IMAGE_BYTES, type Placement, type Settings } from './schema'
 import { deriveMaskLetter, TEXT_MASK_MAX_LENGTH } from './text-mask'
 import { createInitialState, reducer, type Prepared, type Result, type State } from './state'
+import { sameTraceSnapshot, traceSnapshot, type EditorTrace } from './trace'
 import type { IconItem } from './text-mask'
 
 export interface DraftState {
@@ -44,6 +46,7 @@ export interface EditorStoreState {
   maskSelection: MaskSelectionState
   iconSearch: IconSearchState
   panels: PanelsState
+  trace: EditorTrace
   actions: EditorActions
 }
 
@@ -97,184 +100,228 @@ function editDocument(document: State, patch: Parameters<typeof reducer>[1] & { 
   return reducer(document, patch)
 }
 
-export function createEditorStore(): StoreApi<EditorStoreState> {
-  return createStore<EditorStoreState>((set) => {
-    const actions: EditorActions = {
-      setDraftContent: (content) => set((current) => ({ draft: { ...current.draft, content, error: null } })),
-      blurDraft: () =>
-        set((current) => {
-          const parsed = contentSchema.safeParse(current.draft.content)
-          return {
-            draft: {
-              ...current.draft,
-              blurred: true,
-              error: parsed.success ? null : (parsed.error.issues[0]?.message ?? 'Enter text or a URL.'),
-            },
-          }
-        }),
-      commitDraft: () => {
-        let committed = false
-        set((current) => {
-          const parsed = contentSchema.safeParse(current.draft.content)
-          if (!parsed.success) {
-            return {
-              draft: {
-                ...current.draft,
-                blurred: true,
-                error: parsed.error.issues[0]?.message ?? 'Enter text or a URL.',
-              },
-            }
-          }
-          committed = true
-          const draft = { ...current.draft, error: null }
-          if (parsed.data === current.document.content) return { draft }
-          return { draft, document: editDocument(current.document, { type: 'edit', patch: { content: parsed.data } }) }
-        })
-        return committed
-      },
-      patchSettings: (patch) =>
-        set((current) => ({
-          document: editDocument(current.document, {
-            type: 'edit',
-            patch: { settings: { ...current.document.settings, ...patch } },
-          }),
-        })),
-      setSeed: (seed) =>
-        set((current) => ({
-          document: editDocument(current.document, {
-            type: 'edit',
-            patch: { settings: { ...current.document.settings, seed } },
-          }),
-        })),
-      movePlacement: (placement) =>
-        set((current) => {
-          const prepared = current.document.prepared
-          if (!prepared) return current
-          return {
-            document: editDocument(current.document, {
-              type: 'edit',
-              patch: { placement: canonicalPlacement(placement, prepared.qrMetadata.totalModules) },
-            }),
-          }
-        }),
-      initializeSources: (poster, mask, seed) =>
-        set((current) => {
-          if (current.sources.poster || current.sources.mask) return current
-          let document = editDocument(current.document, {
-            type: 'edit',
-            patch: { settings: { ...current.document.settings, seed } },
-            reset: true,
+export function createEditorStore() {
+  return createStore<EditorStoreState>()(
+    temporal(
+      (rawSet) => {
+        const set = (update: (current: EditorStoreState) => Partial<EditorStoreState>) =>
+          rawSet((current) => {
+            const patch = update(current)
+            if (patch === current) return current
+            const nextState = { ...current, ...patch }
+            const snapshot = traceSnapshot(nextState)
+            return sameTraceSnapshot(current.trace.state, snapshot)
+              ? patch
+              : { ...patch, trace: { at: Date.now(), state: snapshot } }
           })
-          if (mask.size > MAX_IMAGE_BYTES)
-            document = reducer(document, {
-              type: 'error',
-              revision: document.revision,
-              message: 'Each PNG must be 10 MiB or smaller.',
-              field: 'mask',
+        const actions: EditorActions = {
+          setDraftContent: (content) => set((current) => ({ draft: { ...current.draft, content, error: null } })),
+          blurDraft: () =>
+            set((current) => {
+              const parsed = contentSchema.safeParse(current.draft.content)
+              return {
+                draft: {
+                  ...current.draft,
+                  blurred: true,
+                  error: parsed.success ? null : (parsed.error.issues[0]?.message ?? 'Enter text or a URL.'),
+                },
+              }
+            }),
+          commitDraft: () => {
+            let committed = false
+            set((current) => {
+              const parsed = contentSchema.safeParse(current.draft.content)
+              if (!parsed.success) {
+                return {
+                  draft: {
+                    ...current.draft,
+                    blurred: true,
+                    error: parsed.error.issues[0]?.message ?? 'Enter text or a URL.',
+                  },
+                }
+              }
+              committed = true
+              const draft = { ...current.draft, error: null }
+              if (parsed.data === current.document.content) return { draft }
+              return {
+                draft,
+                document: editDocument(current.document, { type: 'edit', patch: { content: parsed.data } }),
+              }
             })
-          return { sources: { poster, mask }, document }
-        }),
-      replaceMask: (mask) =>
-        set((current) => {
-          let document = editDocument(current.document, { type: 'edit', patch: {}, reset: true })
-          if (mask.size > MAX_IMAGE_BYTES)
-            document = reducer(document, {
-              type: 'error',
-              revision: document.revision,
-              message: 'Each PNG must be 10 MiB or smaller.',
-              field: 'mask',
-            })
-          return { sources: { ...current.sources, mask }, document }
-        }),
-      setMaskBusy: (busy) => set((current) => ({ maskSelection: { ...current.maskSelection, busy } })),
-      setMaskText: (text) =>
-        set((current) => ({
-          maskSelection: {
-            ...current.maskSelection,
-            origin: 'manual',
-            text: text.slice(0, TEXT_MASK_MAX_LENGTH),
-            selectedIcon: null,
+            return committed
           },
-          iconSearch: { ...current.iconSearch, galleryMode: false },
-        })),
-      selectMaskFont: (fontId) =>
-        set((current) => ({
-          maskSelection: {
-            ...current.maskSelection,
-            origin: 'manual',
-            text: selectMaskText(current),
-            fontId,
-            selectedIcon: null,
-          },
-        })),
-      selectMaskIcon: (item) =>
-        set((current) => ({
-          maskSelection: {
-            ...current.maskSelection,
-            origin: 'manual',
-            text: selectMaskText(current),
-            selectedIcon: item,
-          },
-        })),
-      followMaskInput: () =>
-        set((current) => {
-          const suggested = deriveMaskLetter(current.document.content)
-          return {
-            maskSelection: {
-              ...current.maskSelection,
-              origin: 'auto',
-              text: suggested || 'A',
-              fontId: suggested ? 'fathead' : 'blank',
-              selectedIcon: null,
-            },
-          }
-        }),
-      startSearch: () =>
-        set((current) => ({ iconSearch: { ...current.iconSearch, loading: true, error: null, galleryMode: false } })),
-      finishSearch: (query, results, total, open) =>
-        set((current) => ({
-          iconSearch: { ...current.iconSearch, results, total, fetchedQuery: query, loading: false, galleryMode: open },
-        })),
-      failSearch: (query, message) =>
-        set((current) => ({
-          iconSearch: {
-            ...current.iconSearch,
-            results: [],
-            total: 0,
-            fetchedQuery: query,
-            loading: false,
-            error: message,
-            galleryMode: false,
-          },
-        })),
-      closeGallery: () => set((current) => ({ iconSearch: { ...current.iconSearch, galleryMode: false } })),
-      setMaskOpen: (maskOpen) => set((current) => ({ panels: { ...current.panels, maskOpen } })),
-      setPatternSettingsOpen: (patternSettingsOpen) =>
-        set((current) => ({ panels: { ...current.panels, patternSettingsOpen } })),
-      setResultView: (result) => set((current) => ({ document: reducer(current.document, { type: 'view', result }) })),
-      startEngine: (mode, revision) =>
-        set((current) => ({ document: reducer(current.document, { type: 'busy', mode, revision }) })),
-      acceptPrepared: (data) => set((current) => ({ document: reducer(current.document, { type: 'prepared', data }) })),
-      acceptResult: (data) => set((current) => ({ document: reducer(current.document, { type: 'result', data }) })),
-      failEngine: (revision, message, field) =>
-        set((current) => ({
-          document: reducer(
-            current.document,
-            field === undefined ? { type: 'error', revision, message } : { type: 'error', revision, message, field },
-          ),
-        })),
-    }
+          patchSettings: (patch) =>
+            set((current) => ({
+              document: editDocument(current.document, {
+                type: 'edit',
+                patch: { settings: { ...current.document.settings, ...patch } },
+              }),
+            })),
+          setSeed: (seed) =>
+            set((current) => ({
+              document: editDocument(current.document, {
+                type: 'edit',
+                patch: { settings: { ...current.document.settings, seed } },
+              }),
+            })),
+          movePlacement: (placement) =>
+            set((current) => {
+              const prepared = current.document.prepared
+              if (!prepared) return current
+              return {
+                document: editDocument(current.document, {
+                  type: 'edit',
+                  patch: { placement: canonicalPlacement(placement, prepared.qrMetadata.totalModules) },
+                }),
+              }
+            }),
+          initializeSources: (poster, mask, seed) =>
+            set((current) => {
+              if (current.sources.poster || current.sources.mask) return current
+              let document = editDocument(current.document, {
+                type: 'edit',
+                patch: { settings: { ...current.document.settings, seed } },
+                reset: true,
+              })
+              if (mask.size > MAX_IMAGE_BYTES)
+                document = reducer(document, {
+                  type: 'error',
+                  revision: document.revision,
+                  message: 'Each PNG must be 10 MiB or smaller.',
+                  field: 'mask',
+                })
+              return { sources: { poster, mask }, document }
+            }),
+          replaceMask: (mask) =>
+            set((current) => {
+              let document = editDocument(current.document, { type: 'edit', patch: {}, reset: true })
+              if (mask.size > MAX_IMAGE_BYTES)
+                document = reducer(document, {
+                  type: 'error',
+                  revision: document.revision,
+                  message: 'Each PNG must be 10 MiB or smaller.',
+                  field: 'mask',
+                })
+              return { sources: { ...current.sources, mask }, document }
+            }),
+          setMaskBusy: (busy) => set((current) => ({ maskSelection: { ...current.maskSelection, busy } })),
+          setMaskText: (text) =>
+            set((current) => ({
+              maskSelection: {
+                ...current.maskSelection,
+                origin: 'manual',
+                text: text.slice(0, TEXT_MASK_MAX_LENGTH),
+                selectedIcon: null,
+              },
+              iconSearch: { ...current.iconSearch, galleryMode: false },
+            })),
+          selectMaskFont: (fontId) =>
+            set((current) => ({
+              maskSelection: {
+                ...current.maskSelection,
+                origin: 'manual',
+                text: selectMaskText(current),
+                fontId,
+                selectedIcon: null,
+              },
+            })),
+          selectMaskIcon: (item) =>
+            set((current) => ({
+              maskSelection: {
+                ...current.maskSelection,
+                origin: 'manual',
+                text: selectMaskText(current),
+                selectedIcon: item,
+              },
+            })),
+          followMaskInput: () =>
+            set((current) => {
+              const suggested = deriveMaskLetter(current.document.content)
+              return {
+                maskSelection: {
+                  ...current.maskSelection,
+                  origin: 'auto',
+                  text: suggested || 'A',
+                  fontId: suggested ? 'fathead' : 'blank',
+                  selectedIcon: null,
+                },
+              }
+            }),
+          startSearch: () =>
+            set((current) => ({
+              iconSearch: { ...current.iconSearch, loading: true, error: null, galleryMode: false },
+            })),
+          finishSearch: (query, results, total, open) =>
+            set((current) => ({
+              iconSearch: {
+                ...current.iconSearch,
+                results,
+                total,
+                fetchedQuery: query,
+                loading: false,
+                galleryMode: open,
+              },
+            })),
+          failSearch: (query, message) =>
+            set((current) => ({
+              iconSearch: {
+                ...current.iconSearch,
+                results: [],
+                total: 0,
+                fetchedQuery: query,
+                loading: false,
+                error: message,
+                galleryMode: false,
+              },
+            })),
+          closeGallery: () => set((current) => ({ iconSearch: { ...current.iconSearch, galleryMode: false } })),
+          setMaskOpen: (maskOpen) => set((current) => ({ panels: { ...current.panels, maskOpen } })),
+          setPatternSettingsOpen: (patternSettingsOpen) =>
+            set((current) => ({ panels: { ...current.panels, patternSettingsOpen } })),
+          setResultView: (result) =>
+            set((current) => ({ document: reducer(current.document, { type: 'view', result }) })),
+          startEngine: (mode, revision) =>
+            set((current) => ({ document: reducer(current.document, { type: 'busy', mode, revision }) })),
+          acceptPrepared: (data) =>
+            set((current) => ({ document: reducer(current.document, { type: 'prepared', data }) })),
+          acceptResult: (data) => set((current) => ({ document: reducer(current.document, { type: 'result', data }) })),
+          failEngine: (revision, message, field) =>
+            set((current) => ({
+              document: reducer(
+                current.document,
+                field === undefined
+                  ? { type: 'error', revision, message }
+                  : { type: 'error', revision, message, field },
+              ),
+            })),
+        }
 
-    return {
-      document: createInitialState(),
-      draft: initialDraft(),
-      sources: initialSources(),
-      maskSelection: initialMaskSelection(),
-      iconSearch: initialIconSearch(),
-      panels: initialPanels(),
-      actions,
-    }
-  })
+        const initial = {
+          document: createInitialState(),
+          draft: initialDraft(),
+          sources: initialSources(),
+          maskSelection: initialMaskSelection(),
+          iconSearch: initialIconSearch(),
+          panels: initialPanels(),
+          actions,
+        }
+        return { ...initial, trace: { at: Date.now(), state: traceSnapshot(initial) } }
+      },
+      {
+        partialize: ({ trace }) => ({ trace }),
+        equality: (past, current) => past.trace === current.trace,
+        limit: 50,
+      },
+    ),
+  )
+}
+
+export type EditorStore = ReturnType<typeof createEditorStore>
+
+/** The session timeline, oldest first; no history is persisted or sent anywhere. */
+export function getEditorTrace(store: EditorStore): EditorTrace[] {
+  const past = store.temporal.getState().pastStates
+  return [...past.flatMap((entry) => (entry.trace ? [entry.trace] : [])), store.getState().trace]
 }
 
 function selectMaskText(current: EditorStoreState): string {

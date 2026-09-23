@@ -2,6 +2,8 @@
 
 Status: implemented, 2026-09-22. Verification: `pnpm build` passed. `pnpm test` ran 101 tests; 100 passed and the existing engine artifact parity assertion failed because the poster SHA-256 was `310916c86e2395514673ae3ae1045f8bfed5487317ff33d700dd66f179736dc3` instead of the pinned `5a76e5608b37cce8f319ae821265fc06866117d4caba47972947dcf117f056f7`. The failing test and renderer files were not changed by this migration.
 
+Later update (2026-09-23): the no-history constraint below applied to the original migration. Zundo now keeps a bounded, read-only timeline of dated state snapshots for tracing; it does not add undo/redo controls or persist editor data.
+
 ## Outcome and scope
 
 Make Zustand the single owner of shared editor session state. Replace `Editor.tsx`'s `useReducer` and scattered shared `useState` values with a typed, editor-scoped store and narrow subscriptions. Preserve the current UI, rendering output, draft/Generate interaction, automatic/manual mask behavior, and export contract.

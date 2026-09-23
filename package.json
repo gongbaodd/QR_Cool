@@ -35,6 +35,7 @@
     "react-konva": "^19.3.0",
     "uqr": "^0.1.3",
     "zod": "^4.6.5",
+    "zundo": "^2.3.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
