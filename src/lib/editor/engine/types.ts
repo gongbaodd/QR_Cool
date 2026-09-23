@@ -5,7 +5,7 @@
  * worker client, tests) handles errors and stale runs the same way.
  */
 
-import type { Placement, Settings } from '../schema'
+import type { Placement, Settings } from '@/lib/editor/schema'
 
 /** An editor-facing error: the exact codes/fields the old HTTP pipeline produced. */
 export interface EngineError {

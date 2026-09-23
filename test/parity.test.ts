@@ -9,11 +9,11 @@ import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { beforeAll, afterAll, describe, expect, it } from 'vitest'
-import { imaging, setImaging } from '../src/core/imaging'
-import { nodeImaging } from '../src/core/imaging/node'
-import { browserImaging, installBrowserImaging } from '../src/core/imaging/browser'
-import type { RawImage } from '../src/core/imaging/types'
-import { createEditorEngine, type EngineOutcome } from '../src/lib/editor/engine'
+import { imaging, setImaging } from '@/core/imaging'
+import { nodeImaging } from '@/core/imaging/node'
+import { browserImaging, installBrowserImaging } from '@/core/imaging/browser'
+import type { RawImage } from '@/core/imaging/types'
+import { createEditorEngine, type EngineOutcome } from '@/lib/editor/engine'
 
 const require = createRequire(import.meta.url)
 const posterBytes = await readFile('source/poster.png')

@@ -3,7 +3,7 @@
 
 import { createHash } from 'node:crypto'
 import sharp from 'sharp'
-import { QrPosterError } from '../errors'
+import { QrPosterError } from '@/core/errors'
 import type { Imaging, RawImage, RenderedSvgPng, SvgRenderOptions } from './types'
 
 export const nodeImaging: Imaging = {

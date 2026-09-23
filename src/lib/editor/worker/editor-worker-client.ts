@@ -4,7 +4,7 @@
  */
 
 import * as Comlink from 'comlink'
-import type { EditorEngineApi } from '../engine'
+import type { EditorEngineApi } from '@/lib/editor/engine'
 
 export type EditorWorkerClient = Comlink.Remote<EditorEngineApi>
 

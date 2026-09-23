@@ -1,9 +1,9 @@
 'use client'
 import * as stylex from '@stylexjs/stylex'
 import { encode } from 'uqr'
-import type { Settings } from '../../lib/editor/schema'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import type { Settings } from '@/lib/editor/schema'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const ECC_OPTIONS = [
   { value: 'L' as const, label: 'L', recovery: '~7%', hint: 'Low' },

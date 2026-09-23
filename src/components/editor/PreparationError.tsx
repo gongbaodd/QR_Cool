@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex'
-import { ui } from '../../styles/ui.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 export default function PreparationError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (

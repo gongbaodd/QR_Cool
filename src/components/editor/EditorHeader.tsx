@@ -2,9 +2,9 @@
 import Link from 'next/link'
 import type { RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { QR_EXAMPLES } from '../../lib/editor/examples'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import { QR_EXAMPLES } from '@/lib/editor/examples'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const styles = stylex.create({
   header: {

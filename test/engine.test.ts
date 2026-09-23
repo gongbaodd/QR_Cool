@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { describe, it, expect } from 'vitest'
 import sharp from 'sharp'
-import { createEditorEngine } from '../src/lib/editor/engine'
-import type { EditorEngineApi, EngineOutcome } from '../src/lib/editor/engine'
-import type { Imaging } from '../src/core/imaging/types'
-import { nodeImaging } from '../src/core/imaging/node'
-import { requestSchema } from '../src/lib/editor/schema'
+import { createEditorEngine } from '@/lib/editor/engine'
+import type { EditorEngineApi, EngineOutcome } from '@/lib/editor/engine'
+import type { Imaging } from '@/core/imaging/types'
+import { nodeImaging } from '@/core/imaging/node'
+import { requestSchema } from '@/lib/editor/schema'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
 const content = 'https://example.com/qr'

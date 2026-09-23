@@ -1,8 +1,8 @@
 import sharp from 'sharp'
 import { randomFillSync } from 'node:crypto'
-import { createEditorEngine } from '../src/lib/editor/engine'
-import { nodeImaging } from '../src/core/imaging/node'
-import { MAX_PIXELS } from '../src/lib/editor/schema'
+import { createEditorEngine } from '@/lib/editor/engine'
+import { nodeImaging } from '@/core/imaging/node'
+import { MAX_PIXELS } from '@/lib/editor/schema'
 const side = Math.floor(Math.sqrt(MAX_PIXELS))
 const pixels = randomFillSync(Buffer.alloc(side * side * 3))
 const posterBytes = await sharp(pixels, { raw: { width: side, height: side, channels: 3 } })

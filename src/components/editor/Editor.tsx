@@ -8,7 +8,7 @@ import {
   selectCurrent,
   selectPreparationError,
   selectVisibleContentError,
-} from '../../lib/editor/selectors'
+} from '@/lib/editor/selectors'
 import {
   BLANK_MASK_FILENAME,
   BLANK_POSTER_FILENAME,
@@ -16,7 +16,7 @@ import {
   BLANK_POSTER_WIDTH,
   buildBlankMaskRgba,
   buildBlankPosterRgba,
-} from '../../lib/editor/blank'
+} from '@/lib/editor/blank'
 import EditorHeader from './EditorHeader'
 import PreviewPanel from './PreviewPanel'
 import MaskPanel from './MaskPanel'
@@ -27,8 +27,8 @@ import { useBlobUrls } from './hooks/use-blob-urls'
 import { useEngineRequest } from './hooks/use-engine-request'
 import { useIconSearch } from './hooks/use-icon-search'
 import { useMaskSelection } from './hooks/use-mask-selection'
-import { ui } from '../../styles/ui.stylex'
-import { tokens } from '../../styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
+import { tokens } from '@/styles/tokens.stylex'
 
 const IconGallery = dynamic(() => import('./IconGallery'))
 const styles = stylex.create({

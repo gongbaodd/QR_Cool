@@ -6,8 +6,8 @@
  */
 
 import { z } from 'zod'
-import { QrPosterError } from '../../../core/errors'
-import type { PngGuardError } from '../png-guard'
+import { QrPosterError } from '@/core/errors'
+import type { PngGuardError } from '@/lib/editor/png-guard'
 import type { EngineError } from './types'
 
 export class EngineMappingError extends Error {

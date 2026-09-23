@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { QrPosterError } from '../src/core/errors'
-import { boxIsInsideMask, placeQr } from '../src/core/placement'
-import type { RegionMask } from '../src/core/types'
+import { QrPosterError } from '@/core/errors'
+import { boxIsInsideMask, placeQr } from '@/core/placement'
+import type { RegionMask } from '@/core/types'
 
 describe('QR placement', () => {
   it('uses the largest integer module pitch that fits inside M', () => {

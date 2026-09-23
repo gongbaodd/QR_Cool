@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useId, useRef } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { Settings } from '../../lib/editor/schema'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import type { Settings } from '@/lib/editor/schema'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const MARKER_STYLE_OPTIONS = [
   { value: 'square' as const, label: 'Square', hint: 'Sharp' },

@@ -6,9 +6,9 @@
 
 import './window-shim'
 import * as Comlink from 'comlink'
-import { browserImaging } from '../../../core/imaging/browser'
-import { createEditorEngine } from '../engine'
-import type { EditorEngineApi } from '../engine'
+import { browserImaging } from '@/core/imaging/browser'
+import { createEditorEngine } from '@/lib/editor/engine'
+import type { EditorEngineApi } from '@/lib/editor/engine'
 
 const engine: Promise<EditorEngineApi> = createEditorEngine(browserImaging)
 

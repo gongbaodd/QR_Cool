@@ -1,9 +1,9 @@
 'use client'
 import * as stylex from '@stylexjs/stylex'
-import type { Settings } from '../../lib/editor/schema'
+import type { Settings } from '@/lib/editor/schema'
 import PatternSettings from './PatternSettings'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const styles = stylex.create({
   panel: { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 },

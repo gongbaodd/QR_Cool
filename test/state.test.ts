@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { initialState, reducer } from '../src/lib/editor/state'
+import { initialState, reducer } from '@/lib/editor/state'
 
 describe('editor state revision guards', () => {
   it('invalidates downloads and ignores superseded responses', () => {

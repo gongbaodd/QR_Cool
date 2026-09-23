@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createEditorStore } from '../src/lib/editor/store'
-import { selectCanAssemble, selectCurrent, selectEffectiveMask } from '../src/lib/editor/selectors'
+import { createEditorStore } from '@/lib/editor/store'
+import { selectCanAssemble, selectCurrent, selectEffectiveMask } from '@/lib/editor/selectors'
 
 describe('editor store', () => {
   it('keeps store instances isolated and starts deterministically', () => {

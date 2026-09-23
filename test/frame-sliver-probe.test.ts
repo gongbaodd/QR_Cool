@@ -1,16 +1,16 @@
 import { readFile } from 'node:fs/promises'
 import { describe, it, expect } from 'vitest'
-import { createEditorEngine } from '../src/lib/editor/engine'
-import { nodeImaging } from '../src/core/imaging/node'
-import { prepareSource } from '../src/lib/editor/engine/pipeline'
+import { createEditorEngine } from '@/lib/editor/engine'
+import { nodeImaging } from '@/core/imaging/node'
+import { prepareSource } from '@/lib/editor/engine/pipeline'
 import {
   localPointInPlate,
   posterToPlatePoint,
   qrWorkingFrame,
   regionPixelBounds,
   rotatedFootprintBounds,
-} from '../src/core/rotate'
-import type { EditorEngineApi, EngineOutcome } from '../src/lib/editor/engine'
+} from '@/core/rotate'
+import type { EditorEngineApi, EngineOutcome } from '@/lib/editor/engine'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
 const content = 'https://example.com/qr'

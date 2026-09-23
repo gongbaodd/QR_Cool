@@ -1,11 +1,11 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { fitTextMaskSize } from '../../lib/editor/text-mask'
-import type { IconItem } from '../../lib/editor/text-mask'
-import { computeFillRegion } from '../../lib/editor/mask-fill'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import { fitTextMaskSize } from '@/lib/editor/text-mask'
+import type { IconItem } from '@/lib/editor/text-mask'
+import { computeFillRegion } from '@/lib/editor/mask-fill'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const styles = stylex.create({
   column: {

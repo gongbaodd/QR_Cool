@@ -3,10 +3,10 @@ import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import type { RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { Result } from '../../lib/editor/state'
-import type { Placement, Settings } from '../../lib/editor/schema'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import type { Result } from '@/lib/editor/state'
+import type { Placement, Settings } from '@/lib/editor/schema'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const Canvas = dynamic(() => import('./Canvas'), { ssr: false })
 const ResultPanel = dynamic(() => import('./ResultPanel'))

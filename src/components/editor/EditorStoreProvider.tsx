@@ -2,7 +2,7 @@
 import { createContext, useContext, useState, type PropsWithChildren } from 'react'
 import { useStore } from 'zustand'
 import type { StoreApi } from 'zustand/vanilla'
-import { createEditorStore, type EditorStoreState } from '../../lib/editor/store'
+import { createEditorStore, type EditorStoreState } from '@/lib/editor/store'
 
 const EditorStoreContext = createContext<StoreApi<EditorStoreState> | null>(null)
 

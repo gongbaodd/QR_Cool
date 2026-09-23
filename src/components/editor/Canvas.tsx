@@ -3,11 +3,11 @@ import { useEffect, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { Group, Stage, Layer, Image as CanvasImage, Rect, Transformer } from 'react-konva'
 import type Konva from 'konva'
-import { canonicalPlacement, fitsMask } from '../../lib/editor/schema'
-import type { Placement, PlacementInput } from '../../lib/editor/schema'
-import { canonicalizeRotation } from '../../core/rotate'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import { canonicalPlacement, fitsMask } from '@/lib/editor/schema'
+import type { Placement, PlacementInput } from '@/lib/editor/schema'
+import { canonicalizeRotation } from '@/core/rotate'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const styles = stylex.create({
   area: {

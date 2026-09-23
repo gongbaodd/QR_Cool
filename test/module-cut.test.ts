@@ -8,7 +8,7 @@ import {
   moduleBlock,
   moduleCellIndex,
   renderModuleCoverage,
-} from '../src/core/module-cut'
+} from '@/core/module-cut'
 
 /** Rectangle of 1s inside a width x height grid, with a one-pixel border left outside. */
 function rectangle(width: number, height: number, x: number, y: number, size: number): Uint8Array {

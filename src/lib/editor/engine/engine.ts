@@ -13,10 +13,10 @@
  *   around codecs or detectors.
  */
 
-import type { Imaging } from '../../../core/imaging/types'
-import type { LoadedPng } from '../../../core/image'
-import type { RegionMask, ResolvedLayout } from '../../../core/types'
-import { setImaging } from '../../../core/imaging'
+import type { Imaging } from '@/core/imaging/types'
+import type { LoadedPng } from '@/core/image'
+import type { RegionMask, ResolvedLayout } from '@/core/types'
+import { setImaging } from '@/core/imaging'
 import type { QrBundle } from './pipeline'
 import {
   engineDefaults,
@@ -29,7 +29,7 @@ import {
 } from './pipeline'
 import { toEngineError } from './mapping'
 import type { EngineError, EngineInput, EngineOutcome, PreparedPayload, AssemblePayload } from './types'
-import type { Placement, Settings } from '../schema'
+import type { Placement, Settings } from '@/lib/editor/schema'
 
 /** Assembled layout shared by prepare and assemble. */
 interface EngineSourcedLayout {

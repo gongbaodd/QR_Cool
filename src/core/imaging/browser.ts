@@ -15,7 +15,7 @@ import { init as initPngCodec } from '@jsquash/png/decode.js'
 import type { InitInput as PngWasmInput } from '@jsquash/png/codec/pkg/squoosh_png.js'
 import { Resvg, initWasm } from '@resvg/resvg-wasm'
 import type { InitInput as ResvgWasmInput } from '@resvg/resvg-wasm'
-import { QrPosterError } from '../errors'
+import { QrPosterError } from '@/core/errors'
 import { compositeOver, flattenOverWhite, resizeNearest } from './pixels'
 import type { Imaging, RawImage, RenderedSvgPng, SvgRenderOptions } from './types'
 

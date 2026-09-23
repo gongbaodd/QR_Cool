@@ -65,6 +65,9 @@ function stylexBabel(): Plugin {
                 runtimeInjection: false,
                 enableInlinedConditionalMerge: true,
                 treeshakeCompensation: true,
+                aliases: {
+                  '@/*': [path.join(srcRoot, '*')],
+                },
                 unstable_moduleResolution: { type: 'commonJS' },
               },
             ],
@@ -88,6 +91,11 @@ function stylexBabel(): Plugin {
  * them here (vinext fails the build on duplicates).
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': path.resolve(here, 'src'),
+    },
+  },
   plugins: [
     //
     wasmAssetUrls(),

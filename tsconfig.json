@@ -3,6 +3,9 @@
     "target": "ES2023",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "lib": [
       "dom",
       "dom.iterable",

@@ -1,6 +1,6 @@
 import sharp from 'sharp'
 import { describe, it, expect } from 'vitest'
-import { cropQrPattern } from '../src/core/qr'
+import { cropQrPattern } from '@/core/qr'
 
 describe('QR center pattern', () => {
   it.each([21, 25, 37, 177])('excludes all corner finder regions for %s QR modules', async (qrModules) => {

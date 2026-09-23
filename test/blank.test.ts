@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { QrPosterError } from '../src/core/errors'
-import { decodePng, rgbaToPng } from '../src/core/image'
-import { buildManualRegionMask, detectRegionMask } from '../src/core/mask'
-import { createEditorEngine, type EngineOutcome } from '../src/lib/editor/engine'
-import { nodeImaging } from '../src/core/imaging/node'
-import { MAX_IMAGE_BYTES, MAX_PIXELS } from '../src/lib/editor/schema'
+import { QrPosterError } from '@/core/errors'
+import { decodePng, rgbaToPng } from '@/core/image'
+import { buildManualRegionMask, detectRegionMask } from '@/core/mask'
+import { createEditorEngine, type EngineOutcome } from '@/lib/editor/engine'
+import { nodeImaging } from '@/core/imaging/node'
+import { MAX_IMAGE_BYTES, MAX_PIXELS } from '@/lib/editor/schema'
 import {
   BLANK_POSTER_HEIGHT,
   BLANK_POSTER_WIDTH,
   buildBlankMaskRgba,
   buildBlankPosterRgba,
-} from '../src/lib/editor/blank'
+} from '@/lib/editor/blank'
 
 const settings = { seed: 7, qrMargin: 1 as const, plateCorners: 'texture' as const }
 

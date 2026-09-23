@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { BLANK_POSTER_HEIGHT as DEFAULT_HEIGHT, BLANK_POSTER_WIDTH as DEFAULT_WIDTH } from '../../../lib/editor/blank'
+import { BLANK_POSTER_HEIGHT as DEFAULT_HEIGHT, BLANK_POSTER_WIDTH as DEFAULT_WIDTH } from '@/lib/editor/blank'
 import {
   DEFAULT_AUTO_MASK,
   DEFAULT_AUTO_MASK_FONT_ID,
@@ -7,16 +7,16 @@ import {
   TEXT_MASK_FONTS,
   defaultTextMaskSize,
   fitTextMaskSize,
-} from '../../../lib/editor/text-mask'
-import type { IconItem, TextMaskFont } from '../../../lib/editor/text-mask'
-import { useEditorStore, useEditorStoreApi } from '../EditorStoreProvider'
+} from '@/lib/editor/text-mask'
+import type { IconItem, TextMaskFont } from '@/lib/editor/text-mask'
+import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorStoreProvider'
 import {
   selectEffectiveMask,
   selectIsBlank,
   selectIsIconMode,
   selectMaskFont,
   selectSuggestedMask,
-} from '../../../lib/editor/selectors'
+} from '@/lib/editor/selectors'
 
 function drawTextMask(width: number, height: number, text: string, family: string, capPx: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')

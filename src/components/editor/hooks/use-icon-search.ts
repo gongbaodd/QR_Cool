@@ -1,6 +1,6 @@
-import type { IconItem } from '../../../lib/editor/text-mask'
+import type { IconItem } from '@/lib/editor/text-mask'
 import { useCallback, useEffect, useRef } from 'react'
-import { useEditorStore, useEditorStoreApi } from '../EditorStoreProvider'
+import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorStoreProvider'
 
 export interface IconSearch {
   results: IconItem[]

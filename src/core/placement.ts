@@ -1,4 +1,4 @@
-import { fitsMask } from '../lib/editor/schema'
+import { fitsMask } from '@/lib/editor/schema'
 import { QrPosterError } from './errors'
 import { canonicalizeRotation } from './rotate'
 import type { QrBoxInput, QrPlacement, RegionMask } from './types'

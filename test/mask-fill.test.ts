@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeFillRegion } from '../src/lib/editor/mask-fill'
+import { computeFillRegion } from '@/lib/editor/mask-fill'
 
 const W = 20
 const H = 20

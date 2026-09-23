@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react'
 import * as Comlink from 'comlink'
-import type { EngineInput, AssembleInput } from '../../../lib/editor/engine'
-import { contentSchema, MAX_IMAGE_BYTES, type Settings } from '../../../lib/editor/schema'
-import { selectCanAssemble } from '../../../lib/editor/selectors'
+import type { EngineInput, AssembleInput } from '@/lib/editor/engine'
+import { contentSchema, MAX_IMAGE_BYTES, type Settings } from '@/lib/editor/schema'
+import { selectCanAssemble } from '@/lib/editor/selectors'
 import {
   createEditorWorkerClient,
   type EditorWorkerClientHandle,
-} from '../../../lib/editor/worker/editor-worker-client'
-import { useEditorStore, useEditorStoreApi } from '../EditorStoreProvider'
+} from '@/lib/editor/worker/editor-worker-client'
+import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorStoreProvider'
 
 export interface EditorRequest {
   request: (mode: 'prepare' | 'assemble', automatic?: boolean) => Promise<void>

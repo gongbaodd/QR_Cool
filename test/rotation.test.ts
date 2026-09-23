@@ -11,18 +11,18 @@ import {
   rotatedSquareCorners,
   sampleMaskIntoQrFrame,
   assertFrameHoldsPlacement,
-} from '../src/core/rotate'
-import { QrPosterError } from '../src/core/errors'
-import { canonicalPlacement, fitsMask, placementSchema } from '../src/lib/editor/schema'
-import { boxIsInsideMask, placeQr } from '../src/core/placement'
-import { buildModuleLattice, computePlateModules, computeSafeArea } from '../src/core/module-cut'
-import { markerBandRects } from '../src/core/assemble'
-import { PATTERN_QUIET_ZONE_MODULES } from '../src/core/pattern'
-import { createEditorEngine } from '../src/lib/editor/engine'
-import type { EditorEngineApi, EngineOutcome } from '../src/lib/editor/engine'
-import { nodeImaging } from '../src/core/imaging/node'
-import { prepareSource } from '../src/lib/editor/engine/pipeline'
-import type { RegionMask } from '../src/core/types'
+} from '@/core/rotate'
+import { QrPosterError } from '@/core/errors'
+import { canonicalPlacement, fitsMask, placementSchema } from '@/lib/editor/schema'
+import { boxIsInsideMask, placeQr } from '@/core/placement'
+import { buildModuleLattice, computePlateModules, computeSafeArea } from '@/core/module-cut'
+import { markerBandRects } from '@/core/assemble'
+import { PATTERN_QUIET_ZONE_MODULES } from '@/core/pattern'
+import { createEditorEngine } from '@/lib/editor/engine'
+import type { EditorEngineApi, EngineOutcome } from '@/lib/editor/engine'
+import { nodeImaging } from '@/core/imaging/node'
+import { prepareSource } from '@/lib/editor/engine/pipeline'
+import type { RegionMask } from '@/core/types'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
 const content = 'https://example.com/qr'

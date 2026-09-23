@@ -1,3 +1,3 @@
-import { setImaging } from '../src/core/imaging'
-import { nodeImaging } from '../src/core/imaging/node'
+import { setImaging } from '@/core/imaging'
+import { nodeImaging } from '@/core/imaging/node'
 setImaging(nodeImaging)

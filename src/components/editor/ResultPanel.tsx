@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex'
-import type { Result } from '../../lib/editor/state'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import type { Result } from '@/lib/editor/state'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const styles = stylex.create({
   result: {

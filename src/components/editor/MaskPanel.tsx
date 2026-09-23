@@ -1,10 +1,10 @@
 'use client'
 import * as stylex from '@stylexjs/stylex'
-import { TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH, searchControlState } from '../../lib/editor/text-mask'
+import { TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH, searchControlState } from '@/lib/editor/text-mask'
 import type { IconSearch } from './hooks/use-icon-search'
 import type { MaskSelection } from './hooks/use-mask-selection'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const styles = stylex.create({
   panel: { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 },

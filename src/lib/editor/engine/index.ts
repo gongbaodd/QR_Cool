@@ -4,10 +4,10 @@
  * jSquash + resvg in the browser worker), so no platform leak enters the engine.
  */
 
-import type { Imaging } from '../../../core/imaging/types'
+import type { Imaging } from '@/core/imaging/types'
 import { EditorEngine } from './engine'
 import type { EngineOutcome, PreparedPayload, AssemblePayload, EngineInput, EngineError } from './types'
-import type { Placement, Settings } from '../schema'
+import type { Placement, Settings } from '@/lib/editor/schema'
 
 export type { EditorEngine }
 export type { EngineOutcome, PreparedPayload, AssemblePayload, EngineInput, EngineError }

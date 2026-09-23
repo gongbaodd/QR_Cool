@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { canonicalizeRotation, localPointInPlate, posterToPlatePoint, rotatedFootprintBounds } from '../../core/rotate'
+import { canonicalizeRotation, localPointInPlate, posterToPlatePoint, rotatedFootprintBounds } from '@/core/rotate'
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 export const MAX_PIXELS = 4_000_000

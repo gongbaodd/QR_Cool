@@ -10,7 +10,7 @@ import {
   fitTextMaskSize,
   largestWhiteSquare,
   searchControlState,
-} from '../src/lib/editor/text-mask'
+} from '@/lib/editor/text-mask'
 
 describe('text mask fonts', () => {
   it('lists bundled fonts with files served from public/', () => {

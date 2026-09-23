@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useId, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import type { IconItem } from '../../lib/editor/text-mask'
-import { tokens } from '../../styles/tokens.stylex'
-import { ui } from '../../styles/ui.stylex'
+import type { IconItem } from '@/lib/editor/text-mask'
+import { tokens } from '@/styles/tokens.stylex'
+import { ui } from '@/styles/ui.stylex'
 
 const styles = stylex.create({
   /**

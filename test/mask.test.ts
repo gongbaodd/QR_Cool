@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
-import { QrPosterError } from '../src/core/errors'
-import { buildManualRegionMask, detectRegionMask } from '../src/core/mask'
-import type { LoadedPng } from '../src/core/image'
+import { QrPosterError } from '@/core/errors'
+import { buildManualRegionMask, detectRegionMask } from '@/core/mask'
+import type { LoadedPng } from '@/core/image'
 
 describe('region mask detection', () => {
   it('keeps a dense central shape and does not follow a long attached line', async () => {
