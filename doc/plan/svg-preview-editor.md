@@ -21,11 +21,11 @@ The performance improvement comes primarily from separating placement from prepa
 
 ## Library choice
 
-| Option | Fit for this editor | Tradeoff |
-| --- | --- | --- |
-| React SVG + `react-moveable` | Recommended: React owns a small SVG scene; Moveable supplies drag, uniform resize/scale, and rotation handles for one target. | Needs an explicit adapter between screen coordinates, SVG coordinates, and canonical placement. Verify behavior with the project's React version and responsive layout. |
-| `@svgdotjs/svg.js` + select/resize/draggable plugins | Viable SVG-specific alternative with selection, resizing/rotation, and drag events. | Requires an imperative SVG subtree with clear ownership outside React reconciliation, plugin setup/cleanup, and styling integration. |
-| Existing Konva with preparation decoupled | Useful first migration step and a fallback if SVG integration fails its checks. | Removes the expensive pipeline work but retains a canvas scene and its hit-target/accessibility plumbing. |
+| Option                                               | Fit for this editor                                                                                                           | Tradeoff                                                                                                                                                                |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| React SVG + `react-moveable`                         | Recommended: React owns a small SVG scene; Moveable supplies drag, uniform resize/scale, and rotation handles for one target. | Needs an explicit adapter between screen coordinates, SVG coordinates, and canonical placement. Verify behavior with the project's React version and responsive layout. |
+| `@svgdotjs/svg.js` + select/resize/draggable plugins | Viable SVG-specific alternative with selection, resizing/rotation, and drag events.                                           | Requires an imperative SVG subtree with clear ownership outside React reconciliation, plugin setup/cleanup, and styling integration.                                    |
+| Existing Konva with preparation decoupled            | Useful first migration step and a fallback if SVG integration fails its checks.                                               | Removes the expensive pipeline work but retains a canvas scene and its hit-target/accessibility plumbing.                                                               |
 
 Moveable documents SVG targets and provides a React package. Enable dragging, rotation, and **one** size operation with a fixed square aspect ratio; do not enable both resizable and scalable. Use uniform scaling of the upright group, then convert the final scale into `placement.size`. Disable flips, skew, warp, group selection, origin dragging, and unrelated tools. This recommendation is an integration judgment, not a claim of measured speed or bundle-size superiority. See the [React Moveable documentation](https://github.com/daybrush/moveable/tree/master/packages/react-moveable) and [Moveable API](https://daybrush.com/moveable/release/latest/doc/Moveable.html).
 
@@ -49,14 +49,14 @@ Preview rendering remains an approximation: browser image scaling/antialiasing i
 
 Replace the placement-dependent prepared payload with reusable editing assets. Keep all work inside the existing session-owned Comlink worker.
 
-| Change | Work allowed before assembly | Work deferred to Assemble |
-| --- | --- | --- |
-| Poster or selected mask | PNG guards, decode, source cache, region detection or manual mask, region bounds, mask/highlight assets | Placement containment and safe-module/frame checks |
-| Committed content, ECC, pixel style, marker settings, palette | Generate/cache upright QR and metadata; content/capacity/palette guards and generated-QR decode checks | Normalization to placed size and placement-dependent rendering |
-| Position, size, rotation | Local transform and one canonical placement commit | All mask/working-frame/lattice/texture validation and output rendering |
-| Seed, Rim, Margin, plate-corner settings | Commit settings and invalidate result; update any cheap vector decoration if present | Texture generation, region-band calculations, and pixel verification |
-| Fill region | Existing source-mask operation, then refresh mask/highlight assets | Validation of the QR against the changed mask |
-| Draft text, hover, dialogs, panel state | Existing local/store UI behavior | No new engine work |
+| Change                                                        | Work allowed before assembly                                                                            | Work deferred to Assemble                                              |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Poster or selected mask                                       | PNG guards, decode, source cache, region detection or manual mask, region bounds, mask/highlight assets | Placement containment and safe-module/frame checks                     |
+| Committed content, ECC, pixel style, marker settings, palette | Generate/cache upright QR and metadata; content/capacity/palette guards and generated-QR decode checks  | Normalization to placed size and placement-dependent rendering         |
+| Position, size, rotation                                      | Local transform and one canonical placement commit                                                      | All mask/working-frame/lattice/texture validation and output rendering |
+| Seed, Rim, Margin, plate-corner settings                      | Commit settings and invalidate result; update any cheap vector decoration if present                    | Texture generation, region-band calculations, and pixel verification   |
+| Fill region                                                   | Existing source-mask operation, then refresh mask/highlight assets                                      | Validation of the QR against the changed mask                          |
+| Draft text, hover, dialogs, panel state                       | Existing local/store UI behavior                                                                        | No new engine work                                                     |
 
 The QR source is currently generated at a fixed pitch in `src/core/qr.ts`. Reuse a transparent preview Blob made once per QR cache key; carry its intrinsic dimensions independently of the placed size. Keep the opaque source for assembly. Source generation can still use the existing raster backend on content/style changes. “Rasterize at assembly” here means **placement-dependent normalization and final poster rendering** move there; decoding PNG uploads and generating reusable previews are still necessary.
 
@@ -131,16 +131,16 @@ Do not change draft/content commit behavior as part of this work. Existing docum
 
 These are checks for implementation, not commands to run for this proposal. Follow repository policy: run `pnpm test`, `pnpm typecheck`, `pnpm build`, and `pnpm test:e2e` only when explicitly requested. Update browser journeys only when requested.
 
-| Area | Required evidence |
-| --- | --- |
-| Gesture work | Continuous drag/resize/rotation, gesture end, and repeated nudges cause zero prepare/assemble RPCs, mask scans, PNG encodes, placement normalization, or preview Blob replacements. |
-| Responsiveness | Record a browser trace with a 4-megapixel poster and a dense QR on desktop and mobile. Compare with baseline; target no gesture-handler long tasks over 50 ms and frame work within the device's frame budget. SVG alone is not evidence. |
-| Geometry | Pointer/placement round trips at 0°, 30°, 45°, 90°, and 359°, at multiple viewport scales and scroll positions; center remains stable through quantization and QR module-count changes. |
-| Invalid placement | Outside mask/canvas, negative origin, holey mask, no texture space, and frame-coverage failure remain editable; Assemble rejects with no result/download and no automatic movement. A corrective edit enables a new attempt. |
-| Asset identity | Placement edits during source/style preparation preserve the latest placement; only matching assets are accepted. Rim/seed/margin changes invalidate results without regenerating QR or mask PNGs. |
-| Lifecycle | Edit during assembly, pointer cancellation, source change during gesture, rapid content/style changes, retries, unmount/remount, and late mask/toBlob completions cannot install stale output or clear newer work. |
-| Existing controls | Fill before/after QR creation, rotated marker hits, version-1 markers, touch scrolling, keyboard size/rotation/nudges, native drawers, Escape, and result-to-editor return all retain their intended behavior. |
-| Export parity | Existing valid upright/rotated inputs and golden fixtures remain byte-identical; mandatory verification rejects failures; preview/download share the exact assembled Blob. |
+| Area              | Required evidence                                                                                                                                                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gesture work      | Continuous drag/resize/rotation, gesture end, and repeated nudges cause zero prepare/assemble RPCs, mask scans, PNG encodes, placement normalization, or preview Blob replacements.                                                       |
+| Responsiveness    | Record a browser trace with a 4-megapixel poster and a dense QR on desktop and mobile. Compare with baseline; target no gesture-handler long tasks over 50 ms and frame work within the device's frame budget. SVG alone is not evidence. |
+| Geometry          | Pointer/placement round trips at 0°, 30°, 45°, 90°, and 359°, at multiple viewport scales and scroll positions; center remains stable through quantization and QR module-count changes.                                                   |
+| Invalid placement | Outside mask/canvas, negative origin, holey mask, no texture space, and frame-coverage failure remain editable; Assemble rejects with no result/download and no automatic movement. A corrective edit enables a new attempt.              |
+| Asset identity    | Placement edits during source/style preparation preserve the latest placement; only matching assets are accepted. Rim/seed/margin changes invalidate results without regenerating QR or mask PNGs.                                        |
+| Lifecycle         | Edit during assembly, pointer cancellation, source change during gesture, rapid content/style changes, retries, unmount/remount, and late mask/toBlob completions cannot install stale output or clear newer work.                        |
+| Existing controls | Fill before/after QR creation, rotated marker hits, version-1 markers, touch scrolling, keyboard size/rotation/nudges, native drawers, Escape, and result-to-editor return all retain their intended behavior.                            |
+| Export parity     | Existing valid upright/rotated inputs and golden fixtures remain byte-identical; mandatory verification rejects failures; preview/download share the exact assembled Blob.                                                                |
 
 Use focused reducer/engine/geometry tests for the new dependency and race boundaries. Do not add tests that merely restate a library's implementation. Keep performance measurements local and avoid a new telemetry subsystem.
 
