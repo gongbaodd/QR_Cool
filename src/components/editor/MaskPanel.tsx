@@ -56,12 +56,14 @@ export default function MaskPanel({
   onSearch,
   onClose,
   closeButtonRef,
+  isDialog,
 }: {
   mask: MaskSelection
   search: IconSearch
   onSearch: () => void | Promise<void>
   onClose: () => void
   closeButtonRef: RefObject<HTMLButtonElement | null>
+  isDialog: boolean
 }) {
   const query = mask.text.trim()
   const searchState = searchControlState(query, search.fetchedQuery, search.results.length)
@@ -70,14 +72,16 @@ export default function MaskPanel({
       <div {...stylex.props(styles.card)}>
         <div {...stylex.props(styles.cardTop)}>
           <span {...stylex.props(ui.eyebrow)}>MASK SELECTION</span>
-          <button
-            ref={closeButtonRef}
-            {...stylex.props(ui.button, ui.textButton)}
-            type="button"
-            onClick={onClose}
-          >
-            Close
-          </button>
+          {isDialog && (
+            <button
+              ref={closeButtonRef}
+              {...stylex.props(ui.button, ui.textButton)}
+              type="button"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          )}
         </div>
         {!mask.isFollowingInput && (
           <>

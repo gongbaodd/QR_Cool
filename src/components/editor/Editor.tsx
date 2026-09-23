@@ -169,13 +169,14 @@ function EditorWorkspace() {
             onOpenChange={actions.setMaskOpen}
             triggerRef={maskTriggerRef}
           >
-            {({ close, closeButtonRef }) => (
+            {({ close, closeButtonRef, isDialog }) => (
               <MaskPanel
                 mask={maskSelection}
                 search={iconSearch}
                 onSearch={iconSearch.handleSearchClick}
                 onClose={close}
                 closeButtonRef={closeButtonRef}
+                isDialog={isDialog}
               />
             )}
           </ResponsiveEditorPanel>
@@ -229,12 +230,13 @@ function EditorWorkspace() {
             onOpenChange={actions.setPatternSettingsOpen}
             triggerRef={patternSettingsTriggerRef}
           >
-            {({ close, closeButtonRef }) => (
+            {({ close, closeButtonRef, isDialog }) => (
               <PatternSettings
                 settings={editorDocument.settings}
                 onSettings={actions.patchSettings}
                 onClose={close}
                 closeButtonRef={closeButtonRef}
+                isDialog={isDialog}
               />
             )}
           </ResponsiveEditorPanel>

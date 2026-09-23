@@ -272,11 +272,13 @@ export default function PatternSettings({
   onSettings,
   onClose,
   closeButtonRef,
+  isDialog,
 }: {
   settings: Settings
   onSettings: (patch: Partial<Settings>) => void
   onClose: () => void
   closeButtonRef: RefObject<HTMLButtonElement | null>
+  isDialog: boolean
 }) {
   const ecc = (settings.ecc ?? 'M') as 'L' | 'M' | 'Q' | 'H'
   const pixelStyle = (settings.pixelStyle ?? 'rounded') as 'square' | 'rounded' | 'dot'
@@ -284,14 +286,16 @@ export default function PatternSettings({
     <div {...stylex.props(styles.panel)}>
       <div {...stylex.props(styles.panelTop)}>
         <h2 {...stylex.props(styles.heading)}>Pattern settings</h2>
-        <button
-          ref={closeButtonRef}
-          {...stylex.props(ui.button, ui.textButton)}
-          type="button"
-          onClick={onClose}
-        >
-          Close
-        </button>
+        {isDialog && (
+          <button
+            ref={closeButtonRef}
+            {...stylex.props(ui.button, ui.textButton)}
+            type="button"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        )}
       </div>
       <fieldset {...stylex.props(styles.eccFieldset)}>
         <legend {...stylex.props(styles.eccLegend)}>Error correction</legend>
