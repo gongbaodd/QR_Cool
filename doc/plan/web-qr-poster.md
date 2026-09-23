@@ -4,7 +4,7 @@ Status: implemented; the web editor is the supported product interface and the C
 
 ## Product goal
 
-The error-correction cards preview the default rounded QR styling encoded from an empty text value, so L/M/Q/H remain comparable before content is entered.
+The error-correction and pixel-style cards preview QR styling encoded from an empty text value, so the options remain visible and comparable before content is entered.
 
 ## Reactive workspace (implemented 2026-09-22)
 

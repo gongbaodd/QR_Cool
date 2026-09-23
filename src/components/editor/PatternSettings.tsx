@@ -347,7 +347,7 @@ export default function PatternSettings({
                   aria-label={`${opt.value} ${opt.hint}`}
                 />
                 <span {...stylex.props(styles.eccPreviewBox)}>
-                  <MiniPixelQrPreview content={content} ecc={ecc} pixelStyle={opt.value} />
+                  <MiniPixelQrPreview content="" ecc={ecc} pixelStyle={opt.value} allowEmpty />
                 </span>
                 <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
                 <span {...stylex.props(styles.eccRecovery)}>{opt.hint}</span>
