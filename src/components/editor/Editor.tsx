@@ -2,11 +2,11 @@
 import dynamic from 'next/dynamic'
 import { useEffect, useRef } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { toast, ToastContainer } from 'react-toastify'
 import EditorStoreProvider, { useEditorStore, useEditorStoreApi } from './EditorStoreProvider'
 import {
   selectCanAssemble,
   selectCurrent,
-  selectPreparationError,
   selectVisibleContentError,
 } from '@/lib/editor/selectors'
 import {
@@ -22,7 +22,6 @@ import PreviewPanel from './PreviewPanel'
 import MaskPanel from './MaskPanel'
 import PatternSettings from './PatternSettings'
 import ResponsiveEditorPanel from './ResponsiveEditorPanel'
-import PreparationError from './PreparationError'
 import { useBlobUrls } from './hooks/use-blob-urls'
 import { useEngineRequest } from './hooks/use-engine-request'
 import { useIconSearch } from './hooks/use-icon-search'
@@ -48,7 +47,6 @@ const styles = stylex.create({
     '@media (max-width: 900px)': { display: 'block', padding: 10 },
   },
   side: { minWidth: 0 },
-  error: { margin: 0, padding: 10, backgroundColor: tokens.highlightSoft, borderRadius: tokens.sketch },
 })
 
 const freshSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!
@@ -71,7 +69,7 @@ function EditorWorkspace() {
   const maskBusy = useEditorStore((state) => state.maskSelection.busy)
   const iconSearch = useIconSearch()
   const maskSelection = useMaskSelection({})
-  const { request } = useEngineRequest()
+  const { request, failedMode } = useEngineRequest()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const maskTriggerRef = useRef<HTMLButtonElement | null>(null)
   const patternSettingsTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -92,13 +90,76 @@ function EditorWorkspace() {
   const sourceMaskUrls = useBlobUrls(sourceMask ? { mask: sourceMask } : {})
   const posterUrl = posterUrls.poster ?? ''
   const sourceMaskUrl = sourceMaskUrls.mask ?? ''
-  const preparationError = useEditorStore(selectPreparationError)
+  const preparationError = useEditorStore((state) =>
+    state.document.error && state.document.field !== 'content' ? state.document.error : null,
+  )
   const visibleError = useEditorStore(selectVisibleContentError)
   const current = useEditorStore(selectCurrent)
   const maskOpen = useEditorStore((state) => state.panels.maskOpen)
   const patternSettingsOpen = useEditorStore((state) => state.panels.patternSettingsOpen)
   const busy = useEditorStore((state) => !!state.document.busy || state.maskSelection.busy || state.iconSearch.loading)
   const canAssemble = useEditorStore(selectCanAssemble)
+
+  useEffect(() => {
+    if (!visibleError) {
+      toast.dismiss('editor-content-error')
+      return
+    }
+    const options = { toastId: 'editor-content-error', autoClose: false, role: 'alert' as const, ariaLabel: 'Content validation error' }
+    if (toast.isActive('editor-content-error')) {
+      toast.update('editor-content-error', { render: visibleError, type: 'error', ...options })
+    } else {
+      toast.error(visibleError, options)
+    }
+  }, [visibleError])
+
+  useEffect(() => {
+    if (!preparationError) {
+      toast.dismiss('editor-document-error')
+      return
+    }
+    const canRetry = editorDocument.field !== 'placement' && failedMode !== null
+    const retryMode = failedMode
+    const message = preparationError
+    const content = (
+      <div>
+        <span>{message}</span>
+        {canRetry && retryMode && (
+          <button
+            type="button"
+            {...stylex.props(ui.button, ui.textButton)}
+            onClick={() => void request(retryMode)}
+          >
+            Retry {retryMode === 'prepare' ? 'preparation' : 'assembly'}
+          </button>
+        )}
+      </div>
+    )
+    const options = { toastId: 'editor-document-error', autoClose: false, role: 'alert' as const, ariaLabel: 'Preview error' }
+    if (toast.isActive('editor-document-error')) {
+      toast.update('editor-document-error', { render: content, type: 'error', ...options })
+    } else {
+      toast.error(content, options)
+    }
+  }, [preparationError, editorDocument.field, failedMode, request])
+
+  const iconSearchError = useEditorStore((state) => state.iconSearch.error)
+  const iconFetchedQuery = useEditorStore((state) => state.iconSearch.fetchedQuery)
+  const activeQuery = maskText.trim()
+  useEffect(() => {
+    const message = iconSearchError && iconFetchedQuery === activeQuery ? iconSearchError : null
+    if (!message) {
+      toast.dismiss('editor-icon-search-error')
+      return
+    }
+    const content = <span>{message} Search: “{iconFetchedQuery}”.</span>
+    const options = { toastId: 'editor-icon-search-error', autoClose: false, role: 'alert' as const, ariaLabel: `Icon search failed for ${iconFetchedQuery}` }
+    if (toast.isActive('editor-icon-search-error')) {
+      toast.update('editor-icon-search-error', { render: content, type: 'error', ...options })
+    } else {
+      toast.error(content, options)
+    }
+  }, [iconSearchError, iconFetchedQuery, activeQuery])
 
   useEffect(() => {
     if (store.getState().sources.poster) return
@@ -143,6 +204,25 @@ function EditorWorkspace() {
 
   return (
     <main>
+      <ToastContainer
+        position="top-right"
+        autoClose={false}
+        closeOnClick={false}
+        newestOnTop
+        limit={4}
+        theme="light"
+        toastStyle={{
+          backgroundColor: tokens.card,
+          color: tokens.ink,
+          border: `2px solid ${tokens.ink}`,
+          borderRadius: tokens.sketchCard,
+          fontFamily: 'inherit',
+        }}
+        style={{
+          insetBlockStart: 'max(12px, env(safe-area-inset-top))',
+          insetInlineEnd: 'max(12px, env(safe-area-inset-right))',
+        }}
+      />
       <EditorHeader
         content={draft.content}
         contentError={visibleError}
@@ -242,9 +322,6 @@ function EditorWorkspace() {
           </ResponsiveEditorPanel>
         </div>
       </div>
-      {preparationError && editorDocument.field !== 'placement' && (
-        <PreparationError message={preparationError} onRetry={() => void request('prepare')} />
-      )}
       <IconGallery
         open={iconSearch.galleryMode}
         query={maskText.trim()}
@@ -254,11 +331,6 @@ function EditorWorkspace() {
         onSelect={handleGallerySelect}
         onClose={iconSearch.closeGallery}
       />
-      {draft.error && (
-        <p {...stylex.props(styles.error, ui.error)} role="alert">
-          {draft.error}
-        </p>
-      )}
     </main>
   )
 }

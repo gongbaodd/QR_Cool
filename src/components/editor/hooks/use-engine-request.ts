@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as Comlink from 'comlink'
 import type { EngineInput, AssembleInput } from '@/lib/editor/engine'
 import { contentSchema, MAX_IMAGE_BYTES, type Settings } from '@/lib/editor/schema'
@@ -11,6 +11,7 @@ import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorSto
 
 export interface EditorRequest {
   request: (mode: 'prepare' | 'assemble') => Promise<void>
+  failedMode: 'prepare' | 'assemble' | null
 }
 
 /** Owns one editor's debounced worker session and drops stale lifecycle work. */
@@ -20,6 +21,8 @@ export function useEngineRequest(): EditorRequest {
   const poster = useEditorStore((state) => state.sources.poster)
   const mask = useEditorStore((state) => state.sources.mask)
   const maskBusy = useEditorStore((state) => state.maskSelection.busy)
+  const documentError = useEditorStore((state) => state.document.error)
+  const [failedRequest, setFailedRequest] = useState<{ revision: number; mode: 'prepare' | 'assemble' } | null>(null)
   const handle = useRef<EditorWorkerClientHandle | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const operation = useRef(0)
@@ -46,6 +49,7 @@ export function useEngineRequest(): EditorRequest {
         return
 
       const requestRevision = document.revision
+      setFailedRequest(null)
       current.actions.startEngine(mode, requestRevision)
       try {
         const input: EngineInput = {
@@ -90,8 +94,10 @@ export function useEngineRequest(): EditorRequest {
 
       function settleError(activeToken: number, expectedRevision: number, message: string, field?: string) {
         const latest = store.getState()
-        if (activeToken === operation.current && latest.document.revision === expectedRevision)
+        if (activeToken === operation.current && latest.document.revision === expectedRevision) {
+          setFailedRequest({ revision: expectedRevision, mode })
           latest.actions.failEngine(expectedRevision, message, field)
+        }
       }
     },
     [store],
@@ -121,7 +127,10 @@ export function useEngineRequest(): EditorRequest {
     [],
   )
 
-  return { request }
+  return {
+    request,
+    failedMode: documentError && failedRequest?.revision === revision ? failedRequest.mode : null,
+  }
 }
 
 async function toTransferredBytes(file: File): Promise<Uint8Array> {

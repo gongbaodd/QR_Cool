@@ -55,6 +55,17 @@ const styles = stylex.create({
     fontFamily: 'inherit',
   },
   status: { gridColumn: '1 / -1', fontSize: 14, color: tokens.muted, minHeight: 20, margin: 0 },
+  srOnly: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: 'hidden',
+    clip: 'rect(0, 0, 0, 0)',
+    whiteSpace: 'nowrap',
+    borderWidth: 0,
+  },
 })
 
 export default function EditorHeader({
@@ -110,13 +121,8 @@ export default function EditorHeader({
         <button {...stylex.props(ui.button, ui.primary, styles.submit)} type="submit" disabled={busy}>
           {busy ? 'Applying…' : 'Generate'}
         </button>
-        <p
-          id={contentError ? 'content-error' : 'content-hint'}
-          {...stylex.props(contentError ? ui.error : styles.status)}
-          role={contentError ? 'alert' : 'status'}
-        >
-          {contentError ?? status}
-        </p>
+        <p id="content-hint" {...stylex.props(styles.status)} role="status">{status}</p>
+        {contentError && <span id="content-error" {...stylex.props(styles.srOnly)}>{contentError}</span>}
         <div {...stylex.props(styles.examples)}>
           {QR_EXAMPLES.map((example) => (
             <button

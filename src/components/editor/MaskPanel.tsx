@@ -21,7 +21,6 @@ const styles = stylex.create({
   cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   status: { fontSize: 15, color: tokens.green, margin: 0 },
   fontGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
-  search: { marginTop: 4 },
   inputWrap: { position: 'relative', marginTop: 8 },
   maskField: { marginTop: 0, marginBottom: 12, paddingInlineEnd: 60 },
   searchButton: {
@@ -156,13 +155,6 @@ export default function MaskPanel({
               </button>
             )
           })}
-        </div>
-        <div {...stylex.props(styles.search)}>
-          {search.error && search.fetchedQuery === query && (
-            <p {...stylex.props(ui.error)} role="alert">
-              {search.error}
-            </p>
-          )}
         </div>
         {mask.busy && (
           <p {...stylex.props(ui.hint, ui.status)} role="status">

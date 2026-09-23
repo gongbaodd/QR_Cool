@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { toast } from 'react-toastify'
 import type Konva from 'konva'
 import type { Result } from '@/lib/editor/state'
 import { canonicalPlacement, fitsMask } from '@/lib/editor/schema'
@@ -146,13 +147,7 @@ const styles = stylex.create({
     color: tokens.muted,
     '@media (max-width: 600px)': { flexDirection: 'column', gap: 2 },
   },
-  veil: {
-    marginBottom: 10,
-    padding: 8,
-    color: tokens.green,
-    backgroundColor: tokens.highlightSoft,
-    borderRadius: tokens.sketch,
-  },
+  fillHint: { minHeight: 18, maxHeight: 18, overflow: 'hidden', fontSize: 13, lineHeight: '18px', color: tokens.muted },
   exportControls: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' },
 })
 
@@ -239,6 +234,21 @@ function SourceRegionPreview({
       }}
     />
   )
+}
+
+function notifyFill(message: string, kind: 'error' | 'warning' | 'success') {
+  const toastId = 'editor-region-fill'
+  const options = {
+    toastId,
+    autoClose: kind === 'error' ? false : 3500,
+    role: kind === 'error' ? ('alert' as const) : ('status' as const),
+    ariaLabel: `Region fill ${kind}: ${message}`,
+  }
+  if (toast.isActive(toastId)) {
+    toast.update(toastId, { render: message, type: kind, isLoading: false, ...options })
+  } else {
+    toast[kind](message, options)
+  }
 }
 
 function PosterCanvas({
@@ -574,7 +584,6 @@ export default function PreviewPanel({
 }) {
   const [markerDialog, setMarkerDialog] = useState<'finder' | 'sub' | null>(null)
   const [fillActive, setFillActive] = useState(false)
-  const [fillStatus, setFillStatus] = useState<string | null>(null)
   const [sourceMaskCanvas, setSourceMaskCanvas] = useState<HTMLCanvasElement | null>(null)
   const [sourceMaskReady, setSourceMaskReady] = useState(false)
   const [fillPending, setFillPending] = useState(false)
@@ -583,6 +592,7 @@ export default function PreviewPanel({
   const [showFilledRegion, setShowFilledRegion] = useState(false)
   const sourceMaskImageData = useRef<ImageData | null>(null)
   const fillGeneration = useRef(0)
+  const fillNotificationKind = useRef<'error' | 'warning' | 'success' | 'progress' | null>(null)
   useEffect(() => {
     fillGeneration.current += 1
     const generation = fillGeneration.current
@@ -591,7 +601,6 @@ export default function PreviewPanel({
     setSourceMaskReady(false)
     setFillPending(false)
     fillPendingRef.current = false
-    setFillStatus(null)
     if (!sourceMaskUrl || !posterUrl) return
     let live = true
     const maskImage = new window.Image()
@@ -603,15 +612,18 @@ export default function PreviewPanel({
       const width = posterImage.naturalWidth
       const height = posterImage.naturalHeight
       if (!width || !height) {
-        setFillStatus('Could not read the poster dimensions. Try again.')
+        fillNotificationKind.current = 'error'
+        notifyFill('Could not read the poster dimensions. Try again.', 'error')
         return
       }
       if (dimensions && (width !== dimensions.width || height !== dimensions.height)) {
-        setFillStatus('The preview dimensions do not match the poster.')
+        fillNotificationKind.current = 'error'
+        notifyFill('The preview dimensions do not match the poster.', 'error')
         return
       }
       if (maskImage.naturalWidth !== width || maskImage.naturalHeight !== height) {
-        setFillStatus('The selected region mask does not match the poster dimensions.')
+        fillNotificationKind.current = 'error'
+        notifyFill('The selected region mask does not match the poster dimensions.', 'error')
         return
       }
       const canvas = document.createElement('canvas')
@@ -619,7 +631,8 @@ export default function PreviewPanel({
       canvas.height = height
       const context = canvas.getContext('2d', { willReadFrequently: true })
       if (!context) {
-        setFillStatus('Could not read the selected region mask. Try again.')
+        fillNotificationKind.current = 'error'
+        notifyFill('Could not read the selected region mask. Try again.', 'error')
         return
       }
       context.drawImage(maskImage, 0, 0)
@@ -636,7 +649,10 @@ export default function PreviewPanel({
       initializeMaskCanvas()
     }
     const onImageError = () => {
-      if (live && generation === fillGeneration.current) setFillStatus('Could not load the selected region mask. Try again.')
+      if (live && generation === fillGeneration.current) {
+        fillNotificationKind.current = 'error'
+        notifyFill('Could not load the selected region mask. Try again.', 'error')
+      }
     }
     maskImage.onerror = onImageError
     posterImage.onerror = onImageError
@@ -644,6 +660,11 @@ export default function PreviewPanel({
     posterImage.src = posterUrl
     return () => {
       live = false
+      if (fillPendingRef.current || fillNotificationKind.current === 'error' || fillNotificationKind.current === 'warning') {
+        toast.dismiss('editor-region-fill')
+        fillNotificationKind.current = null
+      }
+      fillGeneration.current += 1
       maskImage.onload = null
       maskImage.onerror = null
       posterImage.onload = null
@@ -659,31 +680,55 @@ export default function PreviewPanel({
     if (!image || !canvas || !fillActive || !sourceMaskReady || fillPendingRef.current || busy) return
     const painted = fillMaskImageData(image, x, y)
     if (painted === null) {
-      setFillStatus('Open region — click inside an enclosed area.')
+      fillNotificationKind.current = 'warning'
+      notifyFill('Open region — click inside an enclosed area.', 'warning')
       return
     }
     const context = canvas.getContext('2d', { willReadFrequently: true })
     if (!context) {
-      setFillStatus('Could not update the selected region. Try again.')
+      fillNotificationKind.current = 'error'
+      notifyFill('Could not update the selected region. Try again.', 'error')
       return
     }
     context.putImageData(image, 0, 0)
     setMaskRevision((revision) => revision + 1)
     fillPendingRef.current = true
     setFillPending(true)
-    setFillStatus('Saving the filled region…')
+    fillNotificationKind.current = 'progress'
+    const toastId = 'editor-region-fill'
+    if (toast.isActive(toastId)) {
+      toast.update(toastId, {
+        render: 'Saving the filled region…',
+        type: 'default',
+        isLoading: true,
+        autoClose: false,
+        role: 'status',
+        ariaLabel: 'Saving the filled region',
+      })
+    } else {
+      toast.loading('Saving the filled region…', {
+        toastId,
+        autoClose: false,
+        role: 'status',
+        ariaLabel: 'Saving the filled region',
+      })
+    }
     const generation = fillGeneration.current
     canvas.toBlob((blob) => {
       if (generation !== fillGeneration.current) return
       if (!blob) {
         fillPendingRef.current = false
         setFillPending(false)
-        setFillStatus('Could not save the filled mask. Try again.')
+        fillNotificationKind.current = 'error'
+        notifyFill('Could not save the filled mask. Try again.', 'error')
         return
       }
+      fillPendingRef.current = false
+      setFillPending(false)
+      fillNotificationKind.current = 'success'
       setShowFilledRegion(true)
       onMaskFillCommit(blob)
-      setFillStatus(`Filled ${painted} pixels.`)
+      notifyFill(`Filled ${painted} pixels.`, 'success')
     }, 'image/png')
   }
   useEffect(() => {
@@ -710,9 +755,10 @@ export default function PreviewPanel({
           {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
           type="button"
           aria-pressed={fillActive}
+          aria-describedby="fill-instructions"
+          title="Click an enclosed area to fill it. Press Escape to exit fill mode."
           disabled={!sourceMaskReady || fillPending || busy}
           onClick={() => {
-            setFillStatus(null)
             setFillActive((active) => !active)
           }}
         >
@@ -727,8 +773,9 @@ export default function PreviewPanel({
           {rimActive ? '✓ Rim added' : '＋ Add Rim'}
         </button>
       </div>
-      {fillActive && <span {...stylex.props(ui.hint)}>Click an enclosed area to fill it. Esc exits fill.</span>}
-      {fillStatus && <p {...stylex.props(ui.hint, ui.status)} role="status">{fillStatus}</p>}
+      <span id="fill-instructions" {...stylex.props(styles.fillHint)}>
+        Click an enclosed area to fill it. Esc exits fill.
+      </span>
     </div>
   ) : null
   return (
@@ -768,11 +815,6 @@ export default function PreviewPanel({
           </span>
         )}
       </div>
-      {busy && (
-        <p {...stylex.props(styles.veil)} role="status">
-          Updating preview…
-        </p>
-      )}
       {showingResult && result ? (
         <ResultPanel result={result} artifacts={artifacts} onReturnToEditing={onReturnToEditing} />
       ) : keepPlacementCanvas ? (
@@ -837,11 +879,6 @@ export default function PreviewPanel({
             </>
           )}
         </div>
-      )}
-      {error && (
-        <p {...stylex.props(ui.error)} role="alert">
-          {error}
-        </p>
       )}
       {pattern && markerDialog && (
         <MarkerDialog
