@@ -26,20 +26,14 @@ const styles = stylex.create({
   wordmark: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 10,
     paddingInline: 8,
     outlineOffset: 3,
-    fontSize: 30,
-    lineHeight: 1,
     color: tokens.ink,
     textDecoration: 'none',
     borderRadius: tokens.sketch,
-    boxShadow: `0 -13px ${tokens.accentSoft} inset`,
-    transform: 'rotate(-1.2deg)',
     ':focus-visible': { outlineWidth: 3, outlineStyle: 'dashed', outlineColor: tokens.accent },
   },
-  mark: { display: 'block', flexShrink: 0, width: 34, height: 34 },
-  accent: { color: tokens.accentText },
+  mark: { display: 'block', flexShrink: 0, width: 128, height: 128 },
   form: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, alignItems: 'end', minWidth: 0 },
   field: { fontSize: 16, marginTop: 0 },
   meta: { minWidth: 150, fontSize: 14, color: tokens.inkMuted, lineHeight: 1.35 },
@@ -89,11 +83,8 @@ export default function EditorHeader({
 }) {
   return (
     <header {...stylex.props(styles.header)}>
-      <Link href="/" {...stylex.props(styles.wordmark)}>
-        <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={34} height={34} />
-        <span>
-          mahu<span {...stylex.props(styles.accent)}>-QR</span>
-        </span>
+      <Link href="/" aria-label="Home" {...stylex.props(styles.wordmark)}>
+        <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={128} height={128} />
       </Link>
       <form
         {...stylex.props(styles.form)}
