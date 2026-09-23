@@ -55,9 +55,7 @@ function qrCacheKey(input: Pick<EngineInput, 'content' | 'settings'>): string {
     input.content,
     s.ecc ?? engineDefaults.ecc,
     s.pixelStyle ?? engineDefaults.pixelStyle,
-    s.markerStyle ?? engineDefaults.markerStyle,
-    s.markerShape ?? engineDefaults.markerShape,
-    s.markerInner ?? engineDefaults.markerInner,
+    JSON.stringify(s.finderMarkers ?? engineDefaults.finderMarkers),
     s.markerSub ?? engineDefaults.markerSub,
   ].join('\u0000')
 }
@@ -106,9 +104,7 @@ export class EditorEngine {
       rimRounded?: boolean
       ecc?: Settings['ecc']
       pixelStyle?: Settings['pixelStyle']
-      markerStyle?: Settings['markerStyle']
-      markerShape?: Settings['markerShape']
-      markerInner?: Settings['markerInner']
+      finderMarkers?: Settings['finderMarkers']
       markerSub?: Settings['markerSub']
     },
     revision: number,

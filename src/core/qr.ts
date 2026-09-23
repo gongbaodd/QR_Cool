@@ -35,6 +35,8 @@ export type MarkerStyle = 'square' | 'rounded'
 export type MarkerShape = 'square' | 'circle' | 'octagon'
 export type MarkerInner = 'square' | 'circle' | 'plus' | 'diamond'
 export type MarkerSub = 'square' | 'circle'
+export type FinderMarkerSettings = { style: MarkerStyle; shape: MarkerShape; inner: MarkerInner }
+export type FinderMarkerSettingsMap = Record<'tl' | 'tr' | 'bl', FinderMarkerSettings>
 
 /** Builds the same two-module-margin QR profile accepted from legacy PNG inputs. */
 export async function generateQrFromContent(
@@ -45,6 +47,7 @@ export async function generateQrFromContent(
   markerShape: MarkerShape = 'circle',
   markerInner: MarkerInner = 'circle',
   markerSub: MarkerSub = 'square',
+  finderMarkers?: FinderMarkerSettingsMap,
 ): Promise<GeneratedQr> {
   if (content.trim().length === 0)
     throw new QrPosterError('INVALID_INPUT', '--content must not be empty or whitespace-only.')
@@ -80,7 +83,13 @@ export async function generateQrFromContent(
   })
 
   const overlays: string[] = []
-  const finderSvg = buildFinderSvg(size, pitch, marginModules, markerShape, markerInner, markerStyle)
+  const fallback = { style: markerStyle, shape: markerShape, inner: markerInner }
+  const finderSvg = buildFinderSvg(
+    size,
+    pitch,
+    marginModules,
+    finderMarkers ?? { tl: fallback, tr: fallback, bl: fallback },
+  )
   if (finderSvg) overlays.push(finderSvg)
   if (markerSub === 'circle') {
     const alignmentSvg = buildAlignmentSvg(encoded, pitch, marginModules)
@@ -98,19 +107,18 @@ function buildFinderSvg(
   modules: number,
   pitch: number,
   marginModules: number,
-  shape: MarkerShape,
-  inner: MarkerInner,
-  markerStyle: MarkerStyle,
+  markers: FinderMarkerSettingsMap,
 ): string {
   const size = (modules + marginModules * 2) * pitch
   const origins = [
-    [0, 0],
-    [modules - 7, 0],
-    [0, modules - 7],
+    ['tl', 0, 0],
+    ['tr', modules - 7, 0],
+    ['bl', 0, modules - 7],
   ] as const
-  const rounded = markerStyle === 'rounded'
   const parts: string[] = []
-  for (const [x, y] of origins) {
+  for (const [id, x, y] of origins) {
+    const { shape, inner, style } = markers[id]
+    const rounded = style === 'rounded'
     const ox = (marginModules + x) * pitch
     const oy = (marginModules + y) * pitch
     const cx = ox + 3.5 * pitch

@@ -324,7 +324,7 @@ function PosterCanvas({
   modules: number
   onChange: (box: Placement) => void
   invalid: boolean
-  onMarkerClick?: (kind: 'finder' | 'sub') => void
+  onMarkerClick?: (kind: 'tl' | 'tr' | 'bl' | 'sub') => void
   fillActive: boolean
   fillReady: boolean
   onFillAt: (x: number, y: number) => void
@@ -379,11 +379,17 @@ function PosterCanvas({
   const n = modules - 4
   const q = 2
   const version = modules ? Math.floor((modules - 21) / 4) : 0
-  const markerHits: { id: string; kind: 'finder' | 'sub'; x: number; y: number; size: number }[] = modules
+  const markerHits: {
+    id: 'tl' | 'tr' | 'bl' | 'br'
+    kind: 'tl' | 'tr' | 'bl' | 'sub'
+    x: number
+    y: number
+    size: number
+  }[] = modules
     ? [
-        { id: 'tl', kind: 'finder', x: q * pitch, y: q * pitch, size: 7 * pitch },
-        { id: 'tr', kind: 'finder', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
-        { id: 'bl', kind: 'finder', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
+        { id: 'tl', kind: 'tl', x: q * pitch, y: q * pitch, size: 7 * pitch },
+        { id: 'tr', kind: 'tr', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
+        { id: 'bl', kind: 'bl', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
         ...(version >= 2
           ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch } as const]
           : []),
@@ -395,9 +401,9 @@ function PosterCanvas({
     const n = modules - 4
     const q = 2
     const rects: { id: string; kind: string; x: number; y: number; size: number }[] = [
-      { id: 'tl', kind: 'finder', x: q * pitch, y: q * pitch, size: 7 * pitch },
-      { id: 'tr', kind: 'finder', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
-      { id: 'bl', kind: 'finder', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
+      { id: 'tl', kind: 'tl', x: q * pitch, y: q * pitch, size: 7 * pitch },
+      { id: 'tr', kind: 'tr', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
+      { id: 'bl', kind: 'bl', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
       ...(Math.floor((modules - 21) / 4) >= 2
         ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch }]
         : []),
@@ -694,7 +700,7 @@ export default function PreviewPanel({
   ready: boolean
   canAssemble: boolean
 }) {
-  const [markerDialog, setMarkerDialog] = useState<'finder' | 'sub' | null>(null)
+  const [markerDialog, setMarkerDialog] = useState<'tl' | 'tr' | 'bl' | 'sub' | null>(null)
   const [fillActive, setFillActive] = useState(false)
   const [sourceMaskCanvas, setSourceMaskCanvas] = useState<HTMLCanvasElement | null>(null)
   const [sourceMaskReady, setSourceMaskReady] = useState(false)

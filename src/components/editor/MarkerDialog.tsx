@@ -339,8 +339,8 @@ function OptionCards<T extends string>({
 
 /**
  * Marker settings dialog for step 3. One native `<dialog>` reused for both the
- * finder markers (kind="finder") and the bottom-right alignment marker
- * (kind="sub"); radio changes commit through the normal settings pipeline.
+ * each finder marker (kind="tl" | "tr" | "bl") and the bottom-right
+ * alignment marker (kind="sub"); radio changes commit through the normal settings pipeline.
  */
 export default function MarkerDialog({
   kind,
@@ -348,7 +348,7 @@ export default function MarkerDialog({
   onSettings,
   onClose,
 }: {
-  kind: 'finder' | 'sub' | null
+  kind: 'tl' | 'tr' | 'bl' | 'sub' | null
   settings: Settings
   onSettings: (patch: Partial<Settings>) => void
   onClose: () => void
@@ -379,16 +379,20 @@ export default function MarkerDialog({
     dialog.addEventListener('click', onClick)
     return () => dialog.removeEventListener('click', onClick)
   }, [])
-  const finder = kind === 'finder'
-  const markerStyle = (settings.markerStyle ?? 'rounded') as 'square' | 'rounded'
-  const markerShape = (settings.markerShape ?? 'circle') as 'square' | 'circle' | 'octagon'
-  const markerInner = (settings.markerInner ?? 'circle') as 'square' | 'circle' | 'plus' | 'diamond'
+  const finder = kind !== 'sub'
+  const finderId = kind === 'tr' || kind === 'bl' ? kind : 'tl'
+  const finderMarker = settings.finderMarkers[finderId]
+  const markerStyle = finderMarker.style
+  const markerShape = finderMarker.shape
+  const markerInner = finderMarker.inner
   const markerSub = (settings.markerSub ?? 'square') as 'square' | 'circle'
+  const updateFinder = (patch: Partial<typeof finderMarker>) =>
+    onSettings({ finderMarkers: { ...settings.finderMarkers, [finderId]: { ...finderMarker, ...patch } } })
   return (
     <dialog {...stylex.props(styles.dialog)} ref={dialogRef} closedby="any" aria-labelledby={titleId} onClose={onClose}>
       <div {...stylex.props(styles.header)}>
         <h3 {...stylex.props(styles.title)} id={titleId}>
-          {finder ? 'Finder marker' : 'Sub marker'}
+          {finder ? `${finderId.toUpperCase()} finder marker` : 'Alignment marker'}
         </h3>
         <button
           {...stylex.props(ui.button, ui.textButton)}
@@ -410,41 +414,48 @@ export default function MarkerDialog({
               value={markerStyle}
               columns={2}
               ariaLabel="Marker pixel style"
-              onSelect={(markerStyleValue) => onSettings({ markerStyle: markerStyleValue })}
+              onSelect={(markerStyleValue) => updateFinder({ style: markerStyleValue })}
               renderPreview={(value) => <MiniMarkerPixelPreview style={value} />}
             />
           </fieldset>
           <fieldset {...stylex.props(styles.fieldset)}>
             <legend {...stylex.props(styles.legend)}>Marker shape</legend>
-            <p {...stylex.props(styles.hint)}>Outer shape of the three finder markers.</p>
+            <p {...stylex.props(styles.hint)}>Outer shape of this finder marker.</p>
             <OptionCards
               name="markerShape"
               options={MARKER_SHAPE_OPTIONS}
               value={markerShape}
               columns={3}
               ariaLabel="Marker shape"
-              onSelect={(markerShapeValue) => onSettings({ markerShape: markerShapeValue })}
+              onSelect={(markerShapeValue) => updateFinder({ shape: markerShapeValue })}
               renderPreview={(value) => <MiniMarkerShapePreview shape={value} />}
             />
           </fieldset>
           <fieldset {...stylex.props(styles.fieldset)}>
             <legend {...stylex.props(styles.legend)}>Marker inner</legend>
-            <p {...stylex.props(styles.hint)}>Center of the finder markers.</p>
+            <p {...stylex.props(styles.hint)}>Center of this finder marker.</p>
             <OptionCards
               name="markerInner"
               options={MARKER_INNER_OPTIONS}
               value={markerInner}
               columns={4}
               ariaLabel="Marker inner"
-              onSelect={(markerInnerValue) => onSettings({ markerInner: markerInnerValue })}
+              onSelect={(markerInnerValue) => updateFinder({ inner: markerInnerValue })}
               renderPreview={(value) => <MiniMarkerInnerPreview inner={value} />}
             />
           </fieldset>
+          <button
+            {...stylex.props(ui.button, ui.textButton)}
+            type="button"
+            onClick={() => onSettings({ finderMarkers: { tl: finderMarker, tr: finderMarker, bl: finderMarker } })}
+          >
+            Apply to all finder markers
+          </button>
         </>
       ) : (
         <fieldset {...stylex.props(styles.fieldset)}>
           <legend {...stylex.props(styles.legend)}>Sub marker</legend>
-          <p {...stylex.props(styles.hint)}>Shape of alignment (sub) markers.</p>
+          <p {...stylex.props(styles.hint)}>Shape of alignment markers.</p>
           <OptionCards
             name="markerSub"
             options={MARKER_SUB_OPTIONS}

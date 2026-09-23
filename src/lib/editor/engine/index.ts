@@ -23,9 +23,7 @@ export type AssembleInput = EngineInput & {
   rimRounded?: boolean
   ecc?: Settings['ecc']
   pixelStyle?: Settings['pixelStyle']
-  markerStyle?: Settings['markerStyle']
-  markerShape?: Settings['markerShape']
-  markerInner?: Settings['markerInner']
+  finderMarkers?: Settings['finderMarkers']
   markerSub?: Settings['markerSub']
 }
 

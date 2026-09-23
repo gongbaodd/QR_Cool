@@ -28,9 +28,35 @@ export const settingsSchema = z
     rimRounded: z.boolean().default(false),
     ecc: z.enum(['L', 'M', 'Q', 'H']).default('M'),
     pixelStyle: z.enum(['square', 'rounded', 'dot']).default('dot'),
-    markerStyle: z.enum(['square', 'rounded']).default('rounded'),
-    markerShape: z.enum(['square', 'circle', 'octagon']).default('circle'),
-    markerInner: z.enum(['square', 'circle', 'plus', 'diamond']).default('circle'),
+    finderMarkers: z
+      .object({
+        tl: z
+          .object({
+            style: z.enum(['square', 'rounded']).default('rounded'),
+            shape: z.enum(['square', 'circle', 'octagon']).default('circle'),
+            inner: z.enum(['square', 'circle', 'plus', 'diamond']).default('circle'),
+          })
+          .default({ style: 'rounded', shape: 'circle', inner: 'circle' }),
+        tr: z
+          .object({
+            style: z.enum(['square', 'rounded']).default('rounded'),
+            shape: z.enum(['square', 'circle', 'octagon']).default('circle'),
+            inner: z.enum(['square', 'circle', 'plus', 'diamond']).default('circle'),
+          })
+          .default({ style: 'rounded', shape: 'circle', inner: 'circle' }),
+        bl: z
+          .object({
+            style: z.enum(['square', 'rounded']).default('rounded'),
+            shape: z.enum(['square', 'circle', 'octagon']).default('circle'),
+            inner: z.enum(['square', 'circle', 'plus', 'diamond']).default('circle'),
+          })
+          .default({ style: 'rounded', shape: 'circle', inner: 'circle' }),
+      })
+      .default({
+        tl: { style: 'rounded', shape: 'circle', inner: 'circle' },
+        tr: { style: 'rounded', shape: 'circle', inner: 'circle' },
+        bl: { style: 'rounded', shape: 'circle', inner: 'circle' },
+      }),
     markerSub: z.enum(['square', 'circle']).default('square'),
   })
   .strict()

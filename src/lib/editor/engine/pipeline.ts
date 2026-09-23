@@ -48,9 +48,11 @@ export const engineDefaults: Settings = {
   rimRounded: false,
   ecc: 'M',
   pixelStyle: 'dot',
-  markerStyle: 'rounded',
-  markerShape: 'circle',
-  markerInner: 'circle',
+  finderMarkers: {
+    tl: { style: 'rounded', shape: 'circle', inner: 'circle' },
+    tr: { style: 'rounded', shape: 'circle', inner: 'circle' },
+    bl: { style: 'rounded', shape: 'circle', inner: 'circle' },
+  },
   markerSub: 'square',
 }
 
@@ -160,10 +162,11 @@ export async function resolveQr(imaging: Imaging, input: EngineInput): Promise<Q
     input.content,
     input.settings?.ecc ?? engineDefaults.ecc,
     input.settings?.pixelStyle ?? engineDefaults.pixelStyle,
-    input.settings?.markerStyle ?? engineDefaults.markerStyle,
-    input.settings?.markerShape ?? engineDefaults.markerShape,
-    input.settings?.markerInner ?? engineDefaults.markerInner,
+    undefined,
+    undefined,
+    undefined,
     input.settings?.markerSub ?? engineDefaults.markerSub,
+    input.settings?.finderMarkers ?? engineDefaults.finderMarkers,
   )
   const qrSource = generated.image
   const decoded = {
@@ -299,9 +302,7 @@ export async function assemblePayload(
     rimRounded?: boolean
     ecc?: Settings['ecc']
     pixelStyle?: Settings['pixelStyle']
-    markerStyle?: Settings['markerStyle']
-    markerShape?: Settings['markerShape']
-    markerInner?: Settings['markerInner']
+    finderMarkers?: Settings['finderMarkers']
     markerSub?: Settings['markerSub']
   },
 ): Promise<AssemblePayload> {
@@ -314,9 +315,7 @@ export async function assemblePayload(
     rimRounded: input.rimRounded ?? input.settings?.rimRounded ?? engineDefaults.rimRounded,
     ecc: input.ecc ?? input.settings?.ecc ?? engineDefaults.ecc,
     pixelStyle: input.pixelStyle ?? input.settings?.pixelStyle ?? engineDefaults.pixelStyle,
-    markerStyle: input.markerStyle ?? input.settings?.markerStyle ?? engineDefaults.markerStyle,
-    markerShape: input.markerShape ?? input.settings?.markerShape ?? engineDefaults.markerShape,
-    markerInner: input.markerInner ?? input.settings?.markerInner ?? engineDefaults.markerInner,
+    finderMarkers: input.finderMarkers ?? input.settings?.finderMarkers ?? engineDefaults.finderMarkers,
     markerSub: input.markerSub ?? input.settings?.markerSub ?? engineDefaults.markerSub,
   }
   const { layout, validation } = await resolveBuffers(imaging, {
