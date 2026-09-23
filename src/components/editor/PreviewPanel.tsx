@@ -93,7 +93,17 @@ const styles = stylex.create({
     '@media (max-width: 900px)': { minHeight: 320 },
   },
   regionCaption: { margin: '10px 0 0', color: tokens.muted, textAlign: 'center' },
-  previewCanvas: { display: 'block', maxWidth: '100%', maxHeight: 560, objectFit: 'contain' },
+  previewCanvas: {
+    display: 'block',
+    maxWidth: '100%',
+    maxHeight: 560,
+    objectFit: 'contain',
+    backgroundColor: '#fff',
+    backgroundImage:
+      'linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%), linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%)',
+    backgroundPosition: '0 0, 8px 8px',
+    backgroundSize: '16px 16px',
+  },
   area: {
     overflow: 'hidden', backgroundColor: '#fff', borderWidth: 2.5, borderStyle: 'solid',
     borderColor: tokens.ink, borderRadius: tokens.sketchCard, boxShadow: tokens.shadowLg,
@@ -113,7 +123,10 @@ const styles = stylex.create({
   },
   stageFrame: {
     width: 'fit-content', marginInline: 'auto', borderWidth: 2, borderStyle: 'solid',
-    borderColor: tokens.ink, boxShadow: '0 8px 28px #163c2820',
+    borderColor: tokens.ink, boxShadow: '0 8px 28px #163c2820', backgroundColor: '#fff',
+    backgroundImage:
+      'linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%), linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%)',
+    backgroundPosition: '0 0, 8px 8px', backgroundSize: '16px 16px',
   },
   footer: {
     display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', paddingBlock: 12,

@@ -13,7 +13,13 @@ import { renderRegionMask } from '@/core/artifacts'
 import { decodePng, rgbaToPng } from '@/core/image'
 import { buildManualRegionMask, detectRegionMask } from '@/core/mask'
 import { placeQr, findClosestSquare } from '@/core/placement'
-import { generateQrFromContent, decodeQrRawDetailed, inspectAntfuQr, normalizeQr } from '@/core/qr'
+import {
+  generateQrFromContent,
+  decodeQrRawDetailed,
+  inspectAntfuQr,
+  normalizeQr,
+  transparentQrBackground,
+} from '@/core/qr'
 import { buildModuleLattice, computeSafeArea, computePlateModules, computeRimModules } from '@/core/module-cut'
 import { selectPatternVersion } from '@/core/pattern'
 import { qrWorkingFrame, sampleMaskIntoQrFrame, assertFrameHoldsPlacement } from '@/core/rotate'
@@ -268,7 +274,7 @@ export async function toPreparedPayload(
     height: poster.height,
     mask: bytesToBlob('mask.png', await renderRegionMask(regionMask)),
     overlay: bytesToBlob('overlay.png', await rgbaToPng(overlay, poster.width, poster.height)),
-    qr: bytesToBlob('qr.png', await normalizedQr),
+    qr: bytesToBlob('qr.png', await transparentQrBackground(normalizedQr)),
     qrMetadata: { totalModules: qrMetadata.totalModules, version: qrMetadata.version },
     placement: { x: placement.x, y: placement.y, size: placement.size, rotation: placement.rotation },
     validation,

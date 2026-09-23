@@ -24,7 +24,7 @@ import {
 } from './pattern'
 import type { PixelStyle } from './pattern'
 import { buildCutSvg } from './pattern-cut'
-import { verifyQrVariant } from './qr'
+import { transparentQrBackground, verifyQrVariant } from './qr'
 import type { AssembleReport, BoundingBox, QrPlacement, ResolvedLayout, VerificationCheck } from './types'
 
 /** Quiet-zone modules the QR input profile carries; the plate band is cut out of them. */
@@ -335,9 +335,10 @@ async function assembleUpright(
   }
 
   const regionMaskPng = await renderRegionMask(regionMask)
+  const transparentQr = await transparentQrBackground(normalizedQr)
   const [posterSha, qrSha, cutPngSha, cutSvgSha, textSha] = await Promise.all([
     imaging().sha256Hex(assembled),
-    imaging().sha256Hex(normalizedQr),
+    imaging().sha256Hex(transparentQr),
     imaging().sha256Hex(cutPng),
     imaging().sha256Hex(cutSvg),
     imaging().sha256Hex(pattern.text),
@@ -459,7 +460,7 @@ async function assembleUpright(
   const artifacts: Record<string, Uint8Array> = {
     'poster.png': assembled,
     'region-mask.png': regionMaskPng,
-    'qr.png': normalizedQr,
+    'qr.png': transparentQr,
     'pattern-cut.png': cutPng,
     'pattern-cut.svg': encoder.encode(cutSvg),
     'report.json': encoder.encode(`${JSON.stringify(report, null, 2)}\n`),
@@ -758,9 +759,10 @@ async function assembleRotated(
   }
 
   const regionMaskPng = await renderRegionMask(regionMask)
+  const transparentQr = await transparentQrBackground(normalizedQr)
   const [posterSha, qrSha, cutPngSha, cutSvgSha, textSha] = await Promise.all([
     imaging().sha256Hex(assembled),
-    imaging().sha256Hex(normalizedQr),
+    imaging().sha256Hex(transparentQr),
     imaging().sha256Hex(rotatedCutPng),
     imaging().sha256Hex(posterCutSvg),
     imaging().sha256Hex(pattern.text),
@@ -882,7 +884,7 @@ async function assembleRotated(
   const artifacts: Record<string, Uint8Array> = {
     'poster.png': assembled,
     'region-mask.png': regionMaskPng,
-    'qr.png': normalizedQr,
+    'qr.png': transparentQr,
     'pattern-cut.png': rotatedCutPng,
     'pattern-cut.svg': encoder.encode(posterCutSvg),
     'report.json': encoder.encode(`${JSON.stringify(report, null, 2)}\n`),

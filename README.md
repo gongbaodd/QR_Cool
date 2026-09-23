@@ -62,6 +62,7 @@ The hand-drawn visual style is derived from [Wired Elements](https://wiredjs.com
 - Seeded marker-free decorative matrix, phase-locked to the placed QR's lattice. Finder/separator and alignment cells are randomly refilled; timing and function cells remain.
 - Only whole modules fully covered by the selected region are drawn. The outer 0–5 safe-module rings are dark (antialiased when rounded). The plate does not seed that rim.
 - The actual plate is the code grid plus finder-only light bands of one module (whole cells). Its footprint is smaller than the full QR square used for placement constraints.
+- The live QR image and downloadable `qr.png` use transparency for light/background pixels, shown over the preview's checkerboard. Assembly keeps its opaque normalized QR internally for the plate, so the downloaded poster's QR contrast and verified pixel behavior stay unchanged.
 - Outside-region pixels, partially covered modules, QR plate pixels, and original alpha are verified. For rotated placements the working frame is additionally proven to cover the whole placed plate before assembly proceeds; any frame-coverage failure rejects export. Any mandatory check failure rejects export.
 - Schema-8 reports are preserved. The poster and every artifact cross the worker/UI boundary as `Blob`s — no base64 serialization anywhere.
 - The assembled `Blob` is the single source for both the preview and the download; the result is never re-rendered on the main thread.

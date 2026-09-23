@@ -128,6 +128,8 @@ Return structured errors `{ code, message, field?, revision }`: 400 for malforme
 6. Preserve pixels outside the region, partially covered modules, and the original alpha channel. Reject layouts with no remaining texture.
 7. Run all existing mandatory schema-8 checks. Keep `poster`, `posterHalfScale`, and `posterJpeg80` in skipped checks and `phoneScan: untested`; do not present the artistic result as scan-certified. Show a concise result note: “Artistic margins can affect scanning. Test the downloaded poster with your phone.”
 
+The live QR preview and downloadable `qr.png` are transparent for light/background pixels, so the checkerboard makes their transparency visible. The assembly plate continues to use the opaque normalized QR; transparency in the standalone QR artifact must not change the downloaded poster or its pixel-verification contract.
+
 The full normalized QR square is the placement constraint; the smaller module plate is the actual compositing footprint. Keep that distinction in engine tests and do not enlarge the plate to the preview bounding box.
 
 ## Sequenced implementation and gates

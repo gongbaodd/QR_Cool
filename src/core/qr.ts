@@ -556,6 +556,22 @@ export async function normalizeQr(image: LoadedPng, targetSize: number): Promise
   return imaging().normalizeQrPng(image.file, targetSize)
 }
 
+/** Converts the normalized QR's white/light pixels to alpha for preview and standalone PNG export. */
+export async function transparentQrBackground(png: Uint8Array): Promise<Uint8Array> {
+  const image = await imaging().decodePng(png)
+  const pixels = Uint8Array.from(image.data)
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    const luminance = Math.round(
+      (299 * pixels[offset]! + 587 * pixels[offset + 1]! + 114 * pixels[offset + 2]!) / 1000,
+    )
+    pixels[offset] = 0
+    pixels[offset + 1] = 0
+    pixels[offset + 2] = 0
+    pixels[offset + 3] = Math.min(pixels[offset + 3]!, 255 - luminance)
+  }
+  return imaging().encodePngRgba(pixels, image.width, image.height)
+}
+
 export async function verifyQrVariant(
   name: VerificationCheck['name'],
   buffer: Uint8Array,

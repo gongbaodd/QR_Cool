@@ -55,19 +55,23 @@ async function sessionDigest(blob: Blob): Promise<string> {
 }
 
 describe('engine pipeline: artifact parity with the former server orchestration', () => {
-  it('preserves pre-refactor artifact bytes and logical input names', async () => {
+  it('preserves the poster bytes and exports a transparent QR with logical input names', async () => {
     const session = await makeEngine()
     const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
     const result = assertOk(
       await session.assemble({ posterBytes, content, placement: prepared.placement, ...settings }, 1),
     )
-    // Pinned to the pre-rotated-fill baseline: the generic rotated path reuses the upright
-    // whole-module pipeline in the QR's frame, so the 0° assembly stays bit-identical to the
-    // pre-refactor poster 5a76e560… and QR 69c7ea63….
+    // The 0° poster remains pinned to its pre-rotated-fill baseline; the standalone QR is now
+    // transparent, while assembly continues to use the opaque normalized QR for its plate.
     expect(result.report.artifacts.posterSha256).toBe(
       '5a76e5608b37cce8f319ae821265fc06866117d4caba47972947dcf117f056f7',
     )
-    expect(result.report.artifacts.qrSha256).toBe('69c7ea63887547193d7b76bff81ab9dd5689e4f2447d436c8f608d6131a0e7a3')
+    expect(result.report.artifacts.qrSha256).toBe(await sessionDigest(result.artifacts['qr.png']!))
+    const preparedQr = await nodeImaging.decodePng(new Uint8Array(await prepared.qr.arrayBuffer()))
+    const exportedQr = await nodeImaging.decodePng(new Uint8Array(await result.artifacts['qr.png']!.arrayBuffer()))
+    expect(preparedQr.data[3]).toBe(0)
+    expect(exportedQr.data[3]).toBe(0)
+    expect(exportedQr.data.some((_, index) => index % 4 === 3 && exportedQr.data[index] === 255)).toBe(true)
     // The cut artifacts pin the original pre-refactor values.
     expect(result.report.artifacts.patternCutPngSha256).toBe(
       'b12c1d01da2b7a308b693aef06532c8c65c8bb2b9810777cef082d2ca685734a',
