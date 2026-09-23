@@ -286,7 +286,7 @@ function notifyFill(message: string, kind: 'error' | 'warning' | 'success') {
   const toastId = 'editor-region-fill'
   const options = {
     toastId,
-    autoClose: kind === 'error' ? false : 3500,
+    autoClose: kind === 'error' ? (false as const) : 3500,
     role: kind === 'error' ? ('alert' as const) : ('status' as const),
     ariaLabel: `Region fill ${kind}: ${message}`,
   }

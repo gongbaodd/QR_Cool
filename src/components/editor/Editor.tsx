@@ -109,7 +109,7 @@ function EditorWorkspace() {
     }
     const options = {
       toastId: 'editor-content-error',
-      autoClose: false,
+      autoClose: false as const,
       role: 'alert' as const,
       ariaLabel: 'Content validation error',
     }
@@ -140,7 +140,7 @@ function EditorWorkspace() {
     )
     const options = {
       toastId: 'editor-document-error',
-      autoClose: false,
+      autoClose: false as const,
       role: 'alert' as const,
       ariaLabel: 'Preview error',
     }
@@ -167,7 +167,7 @@ function EditorWorkspace() {
     )
     const options = {
       toastId: 'editor-icon-search-error',
-      autoClose: false,
+      autoClose: false as const,
       role: 'alert' as const,
       ariaLabel: `Icon search failed for ${iconFetchedQuery}`,
     }
