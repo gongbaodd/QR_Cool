@@ -6,6 +6,8 @@ import type { EditorEngineApi, EngineOutcome } from '@/lib/editor/engine'
 import type { Imaging } from '@/core/imaging/types'
 import { nodeImaging } from '@/core/imaging/node'
 import { requestSchema } from '@/lib/editor/schema'
+import { buildModuleLattice, computeRegionBands, computeSafeArea } from '@/core/module-cut'
+import { prepareSource } from '@/lib/editor/engine/pipeline'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
 const content = 'https://example.com/qr'
@@ -140,6 +142,40 @@ describe('engine pipeline: artifact parity with the former server orchestration'
       expect(r.report.phoneScan).toBe('untested')
       expect(r.report.verification.skippedChecks).toEqual(['poster', 'posterHalfScale', 'posterJpeg80'])
     }
+  })
+
+  it('paints a one-module light margin along the selected region without widening the QR plate', async () => {
+    const session = await makeEngine()
+    const prepared = assertOk(await session.prepare({
+      posterBytes, content, settings: { ...settings, regionMargin: true },
+    }, 1))
+    const result = assertOk(await session.assemble({
+      posterBytes, content, placement: prepared.placement, ...settings, regionMargin: true,
+    }, 1))
+    const pitch = result.report.cut.modulePixels
+    expect(result.report.qualified).toBe(true)
+    expect(result.report.qrPlate.band).toBe('markers')
+    expect(result.report.cut.regionMarginModules).toBe(1)
+    expect(result.report.shape.marginModules).toBeGreaterThan(0)
+    expect(result.report.shape.rimModules).toBeGreaterThan(0)
+    const source = await prepareSource(nodeImaging, posterBytes)
+    const lattice = buildModuleLattice(source.poster.width, source.poster.height, pitch, result.report.placement)
+    const safe = computeSafeArea(source.regionMask.data, source.poster.width, source.poster.height, lattice)
+    const { margin, rim } = computeRegionBands(safe.safe, lattice, settings.rimModules, true)
+    const poster = await nodeImaging.decodePng(new Uint8Array(await result.artifacts['poster.png']!.arrayBuffer()))
+    let checked = 0
+    for (let index = 0; index < margin.length; index++) {
+      if (!margin[index]) continue
+      const x = lattice.x + (index % lattice.columns) * pitch
+      const y = lattice.y + Math.floor(index / lattice.columns) * pitch
+      if (x >= prepared.placement.x && x < prepared.placement.x + prepared.placement.size &&
+        y >= prepared.placement.y && y < prepared.placement.y + prepared.placement.size) continue
+      expect(rim[index]).toBe(0)
+      const offset = (y * poster.width + x) * 4
+      expect([...poster.data.slice(offset, offset + 4)]).toEqual([255, 255, 255, 255])
+      checked++
+    }
+    expect(checked).toBeGreaterThan(0)
   })
 
   it.each([0, 1, 2, 3, 4, 5] as const)('verifies rim thickness %i with antialiasing off/on', async (rimModules) => {

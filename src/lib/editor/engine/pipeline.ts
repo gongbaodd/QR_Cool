@@ -20,7 +20,7 @@ import {
   normalizeQr,
   transparentQrBackground,
 } from '@/core/qr'
-import { buildModuleLattice, computeSafeArea, computePlateModules, computeRimModules } from '@/core/module-cut'
+import { buildModuleLattice, computeSafeArea, computePlateModules, computeRegionBands } from '@/core/module-cut'
 import { selectPatternVersion } from '@/core/pattern'
 import { qrWorkingFrame, sampleMaskIntoQrFrame, assertFrameHoldsPlacement } from '@/core/rotate'
 import { regionPixelBounds } from '@/core/rotate'
@@ -43,6 +43,7 @@ export const engineDefaults: Settings = {
   seed: 0,
   qrMargin: 1,
   plateCorners: 'texture',
+  regionMargin: false,
   rimModules: 1,
   rimRounded: false,
   ecc: 'M',
@@ -96,7 +97,7 @@ export function validatePlacement({
   selectPatternVersion(pitch, canvasWidth, canvasHeight, pitch)
   const lattice = buildModuleLattice(canvasWidth, canvasHeight, pitch, origin)
   const safe = computeSafeArea(mask, canvasWidth, canvasHeight, lattice)
-  const rim = computeRimModules(safe.safe, lattice, settings.rimModules)
+  const { margin, rim } = computeRegionBands(safe.safe, lattice, settings.rimModules, settings.regionMargin)
   const grid = {
     x: origin.x + 2 * pitch,
     y: origin.y + 2 * pitch,
@@ -112,7 +113,7 @@ export function validatePlacement({
     [grid, ...arms, ...(corners ? [] : cornerBlocks)],
     corners ? cornerBlocks : [],
   )
-  if (!safe.safe.some((cell, i) => cell && !rim[i] && !plate.cells[i]))
+  if (!safe.safe.some((cell, i) => cell && !margin[i] && !rim[i] && !plate.cells[i]))
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
       'No decorative texture fits beside this QR. Reduce its size or choose a larger region.',
@@ -293,6 +294,7 @@ export async function assemblePayload(
     seed: number
     qrMargin: 1
     plateCorners: Settings['plateCorners']
+    regionMargin?: boolean
     rimModules?: number
     rimRounded?: boolean
     ecc?: Settings['ecc']
@@ -307,6 +309,7 @@ export async function assemblePayload(
     seed: input.seed,
     qrMargin: input.qrMargin,
     plateCorners: input.plateCorners,
+    regionMargin: input.regionMargin ?? input.settings?.regionMargin ?? engineDefaults.regionMargin,
     rimModules: input.rimModules ?? input.settings?.rimModules ?? engineDefaults.rimModules,
     rimRounded: input.rimRounded ?? input.settings?.rimRounded ?? engineDefaults.rimRounded,
     ecc: input.ecc ?? input.settings?.ecc ?? engineDefaults.ecc,
@@ -326,6 +329,7 @@ export async function assemblePayload(
     seed: flat.seed,
     qrMargin: flat.qrMargin,
     radius: flat.plateCorners === 'light' ? 0 : layout.placement.modulePixels * 2,
+    regionMargin: flat.regionMargin,
     rimModules: flat.rimModules,
     rimRounded: flat.rimRounded,
     pixelStyle: flat.pixelStyle,

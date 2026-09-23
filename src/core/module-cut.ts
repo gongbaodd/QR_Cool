@@ -302,6 +302,31 @@ export function computeRimModules(safe: Uint8Array, lattice: ModuleLattice, rimM
   return rim
 }
 
+/** Outer light margin, followed by the optional dark rim, both restricted to safe whole modules. */
+export function computeRegionBands(
+  safe: Uint8Array,
+  lattice: ModuleLattice,
+  rimModules: number,
+  regionMargin: boolean,
+): { margin: Uint8Array; rim: Uint8Array } {
+  const margin = new Uint8Array(safe.length)
+  if (!regionMargin) return { margin, rim: computeRimModules(safe, lattice, rimModules) }
+
+  const firstRing = computeRimModules(safe, lattice, 1)
+  const outerRings = rimModules > 0 ? computeRimModules(safe, lattice, rimModules + 1) : firstRing
+  const rim = new Uint8Array(safe.length)
+  for (let index = 0; index < safe.length; index++) {
+    if (!safe[index]) continue
+    const row = Math.floor(index / lattice.columns)
+    const column = index - row * lattice.columns
+    // A region may reach the canvas edge; the nearest off-canvas module still bounds its margin.
+    const edgeDistance = Math.min(column + 1, row + 1, lattice.columns - column, lattice.rows - row)
+    if (firstRing[index] || edgeDistance === 1) margin[index] = 1
+    else if (rimModules > 0 && (outerRings[index] || edgeDistance <= rimModules + 1)) rim[index] = 1
+  }
+  return { margin, rim }
+}
+
 /** Union of whole module rectangles as an SVG path; every edge lands on an integer pixel. */
 export function buildModulePath(cells: Uint8Array, lattice: ModuleLattice): string {
   if (cells.length !== lattice.columns * lattice.rows)

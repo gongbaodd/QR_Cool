@@ -36,6 +36,7 @@ export function createInitialState(): State {
       seed: 0,
       qrMargin: 1,
       plateCorners: 'texture',
+      regionMargin: false,
       rimModules: 1,
       rimRounded: false,
       ecc: 'M',

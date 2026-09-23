@@ -335,6 +335,8 @@ export type AssemblePosterOptions = PosterInputOptions &
     seed?: number
     /** Depth of the light band kept beside each finder marker: one whole module. */
     qrMargin?: 1
+    /** Keep one safe-module ring along the inside edge of the selected region light. */
+    regionMargin?: boolean
     /**
      * Plate corner treatment: zero keeps the diagonal corner block beside each finder marker light,
      * and any positive value hands those three blocks to the texture. Defaults to two module pitches
@@ -403,6 +405,8 @@ export interface AssembleReport {
     drawnModules: number
     /** Outer rings of drawn modules forced dark; rounded is antialiased. */
     rim: { modules: number; style: 'cell' | 'rounded-antialiased' }
+    /** Light ring of safe modules along the region edge, 0 when disabled. */
+    regionMarginModules: 0 | 1
     /** Modules of the plate handed back to the texture: the diagonal block at each marker corner. */
     plateCornerModules: number
     /** The cut shape is the detected or supplied painted region itself. */
@@ -412,7 +416,7 @@ export interface AssembleReport {
   }
   /** The plate the texture is cut around and the QR is drawn in; all of it is whole modules. */
   qrPlate: {
-    /** The light band is kept beside the finder markers only, never around the whole code. */
+    /** The light band is kept beside the finder markers only. */
     band: 'markers'
     /** Depth of the light band beside each marker: one whole module. */
     marginModules: 1
@@ -440,6 +444,8 @@ export interface AssembleReport {
     modules: number
     /** Drawn modules forced dark as the rim. */
     rimModules: number
+    /** Drawn modules painted with the marker background as the region margin. */
+    marginModules: number
     /** Drawn modules carrying the texture. */
     textureModules: number
   }

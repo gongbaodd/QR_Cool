@@ -101,6 +101,7 @@ export class EditorEngine {
       seed: number
       qrMargin: 1
       plateCorners: Settings['plateCorners']
+      regionMargin?: boolean
       rimModules?: number
       rimRounded?: boolean
       ecc?: Settings['ecc']

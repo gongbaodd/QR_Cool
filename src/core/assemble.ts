@@ -6,11 +6,12 @@ import {
   buildModuleLattice,
   buildModulePath,
   computePlateModules,
-  computeRimModules,
+  computeRegionBands,
   computeSafeArea,
   moduleCellIndex,
   renderModuleCoverage,
 } from './module-cut'
+import type { ModuleLattice } from './module-cut'
 import {
   posterToPlatePoint,
   qrWorkingFrame,
@@ -71,6 +72,7 @@ export async function assembleResolved(
     radius?: number
     rimModules?: number
     rimRounded?: boolean
+    regionMargin?: boolean
     pixelStyle?: PixelStyle
     transparentBlank?: boolean
   },
@@ -94,6 +96,7 @@ async function assembleUpright(
     radius?: number
     rimModules?: number
     rimRounded?: boolean
+    regionMargin?: boolean
     pixelStyle?: PixelStyle
     transparentBlank?: boolean
   },
@@ -117,10 +120,8 @@ async function assembleUpright(
   const transparentBlank = options.transparentBlank ?? false
   if (!Number.isInteger(rimModulesCount) || rimModulesCount < 0 || rimModulesCount > 5)
     throw new QrPosterError('INVALID_INPUT', 'rimModules must be an integer between 0 and 5.')
-  // The plate copies the normalized QR verbatim at its placement position, but keeps a light band
-  // only beside the three finder markers: the rest of the code edge sits flush against the texture,
-  // so the margin there is zero. Only the markers keep a band, because they are what a decoder locks
-  // onto. The code grid sits inside the placement box by the profile's quiet zone.
+  // The plate copies the normalized QR verbatim. Its light band is limited to the three finder
+  // markers. The code grid sits inside the placement box by the profile's quiet zone.
   const codeGrid: BoundingBox = {
     x: placement.x + QUIET_ZONE_MODULES * pitch,
     y: placement.y + QUIET_ZONE_MODULES * pitch,
@@ -143,18 +144,23 @@ async function assembleUpright(
     drawn[index] = 1
     drawnModules++
   }
-  const rim = computeRimModules(safeArea.safe, lattice, rimModulesCount)
+  const regionMargin = options.regionMargin ?? false
+  const { margin, rim } = computeRegionBands(safeArea.safe, lattice, rimModulesCount, regionMargin)
   let rimModuleCount = 0
+  let marginModuleCount = 0
   let textureModules = 0
   for (let index = 0; index < drawn.length; index++) {
     if (!drawn[index]) continue
-    if (rim[index]) rimModuleCount++
+    if (margin[index]) marginModuleCount++
+    else if (rim[index]) rimModuleCount++
     else textureModules++
   }
-  if (textureModules === 0 && rimModulesCount > 0) {
+  if (textureModules === 0 && (rimModulesCount > 0 || regionMargin)) {
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
-      `The painted region leaves no texture module once the ${rimModulesCount}-module rim and the QR plate ` +
+      (regionMargin
+        ? `The painted region leaves no texture module once the margin, ${rimModulesCount}-module rim, and QR plate `
+        : `The painted region leaves no texture module once the ${rimModulesCount}-module rim and the QR plate `) +
         'are removed. Use a larger region, a smaller QR box, or a manual --qr-box.',
     )
   }
@@ -202,12 +208,17 @@ async function assembleUpright(
     return drawn[row * lattice.columns + column] === 1
   }
   const pixelStyle: PixelStyle = options.pixelStyle ?? PATTERN_PIXEL_STYLE
-  const texturePng = await renderPattern(effective, pitch, pixelStyle, {
+  let texturePng = await renderPattern(effective, pitch, pixelStyle, {
     marginModules: pattern.marginModules,
     window: { ...pattern.crop, width, height },
     include,
   })
   const render = await decodePng(texturePng, 'pattern.png', 'rendered pattern')
+  const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
+  if (regionMargin) {
+    paintRegionMargin(render.data, width, lattice, drawn, margin, qrRaw)
+    texturePng = await rgbaToPng(render.data, width, height)
+  }
 
   // The written cut layer is the composited geometry: whole drawn modules carry the texture, and
   // everything else — the artwork along the silhouette, the plate hole — is transparent.
@@ -246,12 +257,8 @@ async function assembleUpright(
   const cutPng = await rgbaToPng(cutLayer, width, height)
   const cutSvg = buildCutSvg(unitPath, width, height, texturePng)
 
-  // The normalized QR is copied verbatim where the plate is: the code grid and the light arms beside
-  // the three finder markers. Every plate pixel maps to the same position inside the placement box,
-  // so the arms carry the QR's own quiet zone and the corner blocks keep the texture the drawn
-  // modules put underneath. The rest of the code edge is texture, so the poster stays unverified and
-  // the report warns about it.
-  const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
+  // The normalized QR is copied verbatim wherever the plate is. Every plate pixel maps to the same
+  // position inside the placement box, so its light band uses the QR's own background pixels.
   const output = Uint8Array.from(poster.data)
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
@@ -361,6 +368,8 @@ async function assembleUpright(
       `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not ` +
       'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
   )
+  if (regionMargin)
+    warnings.push(`A one-module light margin follows the selected region inside its edge (${marginModuleCount} whole modules).`)
   if (safeArea.partialModules > 0) {
     warnings.push(
       `${safeArea.partialModules} module(s) crossed the painted region's edge and kept the original ` +
@@ -457,6 +466,7 @@ async function assembleUpright(
       droppedPartialPixels: safeArea.droppedPartialPixels,
       drawnModules,
       rim: { modules: rimModulesCount, style: rimRounded ? 'rounded-antialiased' : 'cell' },
+      regionMarginModules: regionMargin ? 1 : 0,
       plateCornerModules: plate.cornerModules,
       keep: 'region-mask',
       edgeBlend: rimRounded ? 'antialiased' : 'cell-aligned-over-original',
@@ -477,6 +487,7 @@ async function assembleUpright(
       area: drawnModules * pitch * pitch,
       modules: drawnModules,
       rimModules: rimModuleCount,
+      marginModules: marginModuleCount,
       textureModules,
     },
     artifacts: {
@@ -522,6 +533,7 @@ async function assembleRotated(
     radius?: number
     rimModules?: number
     rimRounded?: boolean
+    regionMargin?: boolean
     pixelStyle?: PixelStyle
     transparentBlank?: boolean
   },
@@ -578,18 +590,23 @@ async function assembleRotated(
     drawn[index] = 1
     drawnModules++
   }
-  const rim = computeRimModules(safeArea.safe, lattice, rimModulesCount)
+  const regionMargin = options.regionMargin ?? false
+  const { margin, rim } = computeRegionBands(safeArea.safe, lattice, rimModulesCount, regionMargin)
   let rimModuleCount = 0
+  let marginModuleCount = 0
   let textureModules = 0
   for (let index = 0; index < drawn.length; index++) {
     if (!drawn[index]) continue
-    if (rim[index]) rimModuleCount++
+    if (margin[index]) marginModuleCount++
+    else if (rim[index]) rimModuleCount++
     else textureModules++
   }
-  if (textureModules === 0 && rimModulesCount > 0) {
+  if (textureModules === 0 && (rimModulesCount > 0 || regionMargin)) {
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
-      `The rotated painted region leaves no texture module once the ${rimModulesCount}-module rim and ` +
+      (regionMargin
+        ? `The rotated painted region leaves no texture module once the margin, ${rimModulesCount}-module rim, and `
+        : `The rotated painted region leaves no texture module once the ${rimModulesCount}-module rim and `) +
         'the QR plate are removed. Use a larger region, a smaller QR box, or a smaller rotation.',
     )
   }
@@ -636,12 +653,17 @@ async function assembleRotated(
     return drawn[row * lattice.columns + column] === 1
   }
   const pixelStyle: PixelStyle = options.pixelStyle ?? PATTERN_PIXEL_STYLE
-  const texturePng = await renderPattern(effective, pitch, pixelStyle, {
+  let texturePng = await renderPattern(effective, pitch, pixelStyle, {
     marginModules: pattern.marginModules,
     window: { ...pattern.crop, width: frame.width, height: frame.height },
     include,
   })
   const render = await decodePng(texturePng, 'pattern.png', 'rendered pattern')
+  const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
+  if (regionMargin) {
+    paintRegionMargin(render.data, frame.width, lattice, drawn, margin, qrRaw)
+    texturePng = await rgbaToPng(render.data, frame.width, frame.height)
+  }
 
   // The working cut layer is the same whole-module geometry as the upright path: drawn modules
   // carry the texture, the plate hole stays transparent, and antialiasing lives on the same
@@ -685,7 +707,6 @@ async function assembleRotated(
   // The working overlay is the whole finished composite ready to be rotated: the upright QR plate
   // copied verbatim over the plate cells, the texture over the drawn cells, and the alpha that
   // lets the rounded rim blend onto the original artwork during the rotate-back.
-  const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
   const overlay = new Uint8Array(frame.width * frame.height * 4)
   for (let row = 0; row < frame.height; row++) {
     for (let column = 0; column < frame.width; column++) {
@@ -811,6 +832,8 @@ async function assembleRotated(
       `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not ` +
       'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
   )
+  if (regionMargin)
+    warnings.push(`A one-module light margin follows the selected region inside its edge (${marginModuleCount} whole modules).`)
   if (safeArea.partialModules > 0) {
     warnings.push(
       `${safeArea.partialModules} module(s) crossed the painted region's edge in the QR's frame and kept the ` +
@@ -907,6 +930,7 @@ async function assembleRotated(
       droppedPartialPixels: safeArea.droppedPartialPixels,
       drawnModules,
       rim: { modules: rimModulesCount, style: rimRounded ? 'rounded-antialiased' : 'cell' },
+      regionMarginModules: regionMargin ? 1 : 0,
       plateCornerModules: plate.cornerModules,
       keep: 'region-mask',
       edgeBlend: rimRounded ? 'antialiased' : 'cell-aligned-over-original',
@@ -927,6 +951,7 @@ async function assembleRotated(
       area: drawnModules * pitch * pitch,
       modules: drawnModules,
       rimModules: rimModuleCount,
+      marginModules: marginModuleCount,
       textureModules,
     },
     artifacts: {
@@ -1009,6 +1034,31 @@ async function rotateBackCutPng(
     }
   }
   return rgbaToPng(output, posterWidth, posterHeight)
+}
+
+/** Paint the region's outer safe-module ring with the QR's own marker background pixels. */
+function paintRegionMargin(
+  pixels: Uint8Array,
+  width: number,
+  lattice: ModuleLattice,
+  drawn: Uint8Array,
+  margin: Uint8Array,
+  markerBackground: Uint8Array,
+): void {
+  const pitch = lattice.modulePixels
+  for (let index = 0; index < margin.length; index++) {
+    if (!margin[index] || !drawn[index]) continue
+    const row = Math.floor(index / lattice.columns)
+    const column = index - row * lattice.columns
+    const left = lattice.x + column * pitch
+    const top = lattice.y + row * pitch
+    for (let y = top; y < top + pitch; y++) {
+      for (let x = left; x < left + pitch; x++) {
+        const offset = (y * width + x) * 4
+        for (let channel = 0; channel < 4; channel++) pixels[offset + channel] = markerBackground[channel]!
+      }
+    }
+  }
 }
 
 /**

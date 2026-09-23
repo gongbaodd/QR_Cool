@@ -175,7 +175,7 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     flex: '1 1 360px',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 12,
   },
   note: {
@@ -877,6 +877,7 @@ export default function PreviewPanel({
   }, [fillActive])
   const ready = externallyReady && !!dimensions && !!placement && !!posterUrl && current
   const rimActive = pattern.settings.rimModules !== 0
+  const marginActive = pattern.settings.regionMargin
   const regionToolsVisible = !showingResult && !!posterUrl && !!sourceMaskUrl
   const keepPlacementCanvas =
     !!dimensions && !!placement && !!posterUrl && !!previews['qr.png'] && (!regionOnly || busy || placementInvalid)
@@ -900,6 +901,14 @@ export default function PreviewPanel({
         onClick={() => pattern.onSettings({ rimModules: rimActive ? 0 : 1, rimRounded: false })}
       >
         {rimActive ? '✓ Rim added' : '＋ Add Rim'}
+      </button>
+      <button
+        {...stylex.props(ui.button, marginActive && ui.fontCardSelected)}
+        type="button"
+        aria-pressed={marginActive}
+        onClick={() => pattern.onSettings({ regionMargin: !marginActive })}
+      >
+        {marginActive ? '✓ Margin added' : '＋ Add Margin'}
       </button>
     </div>
   ) : null
