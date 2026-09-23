@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Dispatch } from 'react'
-import { BLANK_POSTER_HEIGHT, BLANK_POSTER_WIDTH } from '../../../lib/editor/blank'
+import { useCallback, useEffect, useRef } from 'react'
+import { BLANK_POSTER_HEIGHT as DEFAULT_HEIGHT, BLANK_POSTER_WIDTH as DEFAULT_WIDTH } from '../../../lib/editor/blank'
 import {
   DEFAULT_AUTO_MASK,
   DEFAULT_AUTO_MASK_FONT_ID,
@@ -10,7 +9,14 @@ import {
   fitTextMaskSize,
 } from '../../../lib/editor/text-mask'
 import type { IconItem, TextMaskFont } from '../../../lib/editor/text-mask'
-import type { Action, Prepared } from '../../../lib/editor/state'
+import { useEditorStore, useEditorStoreApi } from '../EditorStoreProvider'
+import {
+  selectEffectiveMask,
+  selectIsBlank,
+  selectIsIconMode,
+  selectMaskFont,
+  selectSuggestedMask,
+} from '../../../lib/editor/selectors'
 
 function drawTextMask(width: number, height: number, text: string, family: string, capPx: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
@@ -81,12 +87,7 @@ async function drawIconMask(width: number, height: number, svgText: string, capP
 }
 
 export interface MaskSelectionOptions {
-  revision: number
-  prepared: Prepared | null
-  suggestedMask: string
-  closeGallery: () => void
-  onUploadMask: (file: File) => void
-  dispatch: Dispatch<Action>
+  closeGallery?: () => void
 }
 
 export interface MaskSelection {
@@ -105,36 +106,34 @@ export interface MaskSelection {
   selectFont: (fontId: string) => void
   selectIcon: (item: IconItem) => void
   followInput: () => void
-  whenSettled: () => Promise<void>
 }
 
 /** Reactive automatic/manual mask controller. */
-export function useMaskSelection({
-  revision,
-  prepared,
-  suggestedMask,
-  closeGallery,
-  onUploadMask,
-  dispatch,
-}: MaskSelectionOptions): MaskSelection {
-  const [origin, setOrigin] = useState<'auto' | 'manual'>('auto')
-  const [maskText, setMaskText] = useState(DEFAULT_AUTO_MASK)
-  const [maskFontId, setMaskFontId] = useState('blank')
-  const [selectedIcon, setSelectedIcon] = useState<IconItem | null>(null)
-  const [maskBusy, setMaskBusy] = useState(false)
+export function useMaskSelection({ closeGallery }: MaskSelectionOptions): MaskSelection {
+  const store = useEditorStoreApi()
+  const origin = useEditorStore((state) => state.maskSelection.origin)
+  const maskText = useEditorStore((state) => state.maskSelection.text)
+  const maskFontId = useEditorStore((state) => state.maskSelection.fontId)
+  const selectedIcon = useEditorStore((state) => state.maskSelection.selectedIcon)
+  const maskBusy = useEditorStore((state) => state.maskSelection.busy)
+  const prepared = useEditorStore((state) => state.document.prepared)
+  const suggestedMask = useEditorStore(selectSuggestedMask)
+  const maskFont = useEditorStore(selectMaskFont)
+  const effectiveMask = useEditorStore(selectEffectiveMask)
+  const isBlank = useEditorStore(selectIsBlank)
+  const isIconMode = useEditorStore(selectIsIconMode)
   const token = useRef(0)
   const lastSignature = useRef('')
-  const waiters = useRef<Array<() => void>>([])
-  const maskFont = TEXT_MASK_FONTS.find((entry) => entry.id === maskFontId) ?? TEXT_MASK_FONTS[1]!
-  const effectiveMask = (origin === 'auto' ? suggestedMask : maskText).trim().slice(0, 1).toUpperCase()
-  const isBlank = maskFontId === 'blank' && !selectedIcon
-  const isIconMode = !!selectedIcon
-  const width = prepared?.width ?? BLANK_POSTER_WIDTH
-  const height = prepared?.height ?? BLANK_POSTER_HEIGHT
+  const width = prepared?.width ?? DEFAULT_WIDTH
+  const height = prepared?.height ?? DEFAULT_HEIGHT
 
-  useEffect(() => {
-    if (!maskBusy) for (const resolve of waiters.current.splice(0)) resolve()
-  }, [maskBusy])
+  useEffect(
+    () => () => {
+      token.current += 1
+      store.getState().actions.setMaskBusy(false)
+    },
+    [store],
+  )
 
   const renderMask = useCallback(
     async (nextOrigin: 'auto' | 'manual', text: string, fontId: string, icon: IconItem | null) => {
@@ -143,8 +142,8 @@ export function useMaskSelection({
       if (signature === lastSignature.current) return
       lastSignature.current = signature
       const currentToken = ++token.current
-      setMaskBusy(true)
-      closeGallery()
+      store.getState().actions.setMaskBusy(true)
+      ;(closeGallery ?? store.getState().actions.closeGallery)()
       try {
         let canvas: HTMLCanvasElement
         if (entry.id === 'blank') {
@@ -172,23 +171,22 @@ export function useMaskSelection({
         await new Promise<void>((resolve) => {
           canvas.toBlob((blob) => {
             if (blob && currentToken === token.current)
-              onUploadMask(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' }))
+              store.getState().actions.replaceMask(new File([blob], TEXT_MASK_FILENAME, { type: 'image/png' }))
             resolve()
           }, 'image/png')
         })
       } catch {
-        if (currentToken === token.current)
-          dispatch({
-            type: 'error',
-            revision,
-            message: `Could not load the ${entry.label} mask. Please retry.`,
-            field: 'mask',
-          })
+        if (currentToken === token.current) {
+          const currentRevision = store.getState().document.revision
+          store
+            .getState()
+            .actions.failEngine(currentRevision, `Could not load the ${entry.label} mask. Please retry.`, 'mask')
+        }
       } finally {
-        if (currentToken === token.current) setMaskBusy(false)
+        if (currentToken === token.current) store.getState().actions.setMaskBusy(false)
       }
     },
-    [closeGallery, dispatch, height, onUploadMask, revision, width],
+    [closeGallery, height, store, width],
   )
 
   useEffect(() => {
@@ -203,41 +201,27 @@ export function useMaskSelection({
 
   function setText(value: string) {
     const next = value.slice(0, 10)
-    setOrigin('manual')
-    setMaskText(next)
-    setSelectedIcon(null)
+    store.getState().actions.setMaskText(next)
     void renderMask('manual', next, maskFontId, null)
   }
   function selectFont(fontId: string) {
     const nextText = effectiveMask || DEFAULT_AUTO_MASK
-    setOrigin('manual')
-    setMaskText(nextText)
-    setMaskFontId(fontId)
-    setSelectedIcon(null)
+    store.getState().actions.selectMaskFont(fontId)
     void renderMask('manual', nextText, fontId, null)
   }
   function selectIcon(item: IconItem) {
-    setOrigin('manual')
-    setMaskText(effectiveMask || DEFAULT_AUTO_MASK)
-    setSelectedIcon(item)
+    store.getState().actions.selectMaskIcon(item)
     void renderMask('manual', effectiveMask || DEFAULT_AUTO_MASK, maskFontId, item)
-    closeGallery()
+    ;(closeGallery ?? store.getState().actions.closeGallery)()
   }
   function followInput() {
-    setOrigin('auto')
-    setMaskText(suggestedMask || DEFAULT_AUTO_MASK)
-    setMaskFontId(suggestedMask ? DEFAULT_AUTO_MASK_FONT_ID : 'blank')
-    setSelectedIcon(null)
+    store.getState().actions.followMaskInput()
     void renderMask(
       'auto',
       suggestedMask || DEFAULT_AUTO_MASK,
       suggestedMask ? DEFAULT_AUTO_MASK_FONT_ID : 'blank',
       null,
     )
-  }
-  function whenSettled() {
-    if (!maskBusy) return Promise.resolve()
-    return new Promise<void>((resolve) => waiters.current.push(resolve))
   }
   return {
     // Keep the editable mask text defaulted to A even while empty automatic
@@ -257,6 +241,5 @@ export function useMaskSelection({
     selectFont,
     selectIcon,
     followInput,
-    whenSettled,
   }
 }

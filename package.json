@@ -34,7 +34,8 @@
     "react-dom": "^19.3.0",
     "react-konva": "^19.3.0",
     "uqr": "^0.1.3",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@babel/core": "^8.0.6",

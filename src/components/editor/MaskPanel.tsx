@@ -41,7 +41,7 @@ export default function MaskPanel({
 }: {
   mask: MaskSelection
   search: IconSearch
-  onSearch: () => void
+  onSearch: () => void | Promise<void>
 }) {
   const query = mask.text.trim()
   const searchState = searchControlState(query, search.fetchedQuery, search.results.length)

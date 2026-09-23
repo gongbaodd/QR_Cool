@@ -28,30 +28,35 @@ export interface State {
   field: string | null
   showingResult: boolean
 }
-export const initialState: State = {
-  revision: 0,
-  content: '',
-  settings: {
-    seed: 0,
-    qrMargin: 1,
-    plateCorners: 'texture',
-    rimModules: 1,
-    rimRounded: false,
-    ecc: 'M',
-    pixelStyle: 'rounded',
-    markerStyle: 'rounded',
-    markerShape: 'circle',
-    markerInner: 'circle',
-    markerSub: 'square',
-  },
-  prepared: null,
-  placement: null,
-  result: null,
-  busy: null,
-  error: null,
-  field: null,
-  showingResult: false,
+export function createInitialState(): State {
+  return {
+    revision: 0,
+    content: '',
+    settings: {
+      seed: 0,
+      qrMargin: 1,
+      plateCorners: 'texture',
+      rimModules: 1,
+      rimRounded: false,
+      ecc: 'M',
+      pixelStyle: 'rounded',
+      markerStyle: 'rounded',
+      markerShape: 'circle',
+      markerInner: 'circle',
+      markerSub: 'square',
+    },
+    prepared: null,
+    placement: null,
+    result: null,
+    busy: null,
+    error: null,
+    field: null,
+    showingResult: false,
+  }
 }
+
+/** Backwards-compatible deterministic defaults for pure reducer consumers. */
+export const initialState: State = createInitialState()
 export type Action =
   | { type: 'edit'; patch: Partial<Pick<State, 'content' | 'settings' | 'placement'>>; reset?: boolean }
   | { type: 'busy'; mode: 'prepare' | 'assemble'; revision: number }

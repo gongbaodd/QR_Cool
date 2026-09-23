@@ -1,127 +1,136 @@
-import { useEffect, useRef } from 'react'
-import type { Dispatch } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import * as Comlink from 'comlink'
-import { contentSchema, MAX_IMAGE_BYTES } from '../../../lib/editor/schema'
-import type { Action, State } from '../../../lib/editor/state'
-import { getEditorWorkerClient } from '../../../lib/editor/worker/editor-worker-client'
-import type { AssembleInput, EngineInput } from '../../../lib/editor/engine'
-import type { Settings } from '../../../lib/editor/schema'
-
-export interface EditorRequestOptions {
-  state: State
-  dispatch: Dispatch<Action>
-  poster: File | null
-  mask: File | null
-  maskBusy?: boolean
-  previewWithoutContent?: boolean
-}
+import type { EngineInput, AssembleInput } from '../../../lib/editor/engine'
+import { contentSchema, MAX_IMAGE_BYTES, type Settings } from '../../../lib/editor/schema'
+import { selectCanAssemble } from '../../../lib/editor/selectors'
+import {
+  createEditorWorkerClient,
+  type EditorWorkerClientHandle,
+} from '../../../lib/editor/worker/editor-worker-client'
+import { useEditorStore, useEditorStoreApi } from '../EditorStoreProvider'
 
 export interface EditorRequest {
-  /** Same surface as the old fetch hook; the engine's revision guard supersedes in-flight work. */
   request: (mode: 'prepare' | 'assemble', automatic?: boolean) => Promise<void>
-  /**
-   * Call-site stability only: an edit bumps the revision and the worker drops
-   * superseded runs at the outcome boundary (phase 3), so there is nothing to abort.
-   */
-  cancel: () => void
 }
 
-/**
- * Owns the prepare/assemble lifecycle, calling the Comlink worker client
- * directly — no fetch, no request abstraction on top of it. Outcomes settle
- * to `{ok | stale | error}` and are dispatched with the revision they belong
- * to; the reducer's revision guard rejects superseded results.
- */
-export function useEngineRequest({
-  state,
-  dispatch,
-  poster,
-  mask,
-  maskBusy = false,
-  previewWithoutContent = false,
-}: EditorRequestOptions): EditorRequest {
-  const latest = useRef(state)
-  latest.current = state
+/** Owns one editor's debounced worker session and drops stale lifecycle work. */
+export function useEngineRequest(): EditorRequest {
+  const store = useEditorStoreApi()
+  const revision = useEditorStore((state) => state.document.revision)
+  const poster = useEditorStore((state) => state.sources.poster)
+  const mask = useEditorStore((state) => state.sources.mask)
+  const maskBusy = useEditorStore((state) => state.maskSelection.busy)
+  const handle = useRef<EditorWorkerClientHandle | null>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const operation = useRef(0)
 
-  async function request(mode: 'prepare' | 'assemble', automatic = false) {
-    const current = latest.current
-    const hasValidContent = contentSchema.safeParse(current.content).success
-    const previewContent =
-      mode === 'prepare' && previewWithoutContent && !hasValidContent ? 'A' : current.content
-    if (
-      !poster ||
-      poster.size > MAX_IMAGE_BYTES ||
-      (mask && mask.size > MAX_IMAGE_BYTES) ||
-      (!hasValidContent && previewContent === current.content)
-    )
-      return
-    dispatch({ type: 'busy', mode, revision: current.revision })
-    const engine = getEditorWorkerClient()
-    const revision = current.revision
-    const input: EngineInput = {
-      posterBytes: await toTransferredBytes(poster),
-      content: previewContent,
-      settings: current.settings,
-    }
-    if (mask) input.maskBytes = await toTransferredBytes(mask)
-    // Identical placement inclusion rules as the former FormData request:
-    // manual placements round-trip with a recentering hint; automatic runs don't.
-    if (!automatic && current.placement) {
-      input.placement = current.placement
-      if (mode === 'prepare' && current.prepared) input.previousTotalModules = current.prepared.qrMetadata.totalModules
-    }
-    if (mode === 'prepare') {
-      const prepared = await engine.prepare(input, revision)
-      if (!prepared.ok) {
-        if (!('stale' in prepared))
-          dispatch({
-            type: 'error',
-            revision: current.revision,
-            message: prepared.error.message,
-            ...(prepared.error.field ? { field: prepared.error.field } : {}),
-          })
-        return
+  const request = useCallback(
+    async (mode: 'prepare' | 'assemble', automatic = false) => {
+      if (mode === 'assemble' && timer.current) {
+        clearTimeout(timer.current)
+        timer.current = null
       }
-      dispatch({ type: 'prepared', data: { apiVersion: 1, revision: prepared.revision, ...prepared.value } })
-    } else {
-      const assembled = await engine.assemble(toAssembleInput(input, current.settings), revision)
-      if (!assembled.ok) {
-        if (!('stale' in assembled))
-          dispatch({
-            type: 'error',
-            revision: current.revision,
-            message: assembled.error.message,
-            ...(assembled.error.field ? { field: assembled.error.field } : {}),
-          })
+      const token = ++operation.current
+      const current = store.getState()
+      const document = current.document
+      const sourcePoster = current.sources.poster
+      const sourceMask = current.sources.mask
+      const validContent = contentSchema.safeParse(document.content).success
+      const previewContent =
+        mode === 'prepare' && current.maskSelection.origin === 'manual' && !validContent ? 'A' : document.content
+      if (
+        !sourcePoster ||
+        sourcePoster.size > MAX_IMAGE_BYTES ||
+        (sourceMask && sourceMask.size > MAX_IMAGE_BYTES) ||
+        (!validContent && previewContent === document.content) ||
+        (mode === 'assemble' && !selectCanAssemble(current))
+      )
         return
+
+      const requestRevision = document.revision
+      current.actions.startEngine(mode, requestRevision)
+      try {
+        const input: EngineInput = {
+          posterBytes: await toTransferredBytes(sourcePoster),
+          content: previewContent,
+          settings: document.settings,
+        }
+        if (sourceMask) input.maskBytes = await toTransferredBytes(sourceMask)
+        if (!automatic && document.placement) {
+          input.placement = document.placement
+          if (mode === 'prepare' && document.prepared)
+            input.previousTotalModules = document.prepared.qrMetadata.totalModules
+        }
+        const latest = store.getState()
+        if (token !== operation.current || latest.document.revision !== requestRevision) return
+        const engine = (handle.current ??= createEditorWorkerClient()).get()
+        if (mode === 'prepare') {
+          const prepared = await engine.prepare(input, requestRevision)
+          if (token !== operation.current) return
+          if (!prepared.ok) {
+            if (!('stale' in prepared))
+              settleError(token, requestRevision, prepared.error.message, prepared.error.field)
+            return
+          }
+          store.getState().actions.acceptPrepared({ apiVersion: 1, revision: prepared.revision, ...prepared.value })
+        } else {
+          const assembled = await engine.assemble(toAssembleInput(input, document.settings), requestRevision)
+          if (token !== operation.current) return
+          if (!assembled.ok) {
+            if (!('stale' in assembled))
+              settleError(token, requestRevision, assembled.error.message, assembled.error.field)
+            return
+          }
+          store
+            .getState()
+            .actions.acceptResult({ apiVersion: 1, revision: assembled.revision, artifacts: assembled.value.artifacts })
+        }
+      } catch (error) {
+        if (token !== operation.current) return
+        settleError(token, requestRevision, error instanceof Error ? error.message : 'Could not update the preview.')
       }
-      dispatch({
-        type: 'result',
-        data: { apiVersion: 1, revision: assembled.revision, artifacts: assembled.value.artifacts },
-      })
-    }
-  }
+
+      function settleError(activeToken: number, expectedRevision: number, message: string, field?: string) {
+        const latest = store.getState()
+        if (activeToken === operation.current && latest.document.revision === expectedRevision)
+          latest.actions.failEngine(expectedRevision, message, field)
+      }
+    },
+    [store],
+  )
 
   useEffect(() => {
     if (!poster || maskBusy) return
-    const timer = setTimeout(() => {
-      void request('prepare')
+    timer.current = setTimeout(() => {
+      timer.current = null
+      void request('prepare', true)
     }, 450)
-    return () => clearTimeout(timer)
-    // Responses never increment the revision; the deps mirror the old fetch hook.
-  }, [state.revision, poster, mask, maskBusy]) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = null
+      operation.current += 1
+    }
+  }, [mask, maskBusy, poster, request, revision])
 
-  function cancel() {}
-  return { request, cancel }
+  useEffect(
+    () => () => {
+      operation.current += 1
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = null
+      handle.current?.dispose()
+      handle.current = null
+    },
+    [],
+  )
+
+  return { request }
 }
 
-/** Reads a File's bytes and hands them to the worker as a transferable (no defensive copy). */
 async function toTransferredBytes(file: File): Promise<Uint8Array> {
   const bytes = new Uint8Array(await file.arrayBuffer())
   return Comlink.transfer(bytes, [bytes.buffer])
 }
 
-/** The engine takes flat settings on assemble, as the old request JSON did. */
 function toAssembleInput(input: EngineInput, settings: Settings): AssembleInput {
   return {
     posterBytes: input.posterBytes,

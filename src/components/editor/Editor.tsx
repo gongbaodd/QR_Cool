@@ -1,9 +1,14 @@
 'use client'
 import dynamic from 'next/dynamic'
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { initialState, reducer } from '../../lib/editor/state'
-import { canonicalPlacement, contentSchema, MAX_IMAGE_BYTES } from '../../lib/editor/schema'
+import EditorStoreProvider, { useEditorStore, useEditorStoreApi } from './EditorStoreProvider'
+import {
+  selectCanAssemble,
+  selectCurrent,
+  selectPreparationError,
+  selectVisibleContentError,
+} from '../../lib/editor/selectors'
 import {
   BLANK_MASK_FILENAME,
   BLANK_POSTER_FILENAME,
@@ -12,8 +17,6 @@ import {
   buildBlankMaskRgba,
   buildBlankPosterRgba,
 } from '../../lib/editor/blank'
-import { deriveMaskLetter } from '../../lib/editor/text-mask'
-import type { Placement } from '../../lib/editor/schema'
 import EditorHeader from './EditorHeader'
 import PreviewPanel from './PreviewPanel'
 import MaskPanel from './MaskPanel'
@@ -49,86 +52,61 @@ const styles = stylex.create({
 const freshSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!
 
 export default function Editor() {
-  const [state, dispatch] = useReducer(reducer, initialState)
-  const [draftContent, setDraftContent] = useState('')
-  const [draftError, setDraftError] = useState<string | null>(null)
-  const [draftBlurred, setDraftBlurred] = useState(false)
-  const [poster, setPoster] = useState<File | null>(null)
-  const [mask, setMask] = useState<File | null>(null)
-  const [posterUrl, setPosterUrl] = useState('')
-  const [maskOpen, setMaskOpen] = useState(false)
-  const [detailsOpen, setDetailsOpen] = useState(false)
+  return (
+    <EditorStoreProvider>
+      <EditorWorkspace />
+    </EditorStoreProvider>
+  )
+}
+
+function EditorWorkspace() {
+  const store = useEditorStoreApi()
+  const actions = useEditorStore((state) => state.actions)
+  const draft = useEditorStore((state) => state.draft)
+  const editorDocument = useEditorStore((state) => state.document)
+  const poster = useEditorStore((state) => state.sources.poster)
+  const maskText = useEditorStore((state) => state.maskSelection.text)
+  const maskBusy = useEditorStore((state) => state.maskSelection.busy)
+  const iconSearch = useIconSearch()
+  const maskSelection = useMaskSelection({})
+  const { request } = useEngineRequest()
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const maskTriggerRef = useRef<HTMLButtonElement | null>(null)
   const detailsTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const searchQueryRef = useRef('')
-  const blankStarted = useRef(false)
-  const inputRef = useRef<HTMLInputElement | null>(null)
-  const iconSearch = useIconSearch(searchQueryRef)
-  const suggestedMask = deriveMaskLetter(state.content)
-  const maskSelection = useMaskSelection({
-    revision: state.revision,
-    prepared: state.prepared,
-    suggestedMask,
-    closeGallery: iconSearch.closeGallery,
-    onUploadMask: uploadMaskFile,
-    dispatch,
-  })
-  const { request, cancel } = useEngineRequest({
-    state,
-    dispatch,
-    poster,
-    mask,
-    maskBusy: maskSelection.busy,
-    previewWithoutContent: maskSelection.origin === 'manual',
-  })
-  searchQueryRef.current = maskSelection.text.trim()
+  const initialization = useRef(0)
+
   const previews = useBlobUrls(
-    state.prepared
-      ? { 'mask.png': state.prepared.overlay, 'region.png': state.prepared.mask, 'qr.png': state.prepared.qr }
+    editorDocument.prepared
+      ? {
+          'mask.png': editorDocument.prepared.overlay,
+          'region.png': editorDocument.prepared.mask,
+          'qr.png': editorDocument.prepared.qr,
+        }
       : {},
   )
-  const artifacts = useBlobUrls(state.result?.artifacts ?? {})
-  const preparationError = state.error && state.field !== 'content' ? state.error : null
-  const committedContentError = state.field === 'content' ? state.error : null
-  const current = !!state.prepared && state.prepared.revision === state.revision && !state.error
-  const busy = !!state.busy || maskSelection.busy || iconSearch.loading
+  const artifacts = useBlobUrls(editorDocument.result?.artifacts ?? {})
+  const posterUrls = useBlobUrls(poster ? { poster } : {})
+  const posterUrl = posterUrls.poster ?? ''
+  const preparationError = useEditorStore(selectPreparationError)
+  const visibleError = useEditorStore(selectVisibleContentError)
+  const current = useEditorStore(selectCurrent)
+  const maskOpen = useEditorStore((state) => state.panels.maskOpen)
+  const detailsOpen = useEditorStore((state) => state.panels.detailsOpen)
+  const busy = useEditorStore((state) => !!state.document.busy || state.maskSelection.busy || state.iconSearch.loading)
+  const canAssemble = useEditorStore(selectCanAssemble)
 
   useEffect(() => {
-    if (!poster) return
-    const url = URL.createObjectURL(poster)
-    setPosterUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [poster])
-  useEffect(() => {
-    if (!poster || !mask) return
-    for (const entry of ['Fathead', 'FatC']) void document.fonts.load(`24px "${entry}"`).catch(() => {})
-  }, [poster, mask])
-  function edit(patch: Parameters<typeof reducer>[1] & { type: 'edit' }) {
-    cancel()
-    dispatch(patch)
-  }
-  function uploadMaskFile(file: File) {
-    setMask(file)
-    edit({ type: 'edit', patch: {}, reset: true })
-    if (file.size > MAX_IMAGE_BYTES)
-      dispatch({
-        type: 'error',
-        revision: state.revision + 1,
-        message: 'Each PNG must be 10 MiB or smaller.',
-        field: 'mask',
-      })
-  }
-  function ensureBlankPoster() {
-    if (poster || typeof document === 'undefined') return
+    if (store.getState().sources.poster) return
+    const token = ++initialization.current
     const width = BLANK_POSTER_WIDTH
     const height = BLANK_POSTER_HEIGHT
-    const posterCanvas = document.createElement('canvas')
+    const posterCanvas = globalThis.document.createElement('canvas')
     posterCanvas.width = width
     posterCanvas.height = height
     posterCanvas
       .getContext('2d')!
       .putImageData(new ImageData(new Uint8ClampedArray(buildBlankPosterRgba(width, height)), width, height), 0, 0)
-    const maskCanvas = document.createElement('canvas')
+    const maskCanvas = globalThis.document.createElement('canvas')
     maskCanvas.width = width
     maskCanvas.height = height
     maskCanvas
@@ -136,66 +114,43 @@ export default function Editor() {
       .putImageData(new ImageData(new Uint8ClampedArray(buildBlankMaskRgba(width, height)), width, height), 0, 0)
     posterCanvas.toBlob((posterBlob) => {
       maskCanvas.toBlob((maskBlob) => {
-        if (!posterBlob || !maskBlob) return
-        setPoster(new File([posterBlob], BLANK_POSTER_FILENAME, { type: 'image/png' }))
-        setMask(new File([maskBlob], BLANK_MASK_FILENAME, { type: 'image/png' }))
-        dispatch({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } }, reset: true })
+        if (token !== initialization.current || !posterBlob || !maskBlob) return
+        actions.initializeSources(
+          new File([posterBlob], BLANK_POSTER_FILENAME, { type: 'image/png' }),
+          new File([maskBlob], BLANK_MASK_FILENAME, { type: 'image/png' }),
+          freshSeed(),
+        )
       }, 'image/png')
     }, 'image/png')
-  }
-  useEffect(() => {
-    if (blankStarted.current) return
-    blankStarted.current = true
-    ensureBlankPoster()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  function submitDraft() {
-    const parsed = contentSchema.safeParse(draftContent)
-    if (!parsed.success) {
-      setDraftError(parsed.error.issues[0]?.message ?? 'Enter text or a URL.')
-      setDraftBlurred(true)
-      requestAnimationFrame(() => inputRef.current?.focus())
-      return
+    return () => {
+      initialization.current += 1
     }
-    setDraftError(null)
-    if (parsed.data === state.content) return
-    edit({ type: 'edit', patch: { content: parsed.data } })
+  }, [actions, store])
+
+  function submitDraft() {
+    if (!actions.commitDraft()) requestAnimationFrame(() => inputRef.current?.focus())
   }
-  function onDraftBlur() {
-    setDraftBlurred(true)
-    const parsed = contentSchema.safeParse(draftContent)
-    setDraftError(parsed.success ? null : (parsed.error.issues[0]?.message ?? 'Enter text or a URL.'))
-  }
-  function handleSearch() {
-    void iconSearch.handleSearchClick(searchQueryRef.current, maskSelection.busy)
-  }
+
   function handleGallerySelect(index: number) {
     const item = iconSearch.results[index]
     if (item) maskSelection.selectIcon(item)
   }
-  function move(box: Placement) {
-    if (!state.prepared) return
-    edit({ type: 'edit', patch: { placement: canonicalPlacement(box, state.prepared.qrMetadata.totalModules) } })
-  }
-  const visibleError = (draftBlurred ? draftError : null) ?? committedContentError
-  const canAssemble = contentSchema.safeParse(state.content).success
+
   return (
     <main>
       <EditorHeader
-        content={draftContent}
+        content={draft.content}
         contentError={visibleError}
         busy={busy}
         status={
-          state.busy === 'prepare' || maskSelection.busy
+          editorDocument.busy === 'prepare' || maskBusy
             ? 'Updating the live preview…'
-            : state.showingResult
+            : editorDocument.showingResult
               ? 'Export ready.'
               : 'Draft changes wait for Generate.'
         }
-        onContentChange={(value) => {
-          setDraftContent(value)
-          if (draftError) setDraftError(null)
-        }}
-        onContentBlur={onDraftBlur}
+        onContentChange={actions.setDraftContent}
+        onContentBlur={actions.blurDraft}
         onSubmit={submitDraft}
         inputRef={inputRef}
       />
@@ -206,46 +161,46 @@ export default function Editor() {
             side="left"
             title="Mask selection"
             open={maskOpen}
-            onOpenChange={setMaskOpen}
+            onOpenChange={actions.setMaskOpen}
             triggerRef={maskTriggerRef}
           >
-            <MaskPanel
-              mask={maskSelection}
-              search={iconSearch}
-              onSearch={handleSearch}
-            />
+            <MaskPanel mask={maskSelection} search={iconSearch} onSearch={iconSearch.handleSearchClick} />
           </ResponsiveEditorPanel>
         </div>
         <PreviewPanel
-          showingResult={state.showingResult}
-          dimensions={state.prepared ? { width: state.prepared.width, height: state.prepared.height } : null}
-          result={state.result}
+          showingResult={editorDocument.showingResult}
+          dimensions={
+            editorDocument.prepared
+              ? { width: editorDocument.prepared.width, height: editorDocument.prepared.height }
+              : null
+          }
+          result={editorDocument.result}
           artifacts={artifacts}
           previews={previews}
           posterUrl={posterUrl}
-          placement={state.placement}
-          modules={state.prepared?.qrMetadata.totalModules ?? 0}
-          invalid={!!state.error}
+          placement={editorDocument.placement}
+          modules={editorDocument.prepared?.qrMetadata.totalModules ?? 0}
+          invalid={!!editorDocument.error}
           busy={busy}
           error={preparationError}
           current={current}
-          onMove={move}
-          onReturnToEditing={() => dispatch({ type: 'view', result: false })}
-          onMaskOpen={() => setMaskOpen(true)}
-          onDetailsOpen={() => setDetailsOpen(true)}
+          onMove={actions.movePlacement}
+          onReturnToEditing={() => actions.setResultView(false)}
+          onMaskOpen={() => actions.setMaskOpen(true)}
+          onDetailsOpen={() => actions.setDetailsOpen(true)}
           maskOpen={maskOpen}
           detailsOpen={detailsOpen}
           maskTriggerRef={maskTriggerRef}
           detailsTriggerRef={detailsTriggerRef}
           pattern={{
-            content: state.content,
-            settings: state.settings,
-            onSettings: (patch) => edit({ type: 'edit', patch: { settings: { ...state.settings, ...patch } } }),
-            onNewSeed: () => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } }),
+            content: editorDocument.content,
+            settings: editorDocument.settings,
+            onSettings: actions.patchSettings,
+            onNewSeed: () => actions.setSeed(freshSeed()),
           }}
           onAssemble={() => void request('assemble')}
-          assembleBusy={state.busy === 'assemble'}
-          ready={current && !!state.placement && !busy}
+          assembleBusy={editorDocument.busy === 'assemble'}
+          ready={current && !!editorDocument.placement && !busy}
           canAssemble={canAssemble}
         />
         <div {...stylex.props(styles.side)}>
@@ -254,34 +209,34 @@ export default function Editor() {
             side="right"
             title="QR details"
             open={detailsOpen}
-            onOpenChange={setDetailsOpen}
+            onOpenChange={actions.setDetailsOpen}
             triggerRef={detailsTriggerRef}
           >
             <QrDetailsPanel
-              content={state.content}
-              settings={state.settings}
-              onSettings={(patch) => edit({ type: 'edit', patch: { settings: { ...state.settings, ...patch } } })}
-              onNewSeed={() => edit({ type: 'edit', patch: { settings: { ...state.settings, seed: freshSeed() } } })}
+              content={editorDocument.content}
+              settings={editorDocument.settings}
+              onSettings={actions.patchSettings}
+              onNewSeed={() => actions.setSeed(freshSeed())}
               error={preparationError}
             />
           </ResponsiveEditorPanel>
         </div>
       </div>
-      {preparationError && state.field !== 'placement' && (
+      {preparationError && editorDocument.field !== 'placement' && (
         <PreparationError message={preparationError} onRetry={() => void request('prepare')} />
       )}
       <IconGallery
         open={iconSearch.galleryMode}
-        query={searchQueryRef.current}
+        query={maskText.trim()}
         total={iconSearch.total}
         items={iconSearch.results}
         selectedIconId={maskSelection.selectedIconId}
         onSelect={handleGallerySelect}
         onClose={iconSearch.closeGallery}
       />
-      {draftError && (
+      {draft.error && (
         <p {...stylex.props(styles.error, ui.error)} role="alert">
-          {draftError}
+          {draft.error}
         </p>
       )}
     </main>

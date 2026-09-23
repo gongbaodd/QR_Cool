@@ -6,7 +6,7 @@ describe('editor state revision guards', () => {
     const old = {
       ...initialState,
       revision: 4,
-      result: { apiVersion: 1 as const, revision: 4, artifacts: { 'poster.png': 'old' } },
+      result: { apiVersion: 1 as const, revision: 4, artifacts: { 'poster.png': new Blob(['old']) } },
     }
     const edited = reducer(old, { type: 'edit', patch: { content: 'new' } })
     expect(edited.result).toBeNull()

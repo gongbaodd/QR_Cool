@@ -1,8 +1,8 @@
 /**
  * Engine contracts shared by the Node test harness and the Comlink worker.
  * Engine operations never throw across an API boundary: they settle to a
- * discriminated {@link EngineOutcome}, so every consumer (React reducer, RPC
- * client, tests) handles errors and stale runs the same way.
+ * discriminated {@link EngineOutcome}, so every consumer (the editor store,
+ * worker client, tests) handles errors and stale runs the same way.
  */
 
 import type { Placement, Settings } from '../schema'
