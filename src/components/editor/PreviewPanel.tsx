@@ -1,7 +1,7 @@
 'use client'
 import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
-import type { RefObject } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { toast } from 'react-toastify'
 import type Konva from 'konva'
@@ -99,12 +99,11 @@ const styles = stylex.create({
     borderColor: tokens.ink, borderRadius: tokens.sketchCard, boxShadow: tokens.shadowLg,
   },
   tools: {
-    display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: 12,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, padding: 12,
     fontSize: 15, backgroundColor: tokens.highlightSoft, borderBottomWidth: 2,
     borderBottomStyle: 'solid', borderBottomColor: tokens.ink,
     '@media (max-width: 700px)': { gap: 8 },
   },
-  toolLabel: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 15 },
   scroll: {
     overflow: 'auto', padding: 18, maxHeight: 720, touchAction: 'pan-x pan-y', backgroundColor: tokens.paper,
     '@media (max-width: 700px)': { maxHeight: 460 },
@@ -126,17 +125,16 @@ const styles = stylex.create({
   nudge: { minWidth: 42, minHeight: 42, paddingBlock: 4, paddingInline: 8 },
   fillToolbar: {
     display: 'flex',
-    flexDirection: 'column',
     alignItems: 'center',
-    alignSelf: 'stretch',
-    gap: 10,
+    flex: '1 1 360px',
+    justifyContent: 'flex-end',
+    gap: 12,
   },
   fillActions: {
     display: 'flex',
     alignItems: 'center',
-    alignSelf: 'stretch',
-    justifyContent: 'space-between',
-    gap: 10,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   note: {
     display: 'flex',
@@ -147,6 +145,7 @@ const styles = stylex.create({
     color: tokens.muted,
     '@media (max-width: 600px)': { flexDirection: 'column', gap: 2 },
   },
+  fillHint: { fontSize: 13, lineHeight: '18px', color: tokens.muted },
   exportControls: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' },
 })
 
@@ -174,6 +173,7 @@ function SourceRegionPreview({
   fillActive,
   fillReady,
   onFillAt,
+  toolbar,
 }: {
   poster: string
   maskCanvas: HTMLCanvasElement | null
@@ -181,6 +181,7 @@ function SourceRegionPreview({
   fillActive: boolean
   fillReady: boolean
   onFillAt: (x: number, y: number) => void
+  toolbar: ReactNode
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const posterImage = useImage(poster)
@@ -313,7 +314,6 @@ function PosterCanvas({
   const transformer = useRef<Konva.Transformer>(null)
   const stage = useRef<Konva.Stage>(null)
   const [viewport, setViewport] = useState(800)
-  const [showMask, setShowMask] = useState(true)
   const [hoverMarker, setHoverMarker] = useState<string | null>(null)
   useEffect(() => {
     const observer = new ResizeObserver((entries) => setViewport(entries[0]!.contentRect.width))
@@ -370,12 +370,7 @@ function PosterCanvas({
   const { Group, Stage, Layer, Image: CanvasImage, Rect, Transformer } = konva
   return (
     <div {...stylex.props(styles.area)} ref={wrapper}>
-      <div {...stylex.props(styles.tools)}>
-        <label {...stylex.props(ui.label, styles.toolLabel)}>
-          <input {...stylex.props(ui.checkbox)} type="checkbox" checked={showMask} onChange={(e) => setShowMask(e.target.checked)} />{' '}
-          Show region
-        </label>
-      </div>
+      {toolbar && <div {...stylex.props(styles.tools)}>{toolbar}</div>}
       <div
         {...stylex.props(styles.scroll)}
         ref={scroll}
@@ -414,7 +409,7 @@ function PosterCanvas({
           >
             <Layer>
               <CanvasImage image={posterImage} width={width} height={height} listening={false} />
-              {showMask && <CanvasImage image={overlayImage} width={width} height={height} listening={false} />}
+              <CanvasImage image={overlayImage} width={width} height={height} listening={false} />
               <Group
                 ref={node}
                 x={placement.x + placement.size / 2}
@@ -758,20 +753,22 @@ export default function PreviewPanel({
     }
     return () => toast.dismiss(toastId)
   }, [fillActive, editingPreview])
+  const regionToolsVisible = !showingResult && !!posterUrl && !!sourceMaskUrl
   const keepPlacementCanvas =
     !!dimensions &&
     !!placement &&
     !!posterUrl &&
     !!previews['qr.png'] &&
     (!regionOnly || busy || placementInvalid)
-  const fillToolbar = editingPreview ? (
+  const fillToolbar = regionToolsVisible ? (
     <div {...stylex.props(styles.fillToolbar)}>
       <div {...stylex.props(styles.fillActions)}>
         <button
           {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
           type="button"
           aria-pressed={fillActive}
-          aria-describedby={fillActive ? 'editor-fill-instructions' : undefined}
+          aria-describedby="fill-instructions"
+          title="Click an enclosed area to fill it. Press Escape to exit fill mode."
           disabled={!sourceMaskReady || fillPending || busy}
           onClick={() => {
             setFillActive((active) => !active)
@@ -788,6 +785,9 @@ export default function PreviewPanel({
           {rimActive ? '✓ Rim added' : '＋ Add Rim'}
         </button>
       </div>
+      <span id="fill-instructions" {...stylex.props(styles.fillHint)}>
+        Click an enclosed area to fill it. Esc exits fill.
+      </span>
     </div>
   ) : null
   return (
@@ -846,8 +846,8 @@ export default function PreviewPanel({
             fillActive={fillActive}
             fillReady={sourceMaskReady && !fillPending && !busy}
             onFillAt={fillAt}
+            toolbar={fillToolbar}
           />
-          {fillToolbar}
           <div {...stylex.props(styles.exportControls)}>
             <button
               {...stylex.props(ui.button, ui.primary)}
@@ -865,6 +865,7 @@ export default function PreviewPanel({
       ) : (regionOnly || showFilledRegion) && posterUrl && sourceMaskUrl ? (
         <>
           <div {...stylex.props(styles.regionPreview)}>
+            {regionToolsVisible && <div {...stylex.props(styles.tools)}>{fillToolbar}</div>}
             <SourceRegionPreview
               poster={posterUrl}
               maskCanvas={sourceMaskCanvas}
@@ -873,7 +874,6 @@ export default function PreviewPanel({
               fillReady={sourceMaskReady && !fillPending && !busy}
               onFillAt={fillAt}
             />
-            {fillToolbar}
           </div>
           <p {...stylex.props(styles.regionCaption)}>
             Selected region · {error ? 'the QR code does not fit inside this region.' : regionOnly ? 'enter text or a URL to add a QR code.' : 'updating the QR preview…'}
