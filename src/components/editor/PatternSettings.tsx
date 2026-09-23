@@ -4,7 +4,14 @@ import * as stylex from '@stylexjs/stylex'
 import { encode } from 'uqr'
 import '@simonwep/pickr/dist/themes/monolith.min.css'
 import type { Settings } from '@/lib/editor/schema'
-import { DEFAULT_PALETTE, normalizeHex, paletteGuard, suggestPalette, type QrPalette } from '@/core/palette'
+import {
+  DEFAULT_PALETTE,
+  TIGER_PRESET,
+  normalizeHex,
+  paletteGuard,
+  suggestPalette,
+  type QrPalette,
+} from '@/core/palette'
 import { usePickr } from './hooks/use-pickr'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
@@ -39,7 +46,7 @@ const styles = stylex.create({
   heading: {
     fontSize: 16,
     fontWeight: 600,
-    color: tokens.green,
+    color: tokens.accentText,
     margin: 0,
   },
   eccFieldset: {
@@ -95,11 +102,11 @@ const styles = stylex.create({
     transitionDuration: '0.12s',
     transitionTimingFunction: 'ease',
     ':hover': {
-      backgroundColor: tokens.highlightSoft,
+      backgroundColor: tokens.accentSoftest,
     },
   },
   eccCardSelected: {
-    backgroundColor: tokens.highlight,
+    backgroundColor: tokens.accentSoft,
     borderWidth: 3,
     boxShadow: tokens.shadow,
     transform: 'rotate(0.2deg)',
@@ -139,7 +146,7 @@ const styles = stylex.create({
   },
   eccRecovery: {
     fontSize: 11,
-    color: tokens.muted,
+    color: tokens.inkMuted,
     lineHeight: 1,
   },
   colorsFieldset: {
@@ -167,7 +174,7 @@ const styles = stylex.create({
     borderRadius: 999,
     boxShadow: tokens.shadowField,
     cursor: 'pointer',
-    ':hover': { backgroundColor: tokens.highlightSoft },
+    ':hover': { backgroundColor: tokens.accentSoftest },
   },
   colorChip: {
     width: 22,
@@ -202,7 +209,7 @@ const styles = stylex.create({
     borderColor: tokens.ink,
     borderRadius: 999,
     cursor: 'pointer',
-    ':hover': { backgroundColor: tokens.highlightSoft },
+    ':hover': { backgroundColor: tokens.accentSoftest },
   },
   suggestedDot: {
     width: 14,
@@ -218,6 +225,12 @@ const styles = stylex.create({
     color: tokens.ink,
     fontWeight: 600,
     lineHeight: 1,
+  },
+  presetRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBlock: 6,
   },
 })
 
@@ -610,6 +623,20 @@ export default function PatternSettings({
 
       <fieldset {...stylex.props(styles.colorsFieldset)}>
         <legend {...stylex.props(styles.eccLegend)}>Colors</legend>
+        <div {...stylex.props(styles.presetRow)}>
+          <button
+            type="button"
+            {...stylex.props(styles.suggestedChip)}
+            aria-label="Apply the Tiger brand palette: near-black pixels, vermilion markers, white background"
+            onClick={() => {
+              setCustomized({ marker: true, background: true })
+              attempt(TIGER_PRESET)
+            }}
+          >
+            <span {...stylex.props(styles.suggestedDot)} style={{ backgroundColor: TIGER_PRESET.pixel }} />
+            <span {...stylex.props(styles.suggestedLabel)}>Tiger preset</span>
+          </button>
+        </div>
         <ColorRow
           name="pixel"
           label="Pixel"

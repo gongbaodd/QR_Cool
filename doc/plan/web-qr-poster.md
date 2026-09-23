@@ -4,6 +4,8 @@ Status: implemented; the web editor is the supported product interface and the C
 
 ## Product goal
 
+The editor is branded **mahu-QR** (码码虎虎). The mascot `public/brand/mahu-tiger.svg` drives the visual identity: near-black `#101211` and vermilion `#ff321e` on warm cream, layered onto the existing Wired-Elements sketch geometry and Gloria Hallelujah handwriting UI, with hard offset shadows. It appears in the header lockup, the empty-state preview, the favicon (`src/app/icon.svg`), the touch icon, and the social image. Pattern settings add a one-tap **Tiger preset** (`#101211` pixel / `#ff321e` marker / `#ffffff` background) beside the per-row suggestions; `DEFAULT_PALETTE` and every engine output stay unchanged.
+
 The error-correction and pixel-style cards preview QR styling encoded from an empty text value, so the options remain visible and comparable before content is entered.
 
 ## Reactive workspace (implemented 2026-09-22)

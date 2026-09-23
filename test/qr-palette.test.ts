@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { generateQrFromContent, decodeQrBuffer } from '@/core/qr'
 import { decodePng } from '@/core/image'
-import { DEFAULT_PALETTE, hexToRgb, type QrPalette } from '@/core/palette'
+import { DEFAULT_PALETTE, TIGER_PRESET, hexToRgb, paletteGuard, type QrPalette } from '@/core/palette'
 
 const content = 'https://example.com/qr-colors'
 const palette: QrPalette = { pixel: '#0d47a1', marker: '#06305e', background: '#eef3fa' }
@@ -55,5 +55,24 @@ describe('generated QR palette', () => {
       DEFAULT_PALETTE,
     )
     expect(Buffer.from(omitted.image.file).equals(Buffer.from(defaults.image.file))).toBe(true)
+  })
+
+  it('accepts the brand Tiger preset through the palette guard', () => {
+    expect(paletteGuard(TIGER_PRESET)).toEqual({ ok: true, issues: [] })
+  })
+
+  it('generates and decodes a QR with the Tiger preset', async () => {
+    const generated = await generateQrFromContent(
+      content,
+      'M',
+      'dot',
+      'rounded',
+      'circle',
+      'circle',
+      'square',
+      undefined,
+      TIGER_PRESET,
+    )
+    expect(await decodeQrBuffer(generated.image.file)).toBe(content)
   })
 })

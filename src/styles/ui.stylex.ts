@@ -15,7 +15,7 @@ export const ui = stylex.create({
     lineHeight: 1.85,
     letterSpacing: '0.02em',
     '::selection': {
-      backgroundColor: tokens.highlight,
+      backgroundColor: tokens.accentSoft,
     },
     '@media (max-width: 700px)': {
       fontSize: 18,
@@ -24,7 +24,7 @@ export const ui = stylex.create({
   eyebrow: {
     fontSize: 14,
     letterSpacing: 2,
-    color: tokens.green,
+    color: tokens.accentText,
   },
   pageTitle: {
     fontSize: 34,
@@ -34,7 +34,7 @@ export const ui = stylex.create({
     fontWeight: 400,
     textDecorationLine: 'underline',
     textDecorationStyle: 'wavy',
-    textDecorationColor: tokens.highlight,
+    textDecorationColor: tokens.accentSoft,
     textDecorationThickness: 5,
     textUnderlineOffset: 9,
     '@media (max-width: 700px)': {
@@ -67,7 +67,7 @@ export const ui = stylex.create({
     height: 38,
     fontSize: 14,
     color: tokens.ink,
-    backgroundColor: tokens.highlight,
+    backgroundColor: tokens.accentSoft,
     borderWidth: 2,
     borderStyle: 'solid',
     borderColor: tokens.ink,
@@ -134,7 +134,7 @@ export const ui = stylex.create({
     ':focus-visible': {
       outlineWidth: 3,
       outlineStyle: 'dashed',
-      outlineColor: tokens.green,
+      outlineColor: tokens.accent,
       outlineOffset: 3,
     },
   },
@@ -163,8 +163,8 @@ export const ui = stylex.create({
       fontSize: 13,
       textTransform: 'uppercase',
       letterSpacing: '0.04em',
-      backgroundColor: tokens.greenSoft,
-      color: tokens.green,
+      backgroundColor: tokens.accentSoft,
+      color: tokens.accentText,
       borderWidth: 2,
       borderStyle: 'solid',
       borderColor: tokens.ink,
@@ -175,7 +175,7 @@ export const ui = stylex.create({
   checkbox: {
     width: 20,
     height: 20,
-    accentColor: tokens.green,
+    accentColor: tokens.accent,
     outlineOffset: 3,
     color: 'inherit',
     fontFamily: 'inherit',
@@ -184,7 +184,7 @@ export const ui = stylex.create({
     ':focus-visible': {
       outlineWidth: 3,
       outlineStyle: 'dashed',
-      outlineColor: tokens.green,
+      outlineColor: tokens.accent,
       outlineOffset: 3,
       borderRadius: 6,
     },
@@ -194,18 +194,18 @@ export const ui = stylex.create({
   },
   summary: {
     paddingBlock: 10,
-    color: tokens.green,
+    color: tokens.accentText,
     cursor: 'pointer',
     outlineOffset: 0,
     textDecorationLine: 'underline',
     textDecorationStyle: 'wavy',
-    textDecorationColor: tokens.highlight,
+    textDecorationColor: tokens.accentSoft,
     textDecorationThickness: 3,
     textUnderlineOffset: 5,
     ':focus-visible': {
       outlineWidth: 3,
       outlineStyle: 'dashed',
-      outlineColor: tokens.green,
+      outlineColor: tokens.accent,
       borderRadius: 6,
     },
   },
@@ -215,19 +215,19 @@ export const ui = stylex.create({
   hint: {
     fontSize: 15,
     lineHeight: 1.7,
-    color: tokens.muted,
+    color: tokens.inkMuted,
     margin: '10px 0',
   },
   fileMeta: {
     fontSize: 15,
     lineHeight: 1.7,
-    color: tokens.muted,
+    color: tokens.inkMuted,
     margin: '10px 0',
     overflowWrap: 'anywhere',
   },
   status: {
     fontSize: 15,
-    color: tokens.muted,
+    color: tokens.inkMuted,
     marginTop: 10,
   },
   error: {
@@ -255,7 +255,7 @@ export const ui = stylex.create({
     paddingInline: 16,
     outlineOffset: 3,
     color: tokens.ink,
-    backgroundColor: tokens.highlight,
+    backgroundColor: tokens.accentSoft,
     borderWidth: 2,
     borderStyle: 'solid',
     borderColor: tokens.ink,
@@ -272,7 +272,7 @@ export const ui = stylex.create({
     transitionDuration: '0.12s',
     transitionTimingFunction: 'ease',
     ':hover:not(:disabled)': {
-      backgroundColor: tokens.highlightSoft,
+      backgroundColor: tokens.accentSoftest,
     },
     ':active': {
       transform: 'translate(2px, 3px)',
@@ -287,7 +287,7 @@ export const ui = stylex.create({
     ':focus-visible': {
       outlineWidth: 3,
       outlineStyle: 'dashed',
-      outlineColor: tokens.green,
+      outlineColor: tokens.accent,
       outlineOffset: 3,
     },
   },
@@ -307,7 +307,7 @@ export const ui = stylex.create({
     borderWidth: 0,
     borderStyle: 'none',
     borderRadius: 4,
-    boxShadow: `0 -8px ${tokens.highlight} inset`,
+    boxShadow: `0 -8px ${tokens.accentSoft} inset`,
     fontFamily: 'inherit',
     fontSize: 16,
     letterSpacing: 0,
@@ -316,7 +316,7 @@ export const ui = stylex.create({
     transform: 'none',
     ':hover:not(:disabled)': {
       backgroundColor: 'transparent',
-      boxShadow: `0 -12px ${tokens.highlight} inset`,
+      boxShadow: `0 -12px ${tokens.accentSoft} inset`,
     },
   },
   primary: {
@@ -330,7 +330,7 @@ export const ui = stylex.create({
     borderStyle: 'solid',
     borderColor: tokens.ink,
     borderRadius: tokens.sketchAlt,
-    boxShadow: '3px 4px 0 rgba(35, 39, 43, 0.3)',
+    boxShadow: '3px 4px 0 rgba(16, 18, 17, 0.3)',
     fontFamily: 'inherit',
     fontSize: 16,
     letterSpacing: '0.06em',
@@ -355,13 +355,13 @@ export const ui = stylex.create({
     ':focus-visible': {
       outlineWidth: 3,
       outlineStyle: 'dashed',
-      outlineColor: tokens.green,
+      outlineColor: tokens.accent,
       outlineOffset: 3,
     },
   },
-  /** Step-navigation primaries carry a green cast shadow instead of the ink one. */
+  /** Step-navigation primaries carry a vermilion cast shadow instead of the ink one. */
   primaryShadow: {
-    boxShadow: '3px 4px 0 rgba(8, 104, 79, 0.55)',
+    boxShadow: '3px 4px 0 rgba(255, 50, 30, 0.55)',
   },
   primaryStretch: {
     flex: 1,
@@ -383,10 +383,10 @@ export const ui = stylex.create({
     },
   },
   fontCardSelected: {
-    backgroundColor: tokens.highlight,
+    backgroundColor: tokens.accentSoft,
     borderWidth: 3,
     ':hover:not(:disabled)': {
-      backgroundColor: tokens.highlight,
+      backgroundColor: tokens.accentSoft,
     },
   },
   fontGlyph: {
@@ -409,14 +409,14 @@ export const ui = stylex.create({
     paddingInline: 4,
     outlineOffset: 3,
     textDecoration: 'none',
-    boxShadow: `0 -8px ${tokens.highlight} inset`,
+    boxShadow: `0 -8px ${tokens.accentSoft} inset`,
     ':hover': {
-      boxShadow: `0 -14px ${tokens.highlight} inset`,
+      boxShadow: `0 -14px ${tokens.accentSoft} inset`,
     },
     ':focus-visible': {
       outlineWidth: 3,
       outlineStyle: 'dashed',
-      outlineColor: tokens.green,
+      outlineColor: tokens.accent,
       outlineOffset: 3,
       borderRadius: 6,
     },

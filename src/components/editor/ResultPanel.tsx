@@ -51,7 +51,7 @@ const styles = stylex.create({
   },
   scanNote: {
     fontSize: 16,
-    color: tokens.muted,
+    color: tokens.inkMuted,
   },
   downloads: {
     display: 'flex',

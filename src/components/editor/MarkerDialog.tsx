@@ -53,7 +53,7 @@ const styles = stylex.create({
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
     '::backdrop': {
-      backgroundColor: 'rgba(35, 39, 43, 0.45)',
+      backgroundColor: 'rgba(16, 18, 17, 0.45)',
       backdropFilter: 'blur(2px)',
     },
   },
@@ -85,7 +85,7 @@ const styles = stylex.create({
   },
   hint: {
     fontSize: 14,
-    color: tokens.muted,
+    color: tokens.inkMuted,
     marginBottom: 10,
     lineHeight: 1.5,
   },
@@ -111,11 +111,11 @@ const styles = stylex.create({
     transitionDuration: '0.12s',
     transitionTimingFunction: 'ease',
     ':hover': {
-      backgroundColor: tokens.highlightSoft,
+      backgroundColor: tokens.accentSoftest,
     },
   },
   cardSelected: {
-    backgroundColor: tokens.highlight,
+    backgroundColor: tokens.accentSoft,
     borderWidth: 3,
     boxShadow: tokens.shadow,
   },
@@ -146,7 +146,7 @@ const styles = stylex.create({
   },
   sub: {
     fontSize: 11,
-    color: tokens.muted,
+    color: tokens.inkMuted,
     lineHeight: 1,
   },
 })

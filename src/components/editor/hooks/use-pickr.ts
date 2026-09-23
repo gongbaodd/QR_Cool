@@ -62,7 +62,7 @@ export function usePickr({ buttonRef, containerRef, color, callbacks }: UsePickr
         closeWithKey: 'Escape',
         position: 'bottom-middle',
         comparison: true,
-        swatches: null,
+        swatches: ['#101211', '#ff321e', '#ffffff', '#c22312'],
         components: {
           preview: true,
           opacity: false,

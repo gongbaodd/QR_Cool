@@ -24,7 +24,9 @@ const styles = stylex.create({
     '@media (max-width: 900px)': { gridTemplateColumns: '1fr', gap: 8, paddingInline: 16 },
   },
   wordmark: {
-    display: 'inline-block',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 10,
     paddingInline: 8,
     outlineOffset: 3,
     fontSize: 30,
@@ -32,14 +34,15 @@ const styles = stylex.create({
     color: tokens.ink,
     textDecoration: 'none',
     borderRadius: tokens.sketch,
-    boxShadow: `0 -13px ${tokens.highlight} inset`,
+    boxShadow: `0 -13px ${tokens.accentSoft} inset`,
     transform: 'rotate(-1.2deg)',
-    ':focus-visible': { outlineWidth: 3, outlineStyle: 'dashed', outlineColor: tokens.green },
+    ':focus-visible': { outlineWidth: 3, outlineStyle: 'dashed', outlineColor: tokens.accent },
   },
-  slash: { color: tokens.green },
+  mark: { display: 'block', flexShrink: 0, width: 34, height: 34 },
+  accent: { color: tokens.accentText },
   form: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, alignItems: 'end', minWidth: 0 },
   field: { fontSize: 16, marginTop: 0 },
-  meta: { minWidth: 150, fontSize: 14, color: tokens.muted, lineHeight: 1.35 },
+  meta: { minWidth: 150, fontSize: 14, color: tokens.inkMuted, lineHeight: 1.35 },
   examples: { gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -2 },
   example: {
     paddingBlock: 3,
@@ -53,7 +56,7 @@ const styles = stylex.create({
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
-  status: { gridColumn: '1 / -1', fontSize: 14, color: tokens.muted, minHeight: 20, margin: 0 },
+  status: { gridColumn: '1 / -1', fontSize: 14, color: tokens.inkMuted, minHeight: 20, margin: 0 },
   srOnly: {
     position: 'absolute',
     width: 1,
@@ -87,7 +90,10 @@ export default function EditorHeader({
   return (
     <header {...stylex.props(styles.header)}>
       <Link href="/" {...stylex.props(styles.wordmark)}>
-        QR<span {...stylex.props(styles.slash)}> / </span>COOL
+        <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={34} height={34} />
+        <span>
+          mahu<span {...stylex.props(styles.accent)}>-QR</span>
+        </span>
       </Link>
       <form
         {...stylex.props(styles.form)}

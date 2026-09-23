@@ -37,7 +37,7 @@ const styles = stylex.create({
       transitionTimingFunction: 'ease-out',
     },
     '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0ms' },
-    '::backdrop': { backgroundColor: 'rgba(35, 39, 43, 0.45)' },
+    '::backdrop': { backgroundColor: 'rgba(16, 18, 17, 0.45)' },
   },
   left: { '@media (max-width: 900px)': { insetInlineStart: 0, transform: 'translateX(-105%)' } },
   right: { '@media (max-width: 900px)': { insetInlineEnd: 0, transform: 'translateX(105%)' } },

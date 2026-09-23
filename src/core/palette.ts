@@ -16,6 +16,13 @@ export interface QrPalette {
 
 export const DEFAULT_PALETTE: QrPalette = { pixel: '#000000', marker: '#000000', background: '#ffffff' }
 
+/**
+ * The mahu-QR mascot's own palette: near-black pixel ink, vermilion marker ink,
+ * white background. A brand suggestion the UI offers in one tap — never an
+ * engine default, so `DEFAULT_PALETTE` and every golden output stay untouched.
+ */
+export const TIGER_PRESET: QrPalette = { pixel: '#101211', marker: '#ff321e', background: '#ffffff' }
+
 export interface Oklch {
   /** Perceptual lightness [0, 1]. */
   l: number

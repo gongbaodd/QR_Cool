@@ -19,7 +19,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
  */
 function wasmAssetUrls(): Plugin {
   return {
-    name: 'qr-cool:wasm-asset-urls',
+    name: 'mahu-qr:wasm-asset-urls',
     enforce: 'pre',
     resolveId: {
       order: 'pre',
@@ -43,7 +43,7 @@ function wasmAssetUrls(): Plugin {
 function stylexBabel(): Plugin {
   const srcRoot = path.resolve(here, 'src')
   return {
-    name: 'qr-cool:stylex-babel',
+    name: 'mahu-qr:stylex-babel',
     enforce: 'pre',
     transform: {
       order: 'pre',

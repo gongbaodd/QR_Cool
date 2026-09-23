@@ -19,7 +19,7 @@ const styles = stylex.create({
     boxShadow: tokens.shadowLg,
   },
   cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  status: { fontSize: 15, color: tokens.green, margin: 0 },
+  status: { fontSize: 15, color: tokens.accentText, margin: 0 },
   fontGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
   inputWrap: { position: 'relative', marginTop: 8 },
   maskField: { marginTop: 0, marginBottom: 12, paddingInlineEnd: 60 },

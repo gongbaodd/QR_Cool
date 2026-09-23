@@ -15,6 +15,15 @@ import { ui } from '@/styles/ui.stylex'
 
 const ResultPanel = dynamic(() => import('./ResultPanel'))
 const MarkerDialog = dynamic(() => import('./MarkerDialog'))
+
+/**
+ * Canvas inks for the Konva stage. Konva paints into a raster context and cannot
+ * resolve CSS custom properties, so these literals mirror `tokens.valid` (the
+ * "placement fits" signal) and `tokens.danger` (the does-not-fit signal).
+ */
+const VALID_INK = '#0b7a5e'
+const INVALID_INK = '#af2536'
+
 const styles = stylex.create({
   panel: { minWidth: 0, paddingBlock: 24, paddingInline: 24 },
   heading: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 },
@@ -41,20 +50,21 @@ const styles = stylex.create({
     width: 72,
     height: 72,
     fontSize: 32,
-    backgroundColor: tokens.highlight,
+    backgroundColor: tokens.accentSoft,
     borderWidth: 2,
     borderStyle: 'solid',
     borderColor: tokens.ink,
     borderRadius: '50%',
     boxShadow: tokens.shadow,
   },
+  emptyMark: { display: 'block', width: 56, height: 56 },
   emptyTitle: { fontSize: 23, fontWeight: 400, margin: 0 },
-  emptyText: { color: tokens.muted, margin: 0 },
+  emptyText: { color: tokens.inkMuted, margin: 0 },
   loading: {
     minHeight: 560,
     display: 'grid',
     placeItems: 'center',
-    color: tokens.muted,
+    color: tokens.inkMuted,
     backgroundColor: tokens.card,
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -87,7 +97,7 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     padding: 24,
   },
-  regionCaption: { margin: '10px 0 0', color: tokens.muted, textAlign: 'center' },
+  regionCaption: { margin: '10px 0 0', color: tokens.inkMuted, textAlign: 'center' },
   previewCanvas: {
     display: 'block',
     maxWidth: '100%',
@@ -124,7 +134,7 @@ const styles = stylex.create({
     width: '100%',
     boxSizing: 'border-box',
     fontSize: 15,
-    backgroundColor: tokens.highlightSoft,
+    backgroundColor: tokens.accentSoftest,
     borderBottomWidth: 2,
     borderBottomStyle: 'solid',
     borderBottomColor: tokens.ink,
@@ -136,7 +146,7 @@ const styles = stylex.create({
     ':focus-visible': {
       outlineWidth: 3,
       outlineStyle: 'dashed',
-      outlineColor: tokens.green,
+      outlineColor: tokens.accent,
       outlineOffset: 3,
       borderRadius: 6,
     },
@@ -147,7 +157,7 @@ const styles = stylex.create({
     borderWidth: 2,
     borderStyle: 'solid',
     borderColor: tokens.ink,
-    boxShadow: '0 8px 28px #163c2820',
+    boxShadow: '0 8px 28px rgba(16, 18, 17, 0.08)',
     backgroundColor: '#fff',
     backgroundImage:
       'linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%), linear-gradient(45deg, #e7e4e7 25%, transparent 25%, transparent 75%, #e7e4e7 75%)',
@@ -162,7 +172,7 @@ const styles = stylex.create({
     paddingBlock: 12,
     paddingInline: 14,
     fontSize: 14,
-    color: tokens.muted,
+    color: tokens.inkMuted,
     backgroundColor: tokens.card,
     borderTopWidth: 2,
     borderTopStyle: 'solid',
@@ -186,7 +196,7 @@ const styles = stylex.create({
     gap: 12,
     marginTop: 14,
     fontSize: 14,
-    color: tokens.muted,
+    color: tokens.inkMuted,
     '@media (max-width: 600px)': { flexDirection: 'column', gap: 2 },
   },
 })
@@ -504,7 +514,7 @@ function PosterCanvas({
                     },
                     modules,
                   )
-                  border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? '#dd3748' : '#087f67')
+                  border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? INVALID_INK : VALID_INK)
                 }}
                 onDragEnd={(event) =>
                   onChange(
@@ -520,7 +530,7 @@ function PosterCanvas({
                 }
                 onTransform={() => {
                   const box = canonicalPlacement(liveBox(), modules)
-                  border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? '#dd3748' : '#087f67')
+                  border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? INVALID_INK : VALID_INK)
                 }}
                 onTransformEnd={() => {
                   const current = node.current!
@@ -555,9 +565,9 @@ function PosterCanvas({
                       y={hit.y}
                       width={hit.size}
                       height={hit.size}
-                      fill="#087f67"
+                      fill={VALID_INK}
                       opacity={hovered ? 0.3 : 0.06}
-                      {...(hovered ? { stroke: 'rgba(35, 39, 43, 0.8)', strokeWidth: 2 / scale } : { strokeWidth: 0 })}
+                      {...(hovered ? { stroke: 'rgba(16, 18, 17, 0.8)', strokeWidth: 2 / scale } : { strokeWidth: 0 })}
                       listening={Boolean(onMarkerClick) && !fillActive}
                       onMouseEnter={() => {
                         setHoverMarker(hit.id)
@@ -579,7 +589,7 @@ function PosterCanvas({
                   ref={border}
                   width={placement.size}
                   height={placement.size}
-                  stroke={invalid ? '#dd3748' : '#087f67'}
+                  stroke={invalid ? INVALID_INK : VALID_INK}
                   strokeWidth={2 / scale}
                   listening={false}
                 />
@@ -592,7 +602,7 @@ function PosterCanvas({
                 enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
                 anchorSize={14}
                 anchorCornerRadius={3}
-                borderStroke={invalid ? '#dd3748' : '#087f67'}
+                borderStroke={invalid ? INVALID_INK : VALID_INK}
                 visible={!fillActive}
                 listening={!fillActive}
                 boundBoxFunc={(old, next) => {
@@ -1009,7 +1019,9 @@ export default function PreviewPanel({
             <span>Preparing a live canvas…</span>
           ) : (
             <>
-              <div {...stylex.props(styles.emptyIcon)}>＋</div>
+              <div {...stylex.props(styles.emptyIcon)}>
+                <img {...stylex.props(styles.emptyMark)} src="/brand/mahu-tiger.svg" alt="" width={56} height={56} />
+              </div>
               <h3 {...stylex.props(styles.emptyTitle)}>Your poster goes here</h3>
               <p {...stylex.props(styles.emptyText)}>Enter text or a URL to start the preview.</p>
             </>

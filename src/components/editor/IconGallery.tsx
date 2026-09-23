@@ -28,7 +28,7 @@ const styles = stylex.create({
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
     '::backdrop': {
-      backgroundColor: 'rgba(35, 39, 43, 0.45)',
+      backgroundColor: 'rgba(16, 18, 17, 0.45)',
       backdropFilter: 'blur(2px)',
     },
   },

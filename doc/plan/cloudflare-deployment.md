@@ -1,10 +1,12 @@
-# Plan: Deploy QR / COOL to Cloudflare Workers
+# Plan: Deploy mahu-QR to Cloudflare Workers
 
 ## Goal and deployment shape
 
 Host the existing Next.js 16 editor and its single server route, `GET /api/icons`, on one Cloudflare Worker. Keep poster assembly in the visitor's Web Worker: PNGs, masks, QR artifacts, and exports stay in the browser. The deployed Worker serves the page and static assets and proxies icon search to `icons.grida.co`; it needs no database, object storage, render API, or persistent filesystem.
 
 The first target is a `*.workers.dev` URL. Add a custom domain after the preview passes. Keep the existing Node `pnpm dev`, `pnpm build`, and `pnpm start` path working during migration.
+
+> **Worker rename.** The rebrand renamed `wrangler.jsonc`'s `name` from `qr-cool` to `mahu-qr`. This changes the deployed Worker identity, so the `*.workers.dev` URL becomes `mahu-qr.<account>.workers.dev` and a fresh deployment creates a new Worker (the old `qr-cool` Worker keeps serving until deleted). Deploy the rename deliberately and record the new production URL below when the account is connected.
 
 ## Platform choice
 
