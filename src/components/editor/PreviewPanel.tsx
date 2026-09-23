@@ -90,7 +90,14 @@ const styles = stylex.create({
     '@media (max-width: 900px)': { minHeight: 320 },
   },
   regionCaption: { margin: '10px 0 0', color: tokens.muted, textAlign: 'center' },
-  fillToolbar: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' },
+  fillToolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    justifyContent: 'flex-start',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
   note: {
     display: 'flex',
     justifyContent: 'space-between',
