@@ -49,6 +49,7 @@ const styles = stylex.create({
 })
 
 const freshSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!
+const DRAFT_COMMIT_DEBOUNCE_MS = 500
 
 export default function Editor() {
   return (
@@ -62,6 +63,7 @@ function EditorWorkspace() {
   const store = useEditorStoreApi()
   const actions = useEditorStore((state) => state.actions)
   const draft = useEditorStore((state) => state.draft)
+  const draftContent = useEditorStore((state) => state.draft.content)
   const editorDocument = useEditorStore((state) => state.document)
   const poster = useEditorStore((state) => state.sources.poster)
   const maskText = useEditorStore((state) => state.maskSelection.text)
@@ -70,6 +72,7 @@ function EditorWorkspace() {
   const maskSelection = useMaskSelection({})
   const { request, failedMode } = useEngineRequest()
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const draftCommitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const maskTriggerRef = useRef<HTMLButtonElement | null>(null)
   const patternSettingsTriggerRef = useRef<HTMLButtonElement | null>(null)
   const initialization = useRef(0)
@@ -208,7 +211,23 @@ function EditorWorkspace() {
     }
   }, [actions, store])
 
+  useEffect(() => {
+    if (draftContent === store.getState().document.content) return
+
+    draftCommitTimer.current = setTimeout(() => {
+      draftCommitTimer.current = null
+      actions.commitDraft()
+    }, DRAFT_COMMIT_DEBOUNCE_MS)
+
+    return () => {
+      if (draftCommitTimer.current) clearTimeout(draftCommitTimer.current)
+      draftCommitTimer.current = null
+    }
+  }, [actions, draftContent, store])
+
   function submitDraft() {
+    if (draftCommitTimer.current) clearTimeout(draftCommitTimer.current)
+    draftCommitTimer.current = null
     if (!actions.commitDraft()) requestAnimationFrame(() => inputRef.current?.focus())
   }
 
@@ -241,13 +260,12 @@ function EditorWorkspace() {
       <EditorHeader
         content={draft.content}
         contentError={visibleError}
-        busy={busy}
         status={
           editorDocument.busy === 'prepare' || maskBusy
             ? 'Updating the live preview…'
             : editorDocument.showingResult
               ? 'Export ready.'
-              : 'Draft changes wait for Generate.'
+              : 'Preview updates as you type.'
         }
         onContentChange={actions.setDraftContent}
         onContentBlur={actions.blurDraft}

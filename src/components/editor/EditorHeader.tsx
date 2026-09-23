@@ -37,9 +37,8 @@ const styles = stylex.create({
     ':focus-visible': { outlineWidth: 3, outlineStyle: 'dashed', outlineColor: tokens.green },
   },
   slash: { color: tokens.green },
-  form: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'end', minWidth: 0 },
+  form: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, alignItems: 'end', minWidth: 0 },
   field: { fontSize: 16, marginTop: 0 },
-  submit: { minHeight: 48, whiteSpace: 'nowrap' },
   meta: { minWidth: 150, fontSize: 14, color: tokens.muted, lineHeight: 1.35 },
   examples: { gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -2 },
   example: {
@@ -71,7 +70,6 @@ const styles = stylex.create({
 export default function EditorHeader({
   content,
   contentError,
-  busy,
   status,
   onContentChange,
   onContentBlur,
@@ -80,7 +78,6 @@ export default function EditorHeader({
 }: {
   content: string
   contentError: string | null
-  busy: boolean
   status: string
   onContentChange: (value: string) => void
   onContentBlur: () => void
@@ -116,11 +113,13 @@ export default function EditorHeader({
             aria-describedby={contentError ? 'content-error' : 'content-hint'}
             onBlur={onContentBlur}
             onChange={(event) => onContentChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              onSubmit()
+            }}
           />
         </label>
-        <button {...stylex.props(ui.button, ui.primary, styles.submit)} type="submit" disabled={busy}>
-          {busy ? 'Applying…' : 'Generate'}
-        </button>
         <p id="content-hint" {...stylex.props(styles.status)} role="status">
           {status}
         </p>

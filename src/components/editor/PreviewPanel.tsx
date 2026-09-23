@@ -1007,7 +1007,7 @@ export default function PreviewPanel({
             <>
               <div {...stylex.props(styles.emptyIcon)}>＋</div>
               <h3 {...stylex.props(styles.emptyTitle)}>Your poster goes here</h3>
-              <p {...stylex.props(styles.emptyText)}>Enter text or a URL, then click Generate to start the preview.</p>
+              <p {...stylex.props(styles.emptyText)}>Enter text or a URL to start the preview.</p>
             </>
           )}
         </div>
