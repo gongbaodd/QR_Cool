@@ -174,10 +174,12 @@ const styles = stylex.create({
   fillToolbar: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'space-between',
     flex: '1 1 360px',
     flexWrap: 'wrap',
     gap: 12,
   },
+  fillActions: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
   note: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -187,7 +189,6 @@ const styles = stylex.create({
     color: tokens.muted,
     '@media (max-width: 600px)': { flexDirection: 'column', gap: 2 },
   },
-  exportControls: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' },
 })
 
 function useImage(url: string) {
@@ -883,33 +884,45 @@ export default function PreviewPanel({
     !!dimensions && !!placement && !!posterUrl && !!previews['qr.png'] && (!regionOnly || busy || placementInvalid)
   const fillToolbar = regionToolsVisible ? (
     <div {...stylex.props(styles.fillToolbar)}>
-      <button
-        {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
-        type="button"
-        aria-pressed={fillActive}
-        disabled={!sourceMaskReady || fillPending || busy}
-        onClick={() => {
-          setFillActive((active) => !active)
-        }}
-      >
-        {fillActive ? '✓ Filling region' : '🪣 Fill region'}
-      </button>
-      <button
-        {...stylex.props(ui.button, rimActive && ui.fontCardSelected)}
-        type="button"
-        aria-pressed={rimActive}
-        onClick={() => pattern.onSettings({ rimModules: rimActive ? 0 : 1, rimRounded: false })}
-      >
-        {rimActive ? '✓ Rim added' : '＋ Add Rim'}
-      </button>
-      <button
-        {...stylex.props(ui.button, marginActive && ui.fontCardSelected)}
-        type="button"
-        aria-pressed={marginActive}
-        onClick={() => pattern.onSettings({ regionMargin: !marginActive })}
-      >
-        {marginActive ? '✓ Margin added' : '＋ Add Margin'}
-      </button>
+      <div {...stylex.props(styles.fillActions)}>
+        <button
+          {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
+          type="button"
+          aria-pressed={fillActive}
+          disabled={!sourceMaskReady || fillPending || busy}
+          onClick={() => {
+            setFillActive((active) => !active)
+          }}
+        >
+          {fillActive ? '✓ Filling region' : '🪣 Fill region'}
+        </button>
+        <button
+          {...stylex.props(ui.button, rimActive && ui.fontCardSelected)}
+          type="button"
+          aria-pressed={rimActive}
+          onClick={() => pattern.onSettings({ rimModules: rimActive ? 0 : 1, rimRounded: false })}
+        >
+          {rimActive ? '✓ Rim added' : '＋ Add Rim'}
+        </button>
+        <button
+          {...stylex.props(ui.button, marginActive && ui.fontCardSelected)}
+          type="button"
+          aria-pressed={marginActive}
+          onClick={() => pattern.onSettings({ regionMargin: !marginActive })}
+        >
+          {marginActive ? '✓ Margin added' : '＋ Add Margin'}
+        </button>
+      </div>
+      {!regionOnly && keepPlacementCanvas && (
+        <button
+          {...stylex.props(ui.button, ui.primary)}
+          type="button"
+          disabled={!ready || !canAssemble || assembleBusy}
+          onClick={onAssemble}
+        >
+          {assembleBusy ? 'Assembling…' : 'Assemble poster'}
+        </button>
+      )}
     </div>
   ) : null
   return (
@@ -959,21 +972,6 @@ export default function PreviewPanel({
             onFillAt={fillAt}
             toolbar={fillToolbar}
           />
-          <div {...stylex.props(styles.exportControls)}>
-            <button
-              {...stylex.props(ui.button, ui.primary)}
-              type="button"
-              disabled={!ready || !canAssemble || assembleBusy}
-              onClick={onAssemble}
-            >
-              {assembleBusy ? 'Assembling…' : 'Assemble poster'}
-            </button>
-            <span {...stylex.props(ui.hint)}>
-              {current
-                ? 'Export is optional; editing stays reactive.'
-                : 'Preview updating; placement remains editable.'}
-            </span>
-          </div>
         </div>
       ) : (regionOnly || showFilledRegion) && posterUrl && sourceMaskUrl ? (
         <>
