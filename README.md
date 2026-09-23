@@ -43,7 +43,7 @@ After content is committed, pattern settings, placement, and mask changes update
 
 Editor validation errors, preview and assembly failures, icon-search failures, and region-fill feedback appear in React-Toastify notifications outside the editor layout. They do not add height above the preview canvas; dismissing a notification does not clear validation or enable assembly. Document failures offer a retry for the worker action that failed, and placement remains editable while invalid.
 
-Pattern settings provide pixel style (`square`, `rounded`, `dot` matching [qrcode.antfu.me](https://qrcode.antfu.me)), and a fixed 1-module finder margin. The preview toolbar controls the one-module rim; the pattern seed remains stable internally across edits. Marker styling lives beside the canvas: hovering a finder or alignment marker highlights it, and clicking it opens a small marker dialog with marker pixel style (`square`, `round`), marker shape (`square`, `round`, `octagon`), marker inner (`square`, `round`, `plus`, `diamond`), or sub marker (`square`, `round`) — the bottom-right alignment marker opens the sub marker dialog, and version-1 codes have no alignment target. The header also offers example QR values to pick from. The corner setting affects the QR plate, not the poster's silhouette.
+Pattern settings provide pixel style (`square`, `rounded`, `dot`, defaulting to `dot`), and a fixed 1-module finder margin. The preview toolbar controls the one-module rim; the pattern seed remains stable internally across edits. Marker styling lives beside the canvas: hovering a finder or alignment marker highlights it, and clicking it opens a small marker dialog with marker pixel style (`square`, `round`), marker shape (`square`, `round`, `octagon`), marker inner (`square`, `round`, `plus`, `diamond`), or sub marker (`square`, `round`) — the bottom-right alignment marker opens the sub marker dialog, and version-1 codes have no alignment target. The header also offers example QR values to pick from. The corner setting affects the QR plate, not the poster's silhouette.
 
 **Artistic margins can affect scanning. Test the downloaded poster with your phone.** The result is not scan-certified. The report deliberately skips poster/full-size, half-scale, and JPEG decoding checks; `phoneScan` remains `untested`.
 
@@ -58,7 +58,7 @@ The hand-drawn visual style is derived from [Wired Elements](https://wiredjs.com
 
 ## Renderer contract
 
-- `uqr`, M error correction, automatic mask selection, two locally drawn source margin modules, selectable pixel geometry (`square`, `rounded` with blended wedges, `dot` as isolated circles) matching `qrcode.antfu.me`.
+- `uqr`, M error correction, automatic mask selection, two locally drawn source margin modules, selectable pixel geometry (`square`, `rounded` with blended wedges, `dot` as isolated circles; `dot` is the default).
 - Seeded marker-free decorative matrix, phase-locked to the placed QR's lattice. Finder/separator and alignment cells are randomly refilled; timing and function cells remain.
 - Only whole modules fully covered by the selected region are drawn. The outer 0–5 safe-module rings are dark (antialiased when rounded). The plate does not seed that rim.
 - The actual plate is the code grid plus finder-only light bands of one module (whole cells). Its footprint is smaller than the full QR square used for placement constraints.

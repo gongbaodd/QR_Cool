@@ -39,7 +39,7 @@ export function createInitialState(): State {
       rimModules: 1,
       rimRounded: false,
       ecc: 'M',
-      pixelStyle: 'rounded',
+      pixelStyle: 'dot',
       markerStyle: 'rounded',
       markerShape: 'circle',
       markerInner: 'circle',

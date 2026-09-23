@@ -281,7 +281,7 @@ export default function PatternSettings({
   isDialog: boolean
 }) {
   const ecc = (settings.ecc ?? 'M') as 'L' | 'M' | 'Q' | 'H'
-  const pixelStyle = (settings.pixelStyle ?? 'rounded') as 'square' | 'rounded' | 'dot'
+  const pixelStyle = (settings.pixelStyle ?? 'dot') as 'square' | 'rounded' | 'dot'
   return (
     <div {...stylex.props(styles.panel)}>
       <div {...stylex.props(styles.panelTop)}>

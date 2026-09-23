@@ -4,7 +4,7 @@ import type { QRCode as JsQrResult } from 'jsqr'
 import { QrCodeDataType, encode } from 'uqr'
 import { imaging } from './imaging'
 import { cropRgba } from './imaging/pixels'
-import { renderPattern } from './pattern'
+import { PATTERN_PIXEL_STYLE, renderPattern } from './pattern'
 import type { PixelStyle } from './pattern'
 import { QrPosterError } from './errors'
 import type { LoadedPng } from './image'
@@ -40,7 +40,7 @@ export type MarkerSub = 'square' | 'circle'
 export async function generateQrFromContent(
   content: string,
   ecc: 'L' | 'M' | 'Q' | 'H' = 'M',
-  pixelStyle: PixelStyle = 'rounded',
+  pixelStyle: PixelStyle = PATTERN_PIXEL_STYLE,
   markerStyle: MarkerStyle = 'rounded',
   markerShape: MarkerShape = 'circle',
   markerInner: MarkerInner = 'circle',

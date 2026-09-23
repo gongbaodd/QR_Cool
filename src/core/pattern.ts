@@ -3,10 +3,10 @@ import type { QrCodeGenerateResult } from 'uqr'
 import { imaging } from './imaging'
 import { QrPosterError } from './errors'
 
-/** qrcode.antfu.me defaults: ecc 'M', 2-module margin, rounded pixel style, auto mask. */
+/** Project defaults: ecc 'M', 2-module margin, dot pixel style, auto mask. */
 export const PATTERN_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
 export const PATTERN_ECC = 'M' as const
-export const PATTERN_PIXEL_STYLE = 'rounded' as const
+export const PATTERN_PIXEL_STYLE = 'dot' as const
 export const PATTERN_PIXEL_STYLES = ['square', 'rounded', 'dot'] as const
 export type PixelStyle = (typeof PATTERN_PIXEL_STYLES)[number]
 export const PATTERN_MARKER_REFILL = 'seeded-random' as const
@@ -301,7 +301,7 @@ export async function renderPattern(
 }
 
 /**
- * Renders the toolkit's default rounded pixel style: one inscribed circle per dark module plus
+ * Renders the legacy rounded pixel style: one inscribed circle per dark module plus
  * corner wedges that bridge dark neighbours (and fill inner corners of light modules).
  * @deprecated Use renderPattern with explicit pixelStyle instead.
  */

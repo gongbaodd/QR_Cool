@@ -26,7 +26,7 @@ export const settingsSchema = z
     rimModules: z.number().int().min(0).max(5).default(1),
     rimRounded: z.boolean().default(false),
     ecc: z.enum(['L', 'M', 'Q', 'H']).default('M'),
-    pixelStyle: z.enum(['square', 'rounded', 'dot']).default('rounded'),
+    pixelStyle: z.enum(['square', 'rounded', 'dot']).default('dot'),
     markerStyle: z.enum(['square', 'rounded']).default('rounded'),
     markerShape: z.enum(['square', 'circle', 'octagon']).default('circle'),
     markerInner: z.enum(['square', 'circle', 'plus', 'diamond']).default('circle'),
