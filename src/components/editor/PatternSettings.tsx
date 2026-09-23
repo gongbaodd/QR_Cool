@@ -140,54 +140,19 @@ const styles = stylex.create({
   },
 })
 
-function MiniQrPreview({ content, ecc }: { content: string; ecc: 'L' | 'M' | 'Q' | 'H' }) {
-  const text = content.trim()
-  if (!text) return <span {...stylex.props(styles.eccPreviewFallback)}>Generate content</span>
-  if (/[\r\n]/.test(text)) return <span {...stylex.props(styles.eccPreviewFallback)}>Single line only</span>
-  let encoded: ReturnType<typeof encode> | null = null
-  try {
-    encoded = encode(text, { ecc, maskPattern: -1, border: 0 })
-  } catch {
-    return <span {...stylex.props(styles.eccPreviewFallback)}>Too long for {ecc}</span>
-  }
-  const size = encoded.size
-  const margin = 2
-  const total = size + margin * 2
-  const rects: string[] = []
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (encoded.data[y]?.[x]) rects.push(`${x + margin},${y + margin}`)
-    }
-  }
-  return (
-    <svg
-      viewBox={`0 0 ${total} ${total}`}
-      width={64}
-      height={64}
-      role="img"
-      aria-label={`QR preview ${ecc}`}
-      style={{ display: 'block', width: 64, height: 64 }}
-    >
-      <rect width={total} height={total} fill="white" />
-      {rects.map((pos) => {
-        const [x, y] = pos.split(',').map(Number) as [number, number]
-        return <rect key={pos} x={x} y={y} width={1} height={1} fill="black" />
-      })}
-    </svg>
-  )
-}
-
 function MiniPixelQrPreview({
   content,
   ecc,
   pixelStyle,
+  allowEmpty = false,
 }: {
   content: string
   ecc: 'L' | 'M' | 'Q' | 'H'
   pixelStyle: 'square' | 'rounded' | 'dot'
+  allowEmpty?: boolean
 }) {
   const text = content.trim()
-  if (!text) return <span {...stylex.props(styles.eccPreviewFallback)}>Generate content</span>
+  if (!text && !allowEmpty) return <span {...stylex.props(styles.eccPreviewFallback)}>Generate content</span>
   if (/[\r\n]/.test(text)) return <span {...stylex.props(styles.eccPreviewFallback)}>Single line only</span>
   let encoded: ReturnType<typeof encode> | null = null
   try {
@@ -341,7 +306,7 @@ export default function PatternSettings({
                   aria-label={`${opt.value} ${opt.hint} ${opt.recovery}`}
                 />
                 <span {...stylex.props(styles.eccPreviewBox)}>
-                  <MiniQrPreview content={content} ecc={opt.value} />
+                  <MiniPixelQrPreview content="" ecc={opt.value} pixelStyle="rounded" allowEmpty />
                 </span>
                 <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
                 <span {...stylex.props(styles.eccRecovery)}>

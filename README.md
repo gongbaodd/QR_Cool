@@ -31,6 +31,8 @@ No credentials or accounts are needed. QR text is never fetched as a URL. Upload
 
 ## Editing
 
+The error-correction cards preview the default rounded QR styling encoded from an empty text value, so L/M/Q/H remain comparable before content is entered.
+
 The editor is a single reactive workspace. The header contains an empty **Text or URL** draft field and **Generate**. Typing edits only the draft; a valid Generate submit commits it, derives the automatic mask, and prepares the QR in the browser worker. The button is an apply/commit action, not a completion or export gate.
 
 Desktop keeps **Mask selection**, **Preview canvas**, and **QR details** visible in three columns. On mobile only the header and preview remain in normal flow; Mask selection opens from the left and QR details from the right as accessible native modal drawers. The same panel instances and state survive resizing.

@@ -4,6 +4,8 @@ Status: implemented; the web editor is the supported product interface and the C
 
 ## Product goal
 
+The error-correction cards preview the default rounded QR styling encoded from an empty text value, so L/M/Q/H remain comparable before content is entered.
+
 ## Reactive workspace (implemented 2026-09-22)
 
 The shipped editor no longer uses the four-step navigation model. Its header owns a controlled draft Text or URL field and a Generate submit that commits valid input; draft typing does not touch the worker or current preview. The committed value drives automatic mask derivation and debounced worker preparation. Empty committed input shows the selected region highlighted on the poster without preparing a QR; non-empty values derive a letter in the Fathead font, and plain text uses its first ASCII letter or digit. Assembly requires valid input.
