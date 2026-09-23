@@ -109,6 +109,8 @@ describe('blank canvas starter poster', () => {
       ),
     )
     expect(rotated.report.qualified).toBe(true)
-    expect(rotated.report.verification.checks.find((check) => check.name === 'transparentBackground')?.passed).toBe(true)
+    expect(rotated.report.verification.checks.find((check) => check.name === 'transparentBackground')?.passed).toBe(
+      true,
+    )
   })
 })

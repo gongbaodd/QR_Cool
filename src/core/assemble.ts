@@ -324,8 +324,7 @@ async function assembleUpright(
         const expectedAlpha = isPlate
           ? qrRaw[plateSource + 3]!
           : Math.round((render.data[offset + 3]! * coverage[index]!) / 255)
-        if (poster.data[offset + 3] !== 0 || output[offset + 3] !== expectedAlpha)
-          transparentBackgroundPassed = false
+        if (poster.data[offset + 3] !== 0 || output[offset + 3] !== expectedAlpha) transparentBackgroundPassed = false
       }
     }
   }
@@ -774,8 +773,7 @@ async function assembleRotated(
       if (output[offset + 3] !== poster.data[offset + 3]!) alphaPassed = false
       if (transparentBlank) {
         const expectedAlpha = regionMask.data[index] && inFrame ? overlay[overlayOffset! + 3]! : 0
-        if (poster.data[offset + 3] !== 0 || output[offset + 3] !== expectedAlpha)
-          transparentBackgroundPassed = false
+        if (poster.data[offset + 3] !== 0 || output[offset + 3] !== expectedAlpha) transparentBackgroundPassed = false
       }
       if (isCorner) cornerTexturePixels++
     }
