@@ -83,4 +83,19 @@ describe('editor store', () => {
     expect(store.getState().document.revision).toBe(1)
     expect(store.getState().document.settings.seed).toBe(123)
   })
+
+  it('initializes the poster when automatic mask rendering finishes first', () => {
+    const store = createEditorStore()
+    const actions = store.getState().actions
+    const poster = new File(['poster'], 'poster.png', { type: 'image/png' })
+    const initialMask = new File(['blank'], 'blank.png', { type: 'image/png' })
+    const renderedMask = new File(['rendered'], 'mask.png', { type: 'image/png' })
+
+    actions.replaceMask(renderedMask)
+    actions.initializeSources(poster, initialMask, 123, true)
+
+    expect(store.getState().sources).toEqual({ poster, mask: renderedMask, transparentBlank: true })
+    expect(store.getState().document.settings.seed).toBe(123)
+    expect(store.getState().document.revision).toBe(2)
+  })
 })

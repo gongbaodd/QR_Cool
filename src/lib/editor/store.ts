@@ -178,20 +178,23 @@ export function createEditorStore() {
             }),
           initializeSources: (poster, mask, seed, transparentBlank = false) =>
             set((current) => {
-              if (current.sources.poster || current.sources.mask) return current
+              if (current.sources.poster) return current
+              // Automatic mask rendering may finish before blank-poster encoding.
+              // Keep that mask, but still install the poster needed by preparation.
+              const sourceMask = current.sources.mask ?? mask
               let document = editDocument(current.document, {
                 type: 'edit',
                 patch: { settings: { ...current.document.settings, seed } },
                 reset: true,
               })
-              if (mask.size > MAX_IMAGE_BYTES)
+              if (sourceMask.size > MAX_IMAGE_BYTES)
                 document = reducer(document, {
                   type: 'error',
                   revision: document.revision,
                   message: 'Each PNG must be 10 MiB or smaller.',
                   field: 'mask',
                 })
-              return { sources: { poster, mask, transparentBlank }, document }
+              return { sources: { poster, mask: sourceMask, transparentBlank }, document }
             }),
           replaceMask: (mask) =>
             set((current) => {
