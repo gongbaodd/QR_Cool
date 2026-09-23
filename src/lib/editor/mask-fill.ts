@@ -1,4 +1,4 @@
-// Bucket fill for the step-2 mask preview.
+// Bucket fill for the region-only poster preview.
 //
 // Walls are white mask pixels (white-selects-region); open pixels are black.
 // `computeFillRegion` returns the black pixels to paint white, or null when the
