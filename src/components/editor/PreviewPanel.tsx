@@ -716,6 +716,8 @@ export default function PreviewPanel({
   const sourceMaskImageData = useRef<ImageData | null>(null)
   const fillGeneration = useRef(0)
   const fillNotificationKind = useRef<'error' | 'warning' | 'success' | 'progress' | null>(null)
+  const expectedWidth = dimensions?.width
+  const expectedHeight = dimensions?.height
   useEffect(() => {
     fillGeneration.current += 1
     const generation = fillGeneration.current
@@ -739,7 +741,7 @@ export default function PreviewPanel({
         notifyFill('Could not read the poster dimensions. Try again.', 'error')
         return
       }
-      if (dimensions && (width !== dimensions.width || height !== dimensions.height)) {
+      if (expectedWidth !== undefined && expectedHeight !== undefined && (width !== expectedWidth || height !== expectedHeight)) {
         fillNotificationKind.current = 'error'
         notifyFill('The preview dimensions do not match the poster.', 'error')
         return
@@ -797,7 +799,7 @@ export default function PreviewPanel({
       posterImage.onload = null
       posterImage.onerror = null
     }
-  }, [sourceMaskUrl, posterUrl, dimensions?.width, dimensions?.height, regionOnly, showingResult])
+  }, [sourceMaskUrl, posterUrl, expectedWidth, expectedHeight, regionOnly, showingResult])
   useEffect(() => {
     if (showFilledRegion && current && !busy) setShowFilledRegion(false)
   }, [showFilledRegion, current, busy])

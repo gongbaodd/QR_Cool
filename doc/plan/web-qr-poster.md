@@ -194,7 +194,12 @@ The full normalized QR square is the placement constraint; the smaller module pl
 - Verification: the pre-change commit and the StyleX version were rendered side by side (desktop 1440×1000 and mobile 390×844, steps 1–4 plus the icon gallery and the error state) and compared pixel by pixel, with a full-DOM computed-style diff to catch anything the screenshots hid. Steps 1–2 match exactly; the remaining differences are the four items above and the retired `--*` custom properties. `IconGallery` exposes `data-testid="icon-gallery"` for Playwright now that class names are generated.
 - Gate: `pnpm lint`, `pnpm format:check`, `pnpm test`, `pnpm typecheck`, `pnpm build`, and the Chromium e2e journey all pass.
 
-### 9. Split the step panels into deferred chunks (completed, 2026-09-21)
+### 9. Run formatting and linting before commits (completed)
+
+- Added Husky as a dev dependency with the `prepare` lifecycle script so hooks are installed automatically after dependency installation.
+- Added `.husky/pre-commit` to run `pnpm format && pnpm lint:fix` before each commit, reusing the repository's existing `oxfmt` and `oxlint` scripts.
+
+### 10. Split the step panels into deferred chunks (completed, 2026-09-21)
 
 - The editor sidebar/preview shells load eagerly; `MarkerDialog` and `ResultPanel` are deferred with `next/dynamic` in `PreviewPanel.tsx`, `IconGallery` is deferred from `Editor.tsx`, and `PatternSettings` loads through the editor's step warmer. The `react-konva` package loads on demand after the QR canvas mounts inside `PreviewPanel.tsx`; the component renders a status placeholder during that import.
 - The editing preview owns its Konva canvas, region-only poster view, shared source-mask fill state, marker interactions, and persistent Fill/Rim toolbar in `PreviewPanel.tsx`. Fill clicks in QR mode are accepted only on the stage background; QR placement and marker hit targets stay isolated.
@@ -202,7 +207,7 @@ The full normalized QR square is the placement constraint; the smaller module pl
 - The `_not-found`/root barrier and step-1 prerender stay unchanged; no `ssr: false` moved into a Server Component.
 - Gate: `pnpm test`, `pnpm typecheck`, and `pnpm build` pass.
 
-### 10. Deploy to Cloudflare Workers with vinext (completed, 2026-09-21)
+### 11. Deploy to Cloudflare Workers with vinext (completed, 2026-09-21)
 
 - The editor deploys to one Cloudflare Worker via [vinext](https://vinext.dev): the Worker serves the page, static assets, and the `GET /api/icons` proxy, with no KV/R2/D1/Images bindings and no render API. The pipeline contract is untouched — poster bytes, masks, and exports stay in the visitor's Web Worker.
 - The Node toolchain is untouched: `pnpm dev`, `pnpm build`, and `pnpm start` keep their Next.js/Turbopack defaults; `vite.config.ts` adds the parallel `dev:vinext`/`build:vinext`/`preview:workers`/`deploy:workers` path.
