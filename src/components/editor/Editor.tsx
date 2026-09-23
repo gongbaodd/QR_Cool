@@ -46,7 +46,11 @@ const styles = stylex.create({
     },
     '@media (max-width: 900px)': { display: 'block', padding: 10 },
   },
-  side: { minWidth: 0 },
+  side: {
+    minWidth: 0,
+    marginTop: 100,
+    '@media (max-width: 900px)': { marginTop: 0 },
+  },
 })
 
 const freshSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!

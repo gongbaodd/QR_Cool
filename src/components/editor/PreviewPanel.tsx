@@ -77,20 +77,28 @@ const styles = stylex.create({
   },
   canvas: { minWidth: 0 },
   regionPreview: {
-    minHeight: 560,
+    minHeight: 720,
+    maxHeight: 820,
+    overflow: 'auto',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    padding: 24,
+    justifyContent: 'flex-start',
     backgroundColor: tokens.card,
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: tokens.ink,
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
-    '@media (max-width: 900px)': { minHeight: 320 },
+    '@media (max-width: 900px)': { minHeight: 480, maxHeight: 560 },
+  },
+  regionContent: {
+    flex: 1,
+    display: 'grid',
+    placeItems: 'center',
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: 24,
   },
   regionCaption: { margin: '10px 0 0', color: tokens.muted, textAlign: 'center' },
   previewCanvas: {
@@ -105,18 +113,18 @@ const styles = stylex.create({
     backgroundSize: '16px 16px',
   },
   area: {
-    overflow: 'hidden', backgroundColor: '#fff', borderWidth: 2.5, borderStyle: 'solid',
+    overflow: 'auto', maxHeight: 820, touchAction: 'pan-x pan-y', backgroundColor: '#fff', borderWidth: 2.5, borderStyle: 'solid',
     borderColor: tokens.ink, borderRadius: tokens.sketchCard, boxShadow: tokens.shadowLg,
+    '@media (max-width: 700px)': { maxHeight: 560 },
   },
   tools: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, padding: 12,
-    fontSize: 15, backgroundColor: tokens.highlightSoft, borderBottomWidth: 2,
+    position: 'sticky', top: 0, zIndex: 1, width: '100%', boxSizing: 'border-box', fontSize: 15, backgroundColor: tokens.highlightSoft, borderBottomWidth: 2,
     borderBottomStyle: 'solid', borderBottomColor: tokens.ink,
     '@media (max-width: 700px)': { gap: 8 },
   },
   scroll: {
-    overflow: 'auto', padding: 18, maxHeight: 720, touchAction: 'pan-x pan-y', backgroundColor: tokens.paper,
-    '@media (max-width: 700px)': { maxHeight: 460 },
+    padding: 18, backgroundColor: tokens.paper,
     ':focus-visible': {
       outlineWidth: 3, outlineStyle: 'dashed', outlineColor: tokens.green, outlineOffset: 3, borderRadius: 6,
     },
@@ -140,14 +148,8 @@ const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     flex: '1 1 360px',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     gap: 12,
-  },
-  fillActions: {
-    display: 'flex',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
   },
   note: {
     display: 'flex',
@@ -158,7 +160,6 @@ const styles = stylex.create({
     color: tokens.muted,
     '@media (max-width: 600px)': { flexDirection: 'column', gap: 2 },
   },
-  fillHint: { fontSize: 13, lineHeight: '18px', color: tokens.muted },
   exportControls: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, flexWrap: 'wrap' },
 })
 
@@ -748,24 +749,6 @@ export default function PreviewPanel({
   }, [fillActive])
   const ready = externallyReady && !!dimensions && !!placement && !!posterUrl && current
   const rimActive = pattern.settings.rimModules !== 0
-  const editingPreview = !showingResult && !!posterUrl && !!sourceMaskUrl && (regionOnly || (!!dimensions && !!placement))
-  useEffect(() => {
-    const toastId = 'editor-fill-instructions'
-    if (fillActive && editingPreview) {
-      if (!toast.isActive(toastId)) {
-        toast.info('Click an enclosed area to fill it. Esc exits fill.', {
-          toastId,
-          autoClose: false,
-          closeButton: false,
-          role: 'status',
-          ariaLabel: 'Click an enclosed area to fill it. Press Escape to exit fill mode.',
-        })
-      }
-    } else {
-      toast.dismiss(toastId)
-    }
-    return () => toast.dismiss(toastId)
-  }, [fillActive, editingPreview])
   const regionToolsVisible = !showingResult && !!posterUrl && !!sourceMaskUrl
   const keepPlacementCanvas =
     !!dimensions &&
@@ -775,32 +758,25 @@ export default function PreviewPanel({
     (!regionOnly || busy || placementInvalid)
   const fillToolbar = regionToolsVisible ? (
     <div {...stylex.props(styles.fillToolbar)}>
-      <div {...stylex.props(styles.fillActions)}>
-        <button
-          {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
-          type="button"
-          aria-pressed={fillActive}
-          aria-describedby="fill-instructions"
-          title="Click an enclosed area to fill it. Press Escape to exit fill mode."
-          disabled={!sourceMaskReady || fillPending || busy}
-          onClick={() => {
-            setFillActive((active) => !active)
-          }}
-        >
-          {fillActive ? '✓ Filling region' : '🪣 Fill region'}
-        </button>
-        <button
-          {...stylex.props(ui.button, rimActive && ui.fontCardSelected)}
-          type="button"
-          aria-pressed={rimActive}
-          onClick={() => pattern.onSettings({ rimModules: rimActive ? 0 : 1, rimRounded: false })}
-        >
-          {rimActive ? '✓ Rim added' : '＋ Add Rim'}
-        </button>
-      </div>
-      <span id="fill-instructions" {...stylex.props(styles.fillHint)}>
-        Click an enclosed area to fill it. Esc exits fill.
-      </span>
+      <button
+        {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
+        type="button"
+        aria-pressed={fillActive}
+        disabled={!sourceMaskReady || fillPending || busy}
+        onClick={() => {
+          setFillActive((active) => !active)
+        }}
+      >
+        {fillActive ? '✓ Filling region' : '🪣 Fill region'}
+      </button>
+      <button
+        {...stylex.props(ui.button, rimActive && ui.fontCardSelected)}
+        type="button"
+        aria-pressed={rimActive}
+        onClick={() => pattern.onSettings({ rimModules: rimActive ? 0 : 1, rimRounded: false })}
+      >
+        {rimActive ? '✓ Rim added' : '＋ Add Rim'}
+      </button>
     </div>
   ) : null
   return (
@@ -879,14 +855,16 @@ export default function PreviewPanel({
         <>
           <div {...stylex.props(styles.regionPreview)}>
             {regionToolsVisible && <div {...stylex.props(styles.tools)}>{fillToolbar}</div>}
-            <SourceRegionPreview
-              poster={posterUrl}
-              maskCanvas={sourceMaskCanvas}
-              revision={maskRevision}
-              fillActive={fillActive}
-              fillReady={sourceMaskReady && !fillPending && !busy}
-              onFillAt={fillAt}
-            />
+            <div {...stylex.props(styles.regionContent)}>
+              <SourceRegionPreview
+                poster={posterUrl}
+                maskCanvas={sourceMaskCanvas}
+                revision={maskRevision}
+                fillActive={fillActive}
+                fillReady={sourceMaskReady && !fillPending && !busy}
+                onFillAt={fillAt}
+              />
+            </div>
           </div>
           <p {...stylex.props(styles.regionCaption)}>
             Selected region · {error ? 'the QR code does not fit inside this region.' : regionOnly ? 'enter text or a URL to add a QR code.' : 'updating the QR preview…'}
