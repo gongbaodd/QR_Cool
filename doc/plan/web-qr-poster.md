@@ -1,6 +1,6 @@
 # Web QR poster editor
 
-Status: implemented; the web editor is the supported product interface and the CLI has been retired (see step 6). This document is the design record. The server-rendering parts (Node route handlers, `src/server/`, multipart requests, base64 artifact transport, the `BUSY` gate) have been **superseded** by the client-side pipeline in [client-render-migration.md](client-render-migration.md) — keep reading them as design history, not as the shipped architecture.
+Status: implemented; the web editor is the supported product interface and the CLI has been retired (see step 6). This document is the design record. The server-rendering parts (Node route handlers, `src/server/`, multipart requests, base64 artifact transport, the `BUSY` gate) have been superseded by the client-side pipeline described in `README.md` and `AGENTS.md` — keep reading them as design history, not as the shipped architecture.
 
 ## Product goal
 
@@ -54,7 +54,7 @@ Reuse the project-specific detector, safe-module calculation, phase locking, fou
 
 ## Architecture
 
-**Superseded:** the shipped architecture is browser-only — see [client-render-migration.md](client-render-migration.md), which moved `prepareEditor`/`assembleFromBuffers` orchestration into `src/lib/editor/engine/` running in a Web Worker and deleted the server render API. What follows is the original server-rendering design.
+**Superseded:** the shipped architecture is browser-only: `prepareEditor`/`assembleFromBuffers` orchestration lives in `src/lib/editor/engine/`, runs in a Web Worker, and has no server render API. What follows is the original server-rendering design.
 
 Use a browser editor plus a Node server. Sharp, filesystem APIs, and Buffer-dependent rendering stay in server-only modules. The browser owns interaction state and displays server-rendered images; final export always comes from the shared assembly engine. This preserves the current renderer without a browser/WASM rewrite.
 

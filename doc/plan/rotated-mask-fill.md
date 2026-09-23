@@ -1,7 +1,7 @@
 **\# Plan: Rotate the region fill with the QR**
 
 Status: **\*\*planned\*\*** --- follow-up to
-\[qr-rotation.md\](qr-rotation.md). That change rotates only the
+\[web-qr-poster.md\](web-qr-poster.md). The current placement design rotates only the
 finished QR plate. The decorative modules that fill the painted region
 in \`src/core/assemble.ts\` still sit on the poster's axis-aligned
 lattice, so a rotated QR no longer shares a grid with its texture.
@@ -40,7 +40,7 @@ Forward --\> Composite\[Composite onto poster\]
 
 **\## 1. Decision: rotate the mask, not the QR internals**
 
-\[qr-rotation.md\](qr-rotation.md) adopted "generate one upright plate,
+\[web-qr-poster.md\](web-qr-poster.md) adopts "generate one upright plate,
 then rotate/composite it once." That is still correct for the **\*\*QR
 pixels\*\***. It is not enough for the **\*\*fill\*\***:
 \`assembleResolved\` builds \`buildModuleLattice(width, height, pitch,
@@ -487,7 +487,7 @@ uses the same placement transform via the mask-rotate algorithm.
 
 \- Mark this plan implemented when the gates pass.
 
-\- Leave \[qr-rotation.md\](qr-rotation.md) as the placement/UI/schema
+\- Keep the placement/UI/schema rules in \[web-qr-poster.md\](web-qr-poster.md)
 record. Do not rewrite it into this algorithm; point here for fill
 compositing.
 
@@ -546,7 +546,7 @@ not run e2e unless requested.
 \- Live Canvas preview of the rotated fill (step 3 still shows the QR
 group only).
 
-\- Rotation snap / step UI (already out of scope in qr-rotation.md).
+\- Rotation snap / step UI (already out of scope in the web editor plan).
 
 \- Rotating the original poster artwork.
 

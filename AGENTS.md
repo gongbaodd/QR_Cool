@@ -29,13 +29,33 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 - The poster is deliberately not decode-verified: `poster`/`posterHalfScale`/`posterJpeg80` are skipped checks, `phoneScan` stays `untested`, and the UI warns that artistic margins can affect scanning.
 - Upstream reference: `antfu/qrcode-toolkit` `logic/generate.ts` and `unjs/uqr` (`encode`, `QrCodeDataType`).
 
+## Editor behavior and ownership
+
+- The editor is a single reactive workspace. Typing changes only the draft and validation state; **Generate** commits a valid value and is not an export or completion step. Draft edits must not start preparation, change the mask, or invalidate the current result.
+- Automatic mask selection follows committed content. Choosing mask text, a font, blank, or an icon switches to manual mode and keeps that choice across content changes; **Follow input** restores automatic derivation. The derived mask uses the Fathead font and the first ASCII letter or digit for plain text.
+- `PreviewPanel` owns the editing canvas, marker interactions, and the shared Fill/Rim toolbar. Fill is an explicit source-mask operation available in both region-only and QR views; it must not use the rendered overlay or the placed QR as its source. The assembled-result view hides editing controls, and Escape exits fill mode.
+- Marker settings are transient local UI state. Use the existing canvas hit targets and one reusable native `<dialog>` for finder/alignment settings; do not add marker-dialog state to the editor store or introduce a general modal framework.
+- Desktop keeps mask selection, preview, and pattern settings visible together. Mobile reuses those same panel instances in native modal drawers with focus return, Escape/backdrop dismissal, and reduced-motion-safe presentation.
+- Keep the latest canonical placement through every preview preparation and assembly. If a placement is invalid, report it and leave it editable; never silently move it. When a QR change alters the module count, resize around the previous center before revalidating.
+- Rotation is a transform of the complete upright QR plate, not of QR modules or texture independently. Use the shared rotated working-frame geometry and coverage guard in both preparation and assembly; a frame-coverage failure must reject export instead of silently clipping the plate.
+- Editor feedback uses the viewport-level toast surface without changing canvas layout. Dismissing a toast must not clear authoritative validation or engine state, and routine progress/errors must not be announced by duplicate alert surfaces.
+
+## State and lifecycle rules
+
+- Each mounted editor owns one scoped Zustand store and one lazily created, disposable worker session. Keep timers, operation tokens, worker handles, DOM/canvas refs, hover/dialog state, and object URLs outside the store; in-memory `File`/`Blob` references are not persisted or serialized.
+- Preserve the pure reducer as the revision and stale-completion boundary. Use both document revision and operation/lifecycle guards so obsolete worker, mask, search, file, and `toBlob` completions cannot overwrite current state or clear a newer operation.
+- Use stable/narrow selectors rather than a root store subscription. Draft, UI-only, search, panel, and completion-status changes do not create document revisions or trigger preparation. Readiness must reject stale prepared data and every busy/error state before assembly.
+- Create object URLs only at the UI boundary, revoke them on replacement/unmount, and use the exact assembled Blob for both preview and download. Do not add persistence, URL synchronization, undo/redo controls, or another async-state/RPC layer.
+- Zundo is only a bounded, read-only trace of recent state snapshots (up to 50 previous snapshots plus the current one); omit source Files, rendered Blobs, and icon payloads, and never expose persistence or undo/redo controls.
+
 ## Skills
 
 - Use the `modern-web-guidance` skill (via the skill tool) before any HTML/CSS or client-side JS work — including UI/layout, motion, performance (CWV), and Web API tasks — to check for modern best practices that may differ from training data.
 
 ## Docs
 
-- Behavior changes update `README.md` and `doc/plan/web-qr-poster.md`. `doc/plan/artistic-qr-poster.md` is historical design context.
+- `README.md` and `doc/plan/web-qr-poster.md` are the canonical product docs. Behavior changes update both. `doc/plan/artistic-qr-poster.md` is historical design context.
+- `doc/plan/` is for active proposals and historical design records, not completed implementation checklists. When a plan ships, promote its durable constraints here, update the canonical docs, and remove the completed plan. Keep unimplemented plans until their work is actually finished.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

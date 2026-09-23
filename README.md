@@ -81,8 +81,6 @@ The render pipeline is entirely client-side:
 - Immutability rules unchanged: outside-region pixels, partially covered modules, QR plate pixels, and original alpha stay bit-exact, and mandatory verification failures reject export.
 - The only HTTP endpoint is the thin icon-search proxy `GET /api/icons` (free upstream, mocked in tests); it plays no part in rendering.
 
-See [client render migration plan](doc/plan/client-render-migration.md) for the engine contracts and the parity evidence between the wasm and sharp backends.
-
 ## Limits and hosting
 
 - **10 MiB per PNG, 4 megapixels, one frame**, checked client-side before anything decodes (same messages as before; the `acTL` chunk scan replaces the old frame-count check). Masks must match the poster dimensions.

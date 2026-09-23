@@ -88,4 +88,4 @@ Before changing renderer behavior, restore the existing verification baseline. O
 - [web.dev: Core Web Vitals thresholds](https://web.dev/articles/vitals) and [optimizing INP](https://web.dev/articles/optimize-inp)
 - [Next.js: lazy loading Client Components](https://nextjs.org/docs/app/guides/lazy-loading), [font optimization](https://nextjs.org/docs/app/getting-started/fonts), and [analytics/Web Vitals](https://nextjs.org/docs/app/guides/analytics)
 - [MDN: `scheduler.yield()` support and feature detection](https://developer.mozilla.org/en-US/docs/Web/API/Scheduler/yield)
-- [Existing client rendering migration](client-render-migration.md) and [web implementation plan](web-qr-poster.md)
+- [Current architecture](../../README.md) and [web implementation plan](web-qr-poster.md)
