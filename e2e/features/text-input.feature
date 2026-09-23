@@ -43,7 +43,6 @@ Feature: Step 1 — text input
     When I continue to the mask search step
     And I pick the mask font "blank"
     Then the mask font "blank" is selected
-    And I see the message "1000 × 1000"
     When I continue to the adjust step
     Then the poster canvas is visible
     And the "Continue to generate" button is enabled

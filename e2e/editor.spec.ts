@@ -139,7 +139,6 @@ test('blank option starts an editable poster without an upload', async ({ page }
   await page.getByRole('radio', { name: 'Mask font blank' }).click()
   await expect(page.getByRole('radio', { name: 'Mask font blank' })).toHaveAttribute('aria-checked', 'true')
   await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({ timeout: 10000 })
-  await expect(page.getByText('1000 × 1000')).toBeVisible()
   await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(page.getByRole('heading', { name: /Adjust QR/i })).toBeVisible()
   await expect(page.getByRole('group', { name: /Poster canvas/ })).toBeVisible()

@@ -19,18 +19,6 @@ const styles = stylex.create({
   panel: { minWidth: 0, paddingBlock: 24, paddingInline: 24 },
   heading: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 },
   actions: { display: 'flex', gap: 8, flexWrap: 'wrap', '@media (min-width: 901px)': { display: 'none' } },
-  badge: {
-    whiteSpace: 'nowrap',
-    paddingBlock: 5,
-    paddingInline: 10,
-    fontSize: 14,
-    backgroundColor: tokens.highlight,
-    borderWidth: 2,
-    borderStyle: 'solid',
-    borderColor: tokens.ink,
-    borderRadius: tokens.sketch,
-    boxShadow: tokens.shadow,
-  },
   empty: {
     minHeight: 560,
     display: 'grid',
@@ -940,11 +928,6 @@ export default function PreviewPanel({
             Pattern settings
           </button>
         </div>
-        {dimensions && (
-          <span {...stylex.props(styles.badge)}>
-            {dimensions.width} × {dimensions.height}
-          </span>
-        )}
       </div>
       {showingResult && result ? (
         <ResultPanel result={result} artifacts={artifacts} onReturnToEditing={onReturnToEditing} />
