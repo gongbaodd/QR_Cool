@@ -1,4 +1,5 @@
 'use client'
+import type { RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH, searchControlState } from '@/lib/editor/text-mask'
 import type { IconSearch } from './hooks/use-icon-search'
@@ -17,6 +18,7 @@ const styles = stylex.create({
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
   },
+  cardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   status: { fontSize: 15, color: tokens.green, margin: 0 },
   fontGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 },
   search: { marginTop: 4 },
@@ -52,17 +54,31 @@ export default function MaskPanel({
   mask,
   search,
   onSearch,
+  onClose,
+  closeButtonRef,
 }: {
   mask: MaskSelection
   search: IconSearch
   onSearch: () => void | Promise<void>
+  onClose: () => void
+  closeButtonRef: RefObject<HTMLButtonElement | null>
 }) {
   const query = mask.text.trim()
   const searchState = searchControlState(query, search.fetchedQuery, search.results.length)
   return (
     <section {...stylex.props(styles.panel)} aria-label="Mask selection">
       <div {...stylex.props(styles.card)}>
-        <span {...stylex.props(ui.eyebrow)}>MASK SELECTION</span>
+        <div {...stylex.props(styles.cardTop)}>
+          <span {...stylex.props(ui.eyebrow)}>MASK SELECTION</span>
+          <button
+            ref={closeButtonRef}
+            {...stylex.props(ui.button, ui.textButton)}
+            type="button"
+            onClick={onClose}
+          >
+            Close
+          </button>
+        </div>
         {!mask.isFollowingInput && (
           <>
             <p {...stylex.props(styles.status)} role="status">

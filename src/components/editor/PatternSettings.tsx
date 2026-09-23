@@ -1,4 +1,5 @@
 'use client'
+import type { RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { encode } from 'uqr'
 import type { Settings } from '@/lib/editor/schema'
@@ -28,11 +29,12 @@ const styles = stylex.create({
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
   },
+  panelTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   heading: {
     fontSize: 16,
     fontWeight: 600,
-    color: tokens.ink,
-    marginBottom: 4,
+    color: tokens.green,
+    margin: 0,
   },
   eccFieldset: {
     borderWidth: 0,
@@ -256,15 +258,29 @@ function MiniPixelQrPreview({
 export default function PatternSettings({
   settings,
   onSettings,
+  onClose,
+  closeButtonRef,
 }: {
   settings: Settings
   onSettings: (patch: Partial<Settings>) => void
+  onClose: () => void
+  closeButtonRef: RefObject<HTMLButtonElement | null>
 }) {
   const ecc = (settings.ecc ?? 'M') as 'L' | 'M' | 'Q' | 'H'
   const pixelStyle = (settings.pixelStyle ?? 'rounded') as 'square' | 'rounded' | 'dot'
   return (
     <div {...stylex.props(styles.panel)}>
-      <div {...stylex.props(styles.heading)}>Pattern settings</div>
+      <div {...stylex.props(styles.panelTop)}>
+        <h2 {...stylex.props(styles.heading)}>Pattern settings</h2>
+        <button
+          ref={closeButtonRef}
+          {...stylex.props(ui.button, ui.textButton)}
+          type="button"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
       <fieldset {...stylex.props(styles.eccFieldset)}>
         <legend {...stylex.props(styles.eccLegend)}>Error correction</legend>
         <p {...stylex.props(styles.eccHint)}>

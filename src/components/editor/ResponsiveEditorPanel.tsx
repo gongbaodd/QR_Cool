@@ -60,10 +60,17 @@ export default function ResponsiveEditorPanel({
   open: boolean
   onOpenChange: (open: boolean) => void
   triggerRef: React.RefObject<HTMLButtonElement | null>
-  children: React.ReactNode
+  children:
+    | React.ReactNode
+    | ((controls: {
+        close: () => void
+        closeButtonRef: React.RefObject<HTMLButtonElement | null>
+      }) => React.ReactNode)
 }) {
   const dialogRef = useRef<HTMLDialogElement | null>(null)
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const headingRef = useRef<HTMLHeadingElement | null>(null)
+  const hasCustomHeader = typeof children === 'function'
   const [mobile, setMobile] = useState(false)
   useEffect(() => {
     const media = window.matchMedia(`(max-width: ${BREAKPOINT}px)`)
@@ -79,12 +86,15 @@ export default function ResponsiveEditorPanel({
       if (dialog.open) dialog.close()
       if (open) {
         dialog.showModal()
-        requestAnimationFrame(() => headingRef.current?.focus())
+        requestAnimationFrame(() => {
+          if (hasCustomHeader) closeButtonRef.current?.focus()
+          else headingRef.current?.focus()
+        })
       }
     } else if (!dialog.open) {
       dialog.show()
     }
-  }, [mobile, open])
+  }, [hasCustomHeader, mobile, open])
   useEffect(() => {
     if (!mobile) return
     const dialog = dialogRef.current
@@ -101,7 +111,8 @@ export default function ResponsiveEditorPanel({
       ref={dialogRef}
       id={id}
       {...stylex.props(styles.dialog, side === 'left' ? styles.left : styles.right, open && styles.openLeft)}
-      aria-labelledby={`${id}-title`}
+      aria-label={hasCustomHeader ? title : undefined}
+      aria-labelledby={hasCustomHeader ? undefined : `${id}-title`}
       closedby="any"
       onCancel={(event) => {
         event.preventDefault()
@@ -114,15 +125,24 @@ export default function ResponsiveEditorPanel({
         if (event.target === dialogRef.current) close()
       }}
     >
-      <div {...stylex.props(styles.close)}>
-        <h2 id={`${id}-title`} ref={headingRef} tabIndex={-1} {...stylex.props(ui.sectionHeading)}>
-          {title}
-        </h2>
-        <button {...stylex.props(ui.button, ui.textButton)} type="button" onClick={close}>
-          Close
-        </button>
-      </div>
-      {children}
+      {hasCustomHeader ? (
+        (children as (controls: {
+          close: () => void
+          closeButtonRef: React.RefObject<HTMLButtonElement | null>
+        }) => React.ReactNode)({ close, closeButtonRef })
+      ) : (
+        <>
+          <div {...stylex.props(styles.close)}>
+            <h2 id={`${id}-title`} ref={headingRef} tabIndex={-1} {...stylex.props(ui.sectionHeading)}>
+              {title}
+            </h2>
+            <button {...stylex.props(ui.button, ui.textButton)} type="button" onClick={close}>
+              Close
+            </button>
+          </div>
+          {children}
+        </>
+      )}
     </dialog>
   )
 }

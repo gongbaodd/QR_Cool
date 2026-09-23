@@ -169,7 +169,15 @@ function EditorWorkspace() {
             onOpenChange={actions.setMaskOpen}
             triggerRef={maskTriggerRef}
           >
-            <MaskPanel mask={maskSelection} search={iconSearch} onSearch={iconSearch.handleSearchClick} />
+            {({ close, closeButtonRef }) => (
+              <MaskPanel
+                mask={maskSelection}
+                search={iconSearch}
+                onSearch={iconSearch.handleSearchClick}
+                onClose={close}
+                closeButtonRef={closeButtonRef}
+              />
+            )}
           </ResponsiveEditorPanel>
         </div>
         <PreviewPanel
@@ -220,10 +228,14 @@ function EditorWorkspace() {
             onOpenChange={actions.setPatternSettingsOpen}
             triggerRef={patternSettingsTriggerRef}
           >
-            <PatternSettings
-              settings={editorDocument.settings}
-              onSettings={actions.patchSettings}
-            />
+            {({ close, closeButtonRef }) => (
+              <PatternSettings
+                settings={editorDocument.settings}
+                onSettings={actions.patchSettings}
+                onClose={close}
+                closeButtonRef={closeButtonRef}
+              />
+            )}
           </ResponsiveEditorPanel>
         </div>
       </div>
