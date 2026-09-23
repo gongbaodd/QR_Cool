@@ -44,7 +44,7 @@ const styles = stylex.create({
   },
   panelTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   heading: {
-    fontSize: 16,
+    fontSize: '1rem',
     fontWeight: 600,
     color: tokens.accentText,
     margin: 0,
@@ -55,7 +55,7 @@ const styles = stylex.create({
     margin: '12px 0 0',
   },
   eccLegend: {
-    fontSize: 15,
+    fontSize: '0.9375rem',
     color: tokens.ink,
     marginBottom: 8,
     fontWeight: 600,
@@ -64,10 +64,10 @@ const styles = stylex.create({
     display: 'grid',
     gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
     gap: 8,
-    '@container pattern-settings (max-width: 380px)': {
+    '@container pattern-settings (max-width: 23.75rem)': {
       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
     },
-    '@container pattern-settings (max-width: 240px)': {
+    '@container pattern-settings (max-width: 15rem)': {
       gridTemplateColumns: 'minmax(0, 1fr)',
     },
   },
@@ -75,10 +75,10 @@ const styles = stylex.create({
     display: 'grid',
     gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
     gap: 8,
-    '@container pattern-settings (max-width: 380px)': {
+    '@container pattern-settings (max-width: 23.75rem)': {
       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
     },
-    '@container pattern-settings (max-width: 240px)': {
+    '@container pattern-settings (max-width: 15rem)': {
       gridTemplateColumns: 'minmax(0, 1fr)',
     },
   },
@@ -132,20 +132,20 @@ const styles = stylex.create({
     padding: 4,
   },
   eccPreviewFallback: {
-    fontSize: 11,
+    fontSize: '0.75rem',
     color: tokens.danger,
     textAlign: 'center',
     lineHeight: 1.3,
     paddingInline: 4,
   },
   eccLabel: {
-    fontSize: 15,
+    fontSize: '0.9375rem',
     fontWeight: 700,
     letterSpacing: '0.04em',
     lineHeight: 1,
   },
   eccRecovery: {
-    fontSize: 11,
+    fontSize: '0.75rem',
     color: tokens.inkMuted,
     lineHeight: 1,
   },
@@ -186,13 +186,13 @@ const styles = stylex.create({
     borderRadius: tokens.sketchAlt,
   },
   colorLabel: {
-    fontSize: 14,
+    fontSize: '0.875rem',
     fontWeight: 600,
     color: tokens.ink,
     lineHeight: 1,
   },
   colorHint: {
-    fontSize: 12.5,
+    fontSize: '0.78125rem',
     color: tokens.danger,
     margin: 0,
     lineHeight: 1.4,
@@ -221,7 +221,7 @@ const styles = stylex.create({
     borderRadius: tokens.sketchAlt,
   },
   suggestedLabel: {
-    fontSize: 12.5,
+    fontSize: '0.78125rem',
     color: tokens.ink,
     fontWeight: 600,
     lineHeight: 1,
@@ -231,6 +231,11 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: 8,
     marginBlock: 6,
+  },
+  hexInput: {
+    width: '8ch',
+    fontFamily: 'ui-monospace, monospace',
+    fontSize: '0.875rem',
   },
 })
 
@@ -391,7 +396,7 @@ function HexInput({ value, label, onCommit }: { value: string; label: string; on
       aria-label={`${label} hex color`}
       onChange={(event) => handle(event.target.value.trim())}
       onBlur={() => setText(value)}
-      style={{ width: 96, fontFamily: 'ui-monospace, monospace', fontSize: 14 }}
+      {...stylex.props(styles.hexInput)}
     />
   )
 }

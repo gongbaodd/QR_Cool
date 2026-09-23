@@ -36,7 +36,7 @@ const styles = stylex.create({
    * a closed `<dialog>`.
    */
   dialog: {
-    width: 'min(880px, 92vw)',
+    width: 'min(55rem, 92vw)',
     maxHeight: '86vh',
     overflow: 'auto',
     paddingBlock: 20,
@@ -44,7 +44,7 @@ const styles = stylex.create({
     color: tokens.ink,
     backgroundColor: tokens.card,
     fontFamily: tokens.handFont,
-    fontSize: 19,
+    fontSize: '1.1875rem',
     lineHeight: 1.85,
     letterSpacing: '0.02em',
     borderWidth: 2.5,
@@ -69,7 +69,7 @@ const styles = stylex.create({
   },
   title: {
     margin: 0,
-    fontSize: 20,
+    fontSize: '1.25rem',
     fontWeight: 400,
   },
   fieldset: {
@@ -78,13 +78,13 @@ const styles = stylex.create({
     margin: '12px 0 0',
   },
   legend: {
-    fontSize: 16,
+    fontSize: '1rem',
     fontWeight: 600,
     color: tokens.ink,
     marginBottom: 4,
   },
   hint: {
-    fontSize: 14,
+    fontSize: '0.875rem',
     color: tokens.inkMuted,
     marginBottom: 10,
     lineHeight: 1.5,
@@ -140,12 +140,12 @@ const styles = stylex.create({
     padding: 4,
   },
   label: {
-    fontSize: 15,
+    fontSize: '0.9375rem',
     fontWeight: 700,
     lineHeight: 1,
   },
   sub: {
-    fontSize: 11,
+    fontSize: '0.75rem',
     color: tokens.inkMuted,
     lineHeight: 1,
   },

@@ -37,10 +37,10 @@ const styles = stylex.create({
     padding: 18,
     maxWidth: 1800,
     marginInline: 'auto',
-    '@media (max-width: 1200px)': {
+    '@media (max-width: 75em)': {
       gridTemplateColumns: 'minmax(14rem, 0.75fr) minmax(20rem, 1.5fr) minmax(16rem, 0.85fr)',
     },
-    '@media (max-width: 900px)': { display: 'block', padding: 10 },
+    '@media (max-width: 56.25em)': { display: 'block', padding: 10 },
   },
   side: {
     minWidth: 0,

@@ -27,7 +27,7 @@ const INVALID_INK = '#af2536'
 const styles = stylex.create({
   panel: { minWidth: 0, paddingBlock: 24, paddingInline: 24 },
   heading: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 },
-  actions: { display: 'flex', gap: 8, flexWrap: 'wrap', '@media (min-width: 901px)': { display: 'none' } },
+  actions: { display: 'flex', gap: 8, flexWrap: 'wrap', '@media (min-width: 56.3125em)': { display: 'none' } },
   empty: {
     minHeight: 560,
     display: 'grid',
@@ -42,7 +42,7 @@ const styles = stylex.create({
     borderColor: tokens.ink,
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
-    '@media (max-width: 900px)': { minHeight: 320 },
+    '@media (max-width: 56.25em)': { minHeight: 320 },
   },
   emptyIcon: {
     display: 'grid',
@@ -58,7 +58,7 @@ const styles = stylex.create({
     boxShadow: tokens.shadow,
   },
   emptyMark: { display: 'block', width: 56, height: 56 },
-  emptyTitle: { fontSize: 23, fontWeight: 400, margin: 0 },
+  emptyTitle: { fontSize: '1.4375rem', fontWeight: 400, margin: 0 },
   emptyText: { color: tokens.inkMuted, margin: 0 },
   loading: {
     minHeight: 560,
@@ -70,7 +70,7 @@ const styles = stylex.create({
     borderStyle: 'dashed',
     borderColor: tokens.ink,
     borderRadius: tokens.sketchCard,
-    '@media (max-width: 900px)': { minHeight: 320 },
+    '@media (max-width: 56.25em)': { minHeight: 320 },
   },
   canvas: { minWidth: 0 },
   regionPreview: {
@@ -87,7 +87,7 @@ const styles = stylex.create({
     borderColor: tokens.ink,
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
-    '@media (max-width: 900px)': { minHeight: 480, maxHeight: 560 },
+    '@media (max-width: 56.25em)': { minHeight: 480, maxHeight: 560 },
   },
   regionContent: {
     flex: 1,
@@ -133,7 +133,7 @@ const styles = stylex.create({
     zIndex: 1,
     width: '100%',
     boxSizing: 'border-box',
-    fontSize: 15,
+    fontSize: '0.9375rem',
     backgroundColor: tokens.accentSoftest,
     borderBottomWidth: 2,
     borderBottomStyle: 'solid',
@@ -171,7 +171,7 @@ const styles = stylex.create({
     justifyContent: 'space-between',
     paddingBlock: 12,
     paddingInline: 14,
-    fontSize: 14,
+    fontSize: '0.875rem',
     color: tokens.inkMuted,
     backgroundColor: tokens.card,
     borderTopWidth: 2,
@@ -195,7 +195,7 @@ const styles = stylex.create({
     justifyContent: 'space-between',
     gap: 12,
     marginTop: 14,
-    fontSize: 14,
+    fontSize: '0.875rem',
     color: tokens.inkMuted,
     '@media (max-width: 600px)': { flexDirection: 'column', gap: 2 },
   },
@@ -365,7 +365,6 @@ function PosterCanvas({
   const posterImage = useImage(poster)
   const overlayImage = useImage(overlay)
   const qrImage = useImage(qr)
-  const wrapper = useRef<HTMLDivElement>(null)
   const scroll = useRef<HTMLDivElement>(null)
   const node = useRef<Konva.Group>(null)
   const border = useRef<Konva.Rect>(null)
@@ -375,13 +374,13 @@ function PosterCanvas({
   const [hoverMarker, setHoverMarker] = useState<string | null>(null)
   useEffect(() => {
     const observer = new ResizeObserver((entries) => setViewport(entries[0]!.contentRect.width))
-    if (wrapper.current) observer.observe(wrapper.current)
+    if (scroll.current) observer.observe(scroll.current)
     return () => observer.disconnect()
   }, [])
   useEffect(() => {
     if (node.current) transformer.current?.nodes([node.current])
   }, [qrImage])
-  const fit = Math.min((viewport - 32) / width, 640 / height, 1)
+  const fit = Math.min(viewport / width, 640 / height, 1)
   const scale = fit
   const pitch = modules ? placement.size / modules : 0
   const margin = pitch
@@ -447,7 +446,7 @@ function PosterCanvas({
     )
   const { Group, Stage, Layer, Image: CanvasImage, Rect, Transformer } = konva
   return (
-    <div {...stylex.props(styles.area)} ref={wrapper}>
+    <div {...stylex.props(styles.area)}>
       {toolbar && <div {...stylex.props(styles.tools)}>{toolbar}</div>}
       <div
         {...stylex.props(styles.scroll)}

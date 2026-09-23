@@ -11,7 +11,7 @@ const styles = stylex.create({
    * value would outrank the UA rule that hides a closed `<dialog>`.
    */
   dialog: {
-    width: 'min(880px, 92vw)',
+    width: 'min(55rem, 92vw)',
     maxHeight: '86vh',
     overflow: 'auto',
     paddingBlock: 20,
@@ -19,7 +19,7 @@ const styles = stylex.create({
     color: tokens.ink,
     backgroundColor: tokens.card,
     fontFamily: tokens.handFont,
-    fontSize: 19,
+    fontSize: '1.1875rem',
     lineHeight: 1.85,
     letterSpacing: '0.02em',
     borderWidth: 2.5,
@@ -27,6 +27,8 @@ const styles = stylex.create({
     borderColor: tokens.ink,
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
+    containerType: 'inline-size',
+    containerName: 'icon-gallery',
     '::backdrop': {
       backgroundColor: 'rgba(16, 18, 17, 0.45)',
       backdropFilter: 'blur(2px)',
@@ -44,7 +46,7 @@ const styles = stylex.create({
   },
   title: {
     margin: 0,
-    fontSize: 20,
+    fontSize: '1.25rem',
     fontWeight: 400,
   },
   loading: {
@@ -63,6 +65,12 @@ const styles = stylex.create({
     gridTemplateColumns: 'repeat(3, 1fr)',
     gap: 10,
     marginTop: 6,
+    '@container icon-gallery (max-width: 32rem)': {
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    },
+    '@container icon-gallery (max-width: 18rem)': {
+      gridTemplateColumns: 'minmax(0, 1fr)',
+    },
   },
   glyphFallback: {
     fontSize: 34,

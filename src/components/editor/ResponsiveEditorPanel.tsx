@@ -4,7 +4,8 @@ import * as stylex from '@stylexjs/stylex'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
-const BREAKPOINT = 900
+// Keep this query equivalent to the CSS drawer breakpoint below (900px at a 16px default).
+const MOBILE_LAYOUT_QUERY = '(max-width: 56.25em)'
 const styles = stylex.create({
   dialog: {
     margin: 0,
@@ -16,7 +17,7 @@ const styles = stylex.create({
     borderWidth: 0,
     borderStyle: 'none',
     outline: 'none',
-    '@media (min-width: 901px)': {
+    '@media (min-width: 56.3125em)': {
       position: 'static',
       width: 'auto',
       height: '100%',
@@ -24,7 +25,7 @@ const styles = stylex.create({
       padding: 0,
       backgroundColor: 'transparent',
     },
-    '@media (max-width: 900px)': {
+    '@media (max-width: 56.25em)': {
       position: 'fixed',
       insetBlock: 0,
       width: 'min(24rem, calc(100dvw - 2rem))',
@@ -39,9 +40,9 @@ const styles = stylex.create({
     '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0ms' },
     '::backdrop': { backgroundColor: 'rgba(16, 18, 17, 0.45)' },
   },
-  left: { '@media (max-width: 900px)': { insetInlineStart: 0, transform: 'translateX(-105%)' } },
-  right: { '@media (max-width: 900px)': { insetInlineEnd: 0, transform: 'translateX(105%)' } },
-  openLeft: { '@media (max-width: 900px)': { transform: 'translateX(0)' } },
+  left: { '@media (max-width: 56.25em)': { insetInlineStart: 0, transform: 'translateX(-105%)' } },
+  right: { '@media (max-width: 56.25em)': { insetInlineEnd: 0, transform: 'translateX(105%)' } },
+  openLeft: { '@media (max-width: 56.25em)': { transform: 'translateX(0)' } },
   close: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
 })
 
@@ -74,7 +75,7 @@ export default function ResponsiveEditorPanel({
   const hasCustomHeader = typeof children === 'function'
   const [mobile, setMobile] = useState(false)
   useEffect(() => {
-    const media = window.matchMedia(`(max-width: ${BREAKPOINT}px)`)
+    const media = window.matchMedia(MOBILE_LAYOUT_QUERY)
     const update = () => setMobile(media.matches)
     update()
     media.addEventListener('change', update)
