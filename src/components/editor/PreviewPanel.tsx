@@ -741,7 +741,11 @@ export default function PreviewPanel({
         notifyFill('Could not read the poster dimensions. Try again.', 'error')
         return
       }
-      if (expectedWidth !== undefined && expectedHeight !== undefined && (width !== expectedWidth || height !== expectedHeight)) {
+      if (
+        expectedWidth !== undefined &&
+        expectedHeight !== undefined &&
+        (width !== expectedWidth || height !== expectedHeight)
+      ) {
         fillNotificationKind.current = 'error'
         notifyFill('The preview dimensions do not match the poster.', 'error')
         return
