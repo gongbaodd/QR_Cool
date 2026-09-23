@@ -10,11 +10,7 @@ import {
 } from '@/lib/editor/text-mask'
 import type { IconItem, TextMaskFont } from '@/lib/editor/text-mask'
 import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorStoreProvider'
-import {
-  selectEffectiveMask,
-  selectMaskFont,
-  selectSuggestedMask,
-} from '@/lib/editor/selectors'
+import { selectEffectiveMask, selectMaskFont, selectSuggestedMask } from '@/lib/editor/selectors'
 
 function drawTextMask(width: number, height: number, text: string, family: string, capPx: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
