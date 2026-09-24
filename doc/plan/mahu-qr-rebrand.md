@@ -44,14 +44,14 @@ What the mascot changes about the design language:
 
 Canonical file: `public/brand/mahu-tiger.svg` — **already landed**. The two `fill` hexes in this file define the brand inks; `tokens.stylex.ts` mirrors them and never invents new ones.
 
-| Asset           | Path                                                                 | Notes                                                                                                                                                                                   |
-| --------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mascot (head)   | `public/brand/mahu-tiger.svg`                                        | Current artwork — three paths in two brand inks, transparent background                                                                                                               |
-| Favicon         | `src/app/icon.svg`                                                   | Updated head paths with a tight viewBox crop for legibility at 16–32 px                                                                                                               |
-| Touch icon      | `src/app/apple-icon.png` (180×180)                                   | Regenerated from the updated SVG on warm cream                                                                                                                                         |
-| Social image    | `src/app/opengraph-image.png` (1200×630) + `opengraph-image.alt.txt` | Updated head beside the existing wordmark and subtitle on warm cream; committed static PNG                                                                                             |
-| Wordmark lockup | in `EditorHeader`                                                    | tiger `<img>` ≈ 34 px + `mahu` (ink) `-QR` (accentText), keeping the wordmark tilt                                                                                                      |
-| Empty state     | `PreviewPanel`                                                       | the mascot inside the existing circular sketch card, above the "Your poster goes here" copy                                                                                             |
+| Asset           | Path                                                                 | Notes                                                                                       |
+| --------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Mascot (head)   | `public/brand/mahu-tiger.svg`                                        | Current artwork — three paths in two brand inks, transparent background                     |
+| Favicon         | `src/app/icon.svg`                                                   | Updated head paths with a tight viewBox crop for legibility at 16–32 px                     |
+| Touch icon      | `src/app/apple-icon.png` (180×180)                                   | Regenerated from the updated SVG on warm cream                                              |
+| Social image    | `src/app/opengraph-image.png` (1200×630) + `opengraph-image.alt.txt` | Updated head beside the existing wordmark and subtitle on warm cream; committed static PNG  |
+| Wordmark lockup | in `EditorHeader`                                                    | tiger `<img>` ≈ 34 px + `mahu` (ink) `-QR` (accentText), keeping the wordmark tilt          |
+| Empty state     | `PreviewPanel`                                                       | the mascot inside the existing circular sketch card, above the "Your poster goes here" copy |
 
 Also:
 
