@@ -62,7 +62,6 @@ export default function Editor() {
 function EditorWorkspace() {
   const store = useEditorStoreApi()
   const actions = useEditorStore((state) => state.actions)
-  const draft = useEditorStore((state) => state.draft)
   const draftContent = useEditorStore((state) => state.draft.content)
   const editorDocument = useEditorStore((state) => state.document)
   const poster = useEditorStore((state) => state.sources.poster)
@@ -231,6 +230,11 @@ function EditorWorkspace() {
     if (!actions.commitDraft()) requestAnimationFrame(() => inputRef.current?.focus())
   }
 
+  function cancelDraftCommit() {
+    if (draftCommitTimer.current) clearTimeout(draftCommitTimer.current)
+    draftCommitTimer.current = null
+  }
+
   function handleGallerySelect(index: number) {
     const item = iconSearch.results[index]
     if (item) maskSelection.selectIcon(item)
@@ -258,7 +262,6 @@ function EditorWorkspace() {
         }}
       />
       <EditorHeader
-        content={draft.content}
         contentError={visibleError}
         status={
           editorDocument.busy === 'prepare' || maskBusy
@@ -270,6 +273,7 @@ function EditorWorkspace() {
         onContentChange={actions.setDraftContent}
         onContentBlur={actions.blurDraft}
         onSubmit={submitDraft}
+        onContentInvalid={cancelDraftCommit}
         inputRef={inputRef}
       />
       <div {...stylex.props(styles.shell)}>
