@@ -146,7 +146,11 @@ export function createEditorStore() {
               if (parsed.data === current.document.content) return { draft }
               return {
                 draft,
-                document: editDocument(current.document, { type: 'edit', patch: { content: parsed.data }, assets: true }),
+                document: editDocument(current.document, {
+                  type: 'edit',
+                  patch: { content: parsed.data },
+                  assets: true,
+                }),
               }
             })
             return committed

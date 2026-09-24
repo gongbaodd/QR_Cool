@@ -76,7 +76,8 @@ export function useEngineRequest(): EditorRequest {
           (mode === 'prepare'
             ? latest.document.assetRevision !== document.assetRevision
             : latest.document.revision !== requestRevision)
-        ) return
+        )
+          return
         const engine = (handle.current ??= createEditorWorkerClient()).get()
         if (mode === 'prepare') {
           const prepared = await engine.prepare(input, document.assetRevision)
@@ -111,9 +112,10 @@ export function useEngineRequest(): EditorRequest {
 
       function settleError(activeToken: number, expectedRevision: number, message: string, field?: string) {
         const latest = store.getState()
-        const stillCurrent = mode === 'prepare'
-          ? activeToken === assetOperation.current && latest.document.assetRevision === document.assetRevision
-          : activeToken === assemblyOperation.current && latest.document.revision === expectedRevision
+        const stillCurrent =
+          mode === 'prepare'
+            ? activeToken === assetOperation.current && latest.document.assetRevision === document.assetRevision
+            : activeToken === assemblyOperation.current && latest.document.revision === expectedRevision
         if (stillCurrent) {
           setFailedRequest({ revision: latest.document.revision, mode })
           if (mode === 'prepare') latest.actions.failEngine(latest.document.revision, message, field)

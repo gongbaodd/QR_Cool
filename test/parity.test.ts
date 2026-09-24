@@ -177,17 +177,13 @@ describe('imaging backend parity', () => {
     const source = await prepareSource(nodeImaging, posterBytes)
     const qr = await resolveQr(nodeImaging, { posterBytes, content })
     const placement = applyPlacement({ source, qr, input: {}, settings: engineDefaults }).layout.placement
-    const nodeResult = assertOk(
-      await nodeSession.assemble({ ...input, placement, ...settings }, 1),
-    )
+    const nodeResult = assertOk(await nodeSession.assemble({ ...input, placement, ...settings }, 1))
 
     setImaging(browserImaging)
     const browserPrepare = assertOk(await browserSession.prepare(input, 2))
     expect(browserPrepare.placement).toEqual(nodePrepare.placement)
     expect(browserPrepare.qrMetadata).toEqual(nodePrepare.qrMetadata)
-    const browserResult = assertOk(
-      await browserSession.assemble({ ...input, placement, ...settings }, 2),
-    )
+    const browserResult = assertOk(await browserSession.assemble({ ...input, placement, ...settings }, 2))
     setImaging(nodeImaging)
 
     // Same mandatory verification passes in the browser; the engine throws VERIFICATION_FAILED otherwise.

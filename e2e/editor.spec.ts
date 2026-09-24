@@ -59,13 +59,17 @@ test('invalid placement stays editable and assembly reports the exact failure', 
     await page.mouse.move(8, 8, { steps: 8 })
     await page.mouse.up()
   }
-  await expect.poll(async () => Number(await scene.locator('[data-selection-outline]').getAttribute('x'))).toBeLessThan(0)
+  await expect
+    .poll(async () => Number(await scene.locator('[data-selection-outline]').getAttribute('x')))
+    .toBeLessThan(0)
   await expect(page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeEnabled()
   await page.getByRole('button', { name: 'Assemble poster', exact: true }).click()
   await expect(page.getByRole('alert')).toBeVisible({ timeout: 15_000 })
   await expect(scene).toBeVisible()
   expect(await qr.getAttribute('href')).toBe(before)
-  await expect.poll(async () => Number(await scene.locator('[data-selection-outline]').getAttribute('x'))).toBeLessThan(0)
+  await expect
+    .poll(async () => Number(await scene.locator('[data-selection-outline]').getAttribute('x')))
+    .toBeLessThan(0)
 })
 
 test('assembly returns one verified Blob for preview and download', async ({ page }) => {
@@ -76,11 +80,13 @@ test('assembly returns one verified Blob for preview and download', async ({ pag
   await selectBlankMask(page)
   await page.getByRole('button', { name: 'Assemble poster', exact: true }).click()
   await expect(page.getByRole('img', { name: 'Assembled artistic QR poster' })).toBeVisible({ timeout: 30_000 })
-  expect(await page.evaluate(() => {
-    const image = document.querySelector<HTMLImageElement>('img[alt="Assembled artistic QR poster"]')
-    const link = document.querySelector<HTMLAnchorElement>('a[download="poster.png"]')
-    return !!image && !!link && image.src === link.href && image.src.startsWith('blob:')
-  })).toBe(true)
+  expect(
+    await page.evaluate(() => {
+      const image = document.querySelector<HTMLImageElement>('img[alt="Assembled artistic QR poster"]')
+      const link = document.querySelector<HTMLAnchorElement>('a[download="poster.png"]')
+      return !!image && !!link && image.src === link.href && image.src.startsWith('blob:')
+    }),
+  ).toBe(true)
   await page.getByRole('button', { name: 'Return to editing' }).click()
   await expect(page.getByRole('img', { name: 'Poster editing preview' })).toBeVisible()
 })

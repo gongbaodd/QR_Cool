@@ -298,21 +298,57 @@ function notifyFill(message: string, kind: 'error' | 'warning' | 'success') {
 }
 
 function PosterCanvas({
-  poster, overlay, qr, width, height, placement, modules, onChange,
-  onMarkerClick, fillActive, fillReady, onFillAt, toolbar, onGestureStart,
+  poster,
+  overlay,
+  qr,
+  width,
+  height,
+  placement,
+  modules,
+  onChange,
+  onMarkerClick,
+  fillActive,
+  fillReady,
+  onFillAt,
+  toolbar,
+  onGestureStart,
 }: {
-  poster: string; overlay: string; mask: string; qr: string; width: number; height: number
-  placement: Placement; modules: number; onChange: (box: Placement) => void; invalid: boolean
+  poster: string
+  overlay: string
+  mask: string
+  qr: string
+  width: number
+  height: number
+  placement: Placement
+  modules: number
+  onChange: (box: Placement) => void
+  invalid: boolean
   onMarkerClick?: (kind: 'tl' | 'tr' | 'bl' | 'sub') => void
-  fillActive: boolean; fillReady: boolean; onFillAt: (x: number, y: number) => void; toolbar: ReactNode
+  fillActive: boolean
+  fillReady: boolean
+  onFillAt: (x: number, y: number) => void
+  toolbar: ReactNode
   onGestureStart: () => void
 }) {
   const scroll = useRef<HTMLDivElement>(null)
   const [viewport, setViewport] = useState(800)
   const [hoverMarker, setHoverMarker] = useState<string | null>(null)
-  const gesture = useRef<{ kind: 'move' | 'resize' | 'rotate'; pointer: number; startX: number; startY: number; box: Placement; centerX: number; centerY: number } | null>(null)
+  const gesture = useRef<{
+    kind: 'move' | 'resize' | 'rotate'
+    pointer: number
+    startX: number
+    startY: number
+    box: Placement
+    centerX: number
+    centerY: number
+  } | null>(null)
   const animation = useRef<number | null>(null)
-  useEffect(() => () => { if (animation.current !== null) cancelAnimationFrame(animation.current) }, [])
+  useEffect(
+    () => () => {
+      if (animation.current !== null) cancelAnimationFrame(animation.current)
+    },
+    [],
+  )
   const fit = Math.min(viewport / width, 640 / height, 1)
   useEffect(() => {
     const observer = new ResizeObserver((entries) => setViewport(entries[0]!.contentRect.width))
@@ -320,16 +356,24 @@ function PosterCanvas({
     return () => observer.disconnect()
   }, [])
   const pitch = modules ? placement.size / modules : 0
-  const q = 2, n = modules - 4, version = modules ? Math.floor((modules - 21) / 4) : 0
-  const markers: { id: string; kind: 'tl' | 'tr' | 'bl' | 'sub'; x: number; y: number; size: number }[] = modules ? [
-    { id: 'tl', kind: 'tl', x: q * pitch, y: q * pitch, size: 7 * pitch },
-    { id: 'tr', kind: 'tr', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
-    { id: 'bl', kind: 'bl', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
-    ...(version >= 2 ? [{ id: 'br', kind: 'sub' as const, x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch }] : []),
-  ] : []
+  const q = 2,
+    n = modules - 4,
+    version = modules ? Math.floor((modules - 21) / 4) : 0
+  const markers: { id: string; kind: 'tl' | 'tr' | 'bl' | 'sub'; x: number; y: number; size: number }[] = modules
+    ? [
+        { id: 'tl', kind: 'tl', x: q * pitch, y: q * pitch, size: 7 * pitch },
+        { id: 'tr', kind: 'tr', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
+        { id: 'bl', kind: 'bl', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
+        ...(version >= 2
+          ? [{ id: 'br', kind: 'sub' as const, x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch }]
+          : []),
+      ]
+    : []
   const localPoint = (event: { clientX: number; clientY: number }, svg: SVGSVGElement | null) => {
     if (!svg) return { x: 0, y: 0 }
-    const point = svg.createSVGPoint(); point.x = event.clientX; point.y = event.clientY
+    const point = svg.createSVGPoint()
+    point.x = event.clientX
+    point.y = event.clientY
     const matrix = svg.getScreenCTM()?.inverse()
     return matrix ? point.matrixTransform(matrix) : { x: 0, y: 0 }
   }
@@ -340,14 +384,25 @@ function PosterCanvas({
     const svg = scroll.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
     svg?.setPointerCapture(event.pointerId)
     const point = localPoint(event, svg ?? event.currentTarget.ownerSVGElement)
-    gesture.current = { kind, pointer: event.pointerId, startX: point.x, startY: point.y, box: placement, centerX: placement.x + placement.size / 2, centerY: placement.y + placement.size / 2 }
+    gesture.current = {
+      kind,
+      pointer: event.pointerId,
+      startX: point.x,
+      startY: point.y,
+      box: placement,
+      centerX: placement.x + placement.size / 2,
+      centerY: placement.y + placement.size / 2,
+    }
   }
   const move = (event: React.PointerEvent<SVGSVGElement>) => {
     const active = gesture.current
     if (!active || active.pointer !== event.pointerId) return
-    const point = localPoint(event, event.currentTarget), dx = point.x - active.startX, dy = point.y - active.startY
+    const point = localPoint(event, event.currentTarget),
+      dx = point.x - active.startX,
+      dy = point.y - active.startY
     let next = active.box
-    if (active.kind === 'move') next = { ...active.box, x: Math.round(active.box.x + dx), y: Math.round(active.box.y + dy) }
+    if (active.kind === 'move')
+      next = { ...active.box, x: Math.round(active.box.x + dx), y: Math.round(active.box.y + dy) }
     if (active.kind === 'resize') {
       const size = Math.max(modules * 4, Math.round((active.box.size + dx + dy) / 2 / modules) * modules)
       next = { ...active.box, size, x: Math.round(active.centerX - size / 2), y: Math.round(active.centerY - size / 2) }
@@ -355,89 +410,257 @@ function PosterCanvas({
     if (active.kind === 'rotate') {
       const before = Math.atan2(active.startY - active.centerY, active.startX - active.centerX)
       const after = Math.atan2(point.y - active.centerY, point.x - active.centerX)
-      next = { ...active.box, rotation: canonicalizeRotation(active.box.rotation + (after - before) * 180 / Math.PI) }
+      next = { ...active.box, rotation: canonicalizeRotation(active.box.rotation + ((after - before) * 180) / Math.PI) }
     }
     // Transient scene transform stays local until pointer-up.
     // Keep the latest preview transform for the commit handler, without store writes.
     ;(active as typeof active & { latest?: Placement }).latest = next
-    if (animation.current === null) animation.current = requestAnimationFrame(() => {
-      animation.current = null
-      const latest = gesture.current
-      const box = (latest as typeof latest & { latest?: Placement } | null)?.latest
-      const root = scroll.current?.querySelector<SVGGElement>('[data-gesture-target]')
-      if (!latest || !box || !root) return
-      const factor = box.size / latest.box.size
-      const cx = latest.box.x + latest.box.size / 2, cy = latest.box.y + latest.box.size / 2
-      root.setAttribute('transform', `translate(${box.x + box.size / 2} ${box.y + box.size / 2}) rotate(${box.rotation}) scale(${factor}) translate(${-cx} ${-cy})`)
-    })
+    if (animation.current === null)
+      animation.current = requestAnimationFrame(() => {
+        animation.current = null
+        const latest = gesture.current
+        const box = (latest as (typeof latest & { latest?: Placement }) | null)?.latest
+        const root = scroll.current?.querySelector<SVGGElement>('[data-gesture-target]')
+        if (!latest || !box || !root) return
+        const factor = box.size / latest.box.size
+        const cx = latest.box.x + latest.box.size / 2,
+          cy = latest.box.y + latest.box.size / 2
+        root.setAttribute(
+          'transform',
+          `translate(${box.x + box.size / 2} ${box.y + box.size / 2}) rotate(${box.rotation}) scale(${factor}) translate(${-cx} ${-cy})`,
+        )
+      })
   }
   const end = (event: React.PointerEvent<SVGSVGElement>) => {
     const active = gesture.current
     if (!active || active.pointer !== event.pointerId) return
-    if (animation.current !== null) { cancelAnimationFrame(animation.current); animation.current = null }
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    if (animation.current !== null) {
+      cancelAnimationFrame(animation.current)
+      animation.current = null
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId)
     gesture.current = null
     onChange((active as typeof active & { latest?: Placement }).latest ?? active.box)
   }
   const cancel = (event: React.PointerEvent<SVGSVGElement>) => {
     const active = gesture.current
     if (!active || active.pointer !== event.pointerId) return
-    if (animation.current !== null) { cancelAnimationFrame(animation.current); animation.current = null }
+    if (animation.current !== null) {
+      cancelAnimationFrame(animation.current)
+      animation.current = null
+    }
     gesture.current = null
     event.currentTarget.querySelector('[data-gesture-target]')?.removeAttribute('transform')
   }
-  const nudge = (dx: number, dy: number) => { onGestureStart(); onChange({ ...placement, x: placement.x + dx, y: placement.y + dy }) }
+  const nudge = (dx: number, dy: number) => {
+    onGestureStart()
+    onChange({ ...placement, x: placement.x + dx, y: placement.y + dy })
+  }
   const frame = (x: number, y: number, size: number) => `rotate(${placement.rotation} ${x + size / 2} ${y + size / 2})`
-  return <div {...stylex.props(styles.area)}>
-    {toolbar && <div {...stylex.props(styles.tools)}>{toolbar}</div>}
-    <div {...stylex.props(styles.scroll)} ref={scroll} tabIndex={0} role="group" aria-label="Poster. Arrow keys move the QR; Shift moves ten pixels. Use the square and rotation handles to resize or rotate." onKeyDown={(event) => {
-      const delta = event.shiftKey ? 10 : 1
-      const steps: Record<string, [number, number]> = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] }
-      if (steps[event.key]) { event.preventDefault(); nudge(...steps[event.key]!) }
-      if (event.key === '+' || event.key === '=') {
-        event.preventDefault(); onGestureStart(); const size = placement.size + modules
-        onChange({ ...placement, size, x: Math.round(placement.x - modules / 2), y: Math.round(placement.y - modules / 2) })
-      }
-      if (event.key === '-' || event.key === '_') {
-        event.preventDefault(); onGestureStart(); const size = Math.max(modules * 4, placement.size - modules)
-        onChange({ ...placement, size, x: Math.round(placement.x + (placement.size - size) / 2), y: Math.round(placement.y + (placement.size - size) / 2) })
-      }
-      if (event.key === '[' || event.key === ']') {
-        event.preventDefault(); onGestureStart(); onChange({ ...placement, rotation: canonicalizeRotation(placement.rotation + (event.key === ']' ? 1 : -1)) })
-      }
-      if (event.key === 'Escape' && gesture.current) {
-        event.currentTarget.querySelector('[data-gesture-target]')?.removeAttribute('transform')
-        gesture.current = null
-      }
-    }}>
-      <div {...stylex.props(styles.stageFrame)}>
-        <svg width={width * fit} height={height * fit} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Poster editing preview" onPointerMove={move} onPointerUp={end} onPointerCancel={cancel} onClick={(event) => {
-          if (!fillActive || !fillReady || (event.target as Element).closest('[data-gesture-target]')) return
-          const p = localPoint(event, event.currentTarget); onFillAt(Math.floor(p.x), Math.floor(p.y))
-        }}>
-          <image href={poster} width={width} height={height} />
-          <image href={overlay} width={width} height={height} pointerEvents="none" />
-          <g data-gesture-target="" transform={frame(placement.x, placement.y, placement.size)} onPointerDown={(event) => begin('move', event)} style={{ touchAction: 'none' }}>
-            <svg x={placement.x + pitch} y={placement.y + pitch} width={placement.size - 2 * pitch} height={placement.size - 2 * pitch} viewBox={`${placement.x + pitch} ${placement.y + pitch} ${placement.size - 2 * pitch} ${placement.size - 2 * pitch}`} overflow="hidden">
-              <image data-qr-image="" href={qr} x={placement.x} y={placement.y} width={placement.size} height={placement.size} preserveAspectRatio="none" style={{ touchAction: 'none' }} />
-            </svg>
-            {markers.map((marker) => <rect data-marker-target="" key={marker.id} x={placement.x + marker.x} y={placement.y + marker.y} width={marker.size} height={marker.size} fill="#ff321e" fillOpacity={hoverMarker === marker.id ? 0.28 : 0.06} tabIndex={onMarkerClick && !fillActive ? 0 : -1} role="button" aria-label={`Edit ${marker.kind} marker`} onPointerDown={(event) => event.stopPropagation()} onPointerEnter={() => setHoverMarker(marker.id)} onPointerLeave={() => setHoverMarker(null)} onClick={(event) => { event.stopPropagation(); if (!fillActive) onMarkerClick?.(marker.kind) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onMarkerClick?.(marker.kind) }} />)}
-            <rect data-selection-outline="" x={placement.x} y={placement.y} width={placement.size} height={placement.size} fill="none" stroke="#101211" strokeDasharray="7 5" strokeWidth={Math.max(2, 2 / fit)} pointerEvents="none" />
-            <rect data-resize-handle="" x={placement.x + placement.size - 10 / fit} y={placement.y + placement.size - 10 / fit} width={20 / fit} height={20 / fit} fill="#fdf8f2" stroke="#101211" strokeWidth={2 / fit} cursor="nwse-resize" onPointerDown={(event) => { event.stopPropagation(); begin('resize', event) }} style={{ touchAction: 'none' }} />
-            <circle data-rotation-handle="" cx={placement.x + placement.size / 2} cy={placement.y - 18 / fit} r={9 / fit} fill="#fdf8f2" stroke="#101211" strokeWidth={2 / fit} cursor="grab" onPointerDown={(event) => { event.stopPropagation(); begin('rotate', event) }} style={{ touchAction: 'none' }} />
-          </g>
-        </svg>
+  return (
+    <div {...stylex.props(styles.area)}>
+      {toolbar && <div {...stylex.props(styles.tools)}>{toolbar}</div>}
+      <div
+        {...stylex.props(styles.scroll)}
+        ref={scroll}
+        tabIndex={0}
+        role="group"
+        aria-label="Poster. Arrow keys move the QR; Shift moves ten pixels. Use the square and rotation handles to resize or rotate."
+        onKeyDown={(event) => {
+          const delta = event.shiftKey ? 10 : 1
+          const steps: Record<string, [number, number]> = {
+            ArrowLeft: [-delta, 0],
+            ArrowRight: [delta, 0],
+            ArrowUp: [0, -delta],
+            ArrowDown: [0, delta],
+          }
+          if (steps[event.key]) {
+            event.preventDefault()
+            nudge(...steps[event.key]!)
+          }
+          if (event.key === '+' || event.key === '=') {
+            event.preventDefault()
+            onGestureStart()
+            const size = placement.size + modules
+            onChange({
+              ...placement,
+              size,
+              x: Math.round(placement.x - modules / 2),
+              y: Math.round(placement.y - modules / 2),
+            })
+          }
+          if (event.key === '-' || event.key === '_') {
+            event.preventDefault()
+            onGestureStart()
+            const size = Math.max(modules * 4, placement.size - modules)
+            onChange({
+              ...placement,
+              size,
+              x: Math.round(placement.x + (placement.size - size) / 2),
+              y: Math.round(placement.y + (placement.size - size) / 2),
+            })
+          }
+          if (event.key === '[' || event.key === ']') {
+            event.preventDefault()
+            onGestureStart()
+            onChange({
+              ...placement,
+              rotation: canonicalizeRotation(placement.rotation + (event.key === ']' ? 1 : -1)),
+            })
+          }
+          if (event.key === 'Escape' && gesture.current) {
+            event.currentTarget.querySelector('[data-gesture-target]')?.removeAttribute('transform')
+            gesture.current = null
+          }
+        }}
+      >
+        <div {...stylex.props(styles.stageFrame)}>
+          <svg
+            width={width * fit}
+            height={height * fit}
+            viewBox={`0 0 ${width} ${height}`}
+            role="img"
+            aria-label="Poster editing preview"
+            onPointerMove={move}
+            onPointerUp={end}
+            onPointerCancel={cancel}
+            onClick={(event) => {
+              if (!fillActive || !fillReady || (event.target as Element).closest('[data-gesture-target]')) return
+              const p = localPoint(event, event.currentTarget)
+              onFillAt(Math.floor(p.x), Math.floor(p.y))
+            }}
+          >
+            <image href={poster} width={width} height={height} />
+            <image href={overlay} width={width} height={height} pointerEvents="none" />
+            <g
+              data-gesture-target=""
+              transform={frame(placement.x, placement.y, placement.size)}
+              onPointerDown={(event) => begin('move', event)}
+              style={{ touchAction: 'none' }}
+            >
+              <svg
+                x={placement.x + pitch}
+                y={placement.y + pitch}
+                width={placement.size - 2 * pitch}
+                height={placement.size - 2 * pitch}
+                viewBox={`${placement.x + pitch} ${placement.y + pitch} ${placement.size - 2 * pitch} ${placement.size - 2 * pitch}`}
+                overflow="hidden"
+              >
+                <image
+                  data-qr-image=""
+                  href={qr}
+                  x={placement.x}
+                  y={placement.y}
+                  width={placement.size}
+                  height={placement.size}
+                  preserveAspectRatio="none"
+                  style={{ touchAction: 'none' }}
+                />
+              </svg>
+              {markers.map((marker) => (
+                <rect
+                  data-marker-target=""
+                  key={marker.id}
+                  x={placement.x + marker.x}
+                  y={placement.y + marker.y}
+                  width={marker.size}
+                  height={marker.size}
+                  fill="#ff321e"
+                  fillOpacity={hoverMarker === marker.id ? 0.28 : 0.06}
+                  tabIndex={onMarkerClick && !fillActive ? 0 : -1}
+                  role="button"
+                  aria-label={`Edit ${marker.kind} marker`}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onPointerEnter={() => setHoverMarker(marker.id)}
+                  onPointerLeave={() => setHoverMarker(null)}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (!fillActive) onMarkerClick?.(marker.kind)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') onMarkerClick?.(marker.kind)
+                  }}
+                />
+              ))}
+              <rect
+                data-selection-outline=""
+                x={placement.x}
+                y={placement.y}
+                width={placement.size}
+                height={placement.size}
+                fill="none"
+                stroke="#101211"
+                strokeDasharray="7 5"
+                strokeWidth={Math.max(2, 2 / fit)}
+                pointerEvents="none"
+              />
+              <rect
+                data-resize-handle=""
+                x={placement.x + placement.size - 10 / fit}
+                y={placement.y + placement.size - 10 / fit}
+                width={20 / fit}
+                height={20 / fit}
+                fill="#fdf8f2"
+                stroke="#101211"
+                strokeWidth={2 / fit}
+                cursor="nwse-resize"
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                  begin('resize', event)
+                }}
+                style={{ touchAction: 'none' }}
+              />
+              <circle
+                data-rotation-handle=""
+                cx={placement.x + placement.size / 2}
+                cy={placement.y - 18 / fit}
+                r={9 / fit}
+                fill="#fdf8f2"
+                stroke="#101211"
+                strokeWidth={2 / fit}
+                cursor="grab"
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                  begin('rotate', event)
+                }}
+                style={{ touchAction: 'none' }}
+              />
+            </g>
+          </svg>
+        </div>
+      </div>
+      <div {...stylex.props(styles.footer)}>
+        <span>
+          {fillActive
+            ? 'Click the poster outside the QR to fill an enclosed area.'
+            : 'Assemble to check placement and render the final poster.'}
+        </span>
+        <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
+          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>
+            ←
+          </button>
+          <button
+            {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)}
+            aria-label="Move up"
+            onClick={() => nudge(0, -1)}
+          >
+            ↑
+          </button>
+          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move down" onClick={() => nudge(0, 1)}>
+            ↓
+          </button>
+          <button
+            {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)}
+            aria-label="Move right"
+            onClick={() => nudge(1, 0)}
+          >
+            →
+          </button>
+        </div>
       </div>
     </div>
-    <div {...stylex.props(styles.footer)}><span>{fillActive ? 'Click the poster outside the QR to fill an enclosed area.' : 'Assemble to check placement and render the final poster.'}</span>
-      <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
-        <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>←</button>
-        <button {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)} aria-label="Move up" onClick={() => nudge(0, -1)}>↑</button>
-        <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move down" onClick={() => nudge(0, 1)}>↓</button>
-        <button {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)} aria-label="Move right" onClick={() => nudge(1, 0)}>→</button>
-      </div>
-    </div>
-  </div>
+  )
 }
 
 export default function PreviewPanel({

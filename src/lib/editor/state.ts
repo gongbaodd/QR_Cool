@@ -66,7 +66,12 @@ export function createInitialState(): State {
 /** Backwards-compatible deterministic defaults for pure reducer consumers. */
 export const initialState: State = createInitialState()
 export type Action =
-  | { type: 'edit'; patch: Partial<Pick<State, 'content' | 'settings' | 'placement'>>; reset?: boolean; assets?: boolean }
+  | {
+      type: 'edit'
+      patch: Partial<Pick<State, 'content' | 'settings' | 'placement'>>
+      reset?: boolean
+      assets?: boolean
+    }
   | { type: 'busy'; mode: 'prepare' | 'assemble'; revision: number }
   | { type: 'prepared'; data: Prepared }
   | { type: 'result'; data: Result }

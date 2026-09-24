@@ -74,7 +74,10 @@ describe('engine pipeline: artifact parity with the former server orchestration'
     const session = await makeEngine()
     const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
     const result = assertOk(
-      await session.assemble({ posterBytes, content, placement: await validPlacement(posterBytes, content), ...settings }, 1),
+      await session.assemble(
+        { posterBytes, content, placement: await validPlacement(posterBytes, content), ...settings },
+        1,
+      ),
     )
     // The 0° poster remains pinned to its pre-rotated-fill baseline; the standalone QR is now
     // transparent, while assembly continues to use the opaque normalized QR for its plate.
@@ -107,7 +110,10 @@ describe('engine pipeline: artifact parity with the former server orchestration'
     expect(prepared.qr.type).toBe('image/png')
     expect(prepared.mask.size).toBeGreaterThan(0)
     const result = assertOk(
-      await session.assemble({ posterBytes, content, placement: await validPlacement(posterBytes, content, settings), ...settings }, 1),
+      await session.assemble(
+        { posterBytes, content, placement: await validPlacement(posterBytes, content, settings), ...settings },
+        1,
+      ),
     )
     expect(result.artifacts['poster.png']!.type).toBe('image/png')
     expect(result.artifacts['pattern-cut.png']!.type).toBe('image/png')
@@ -122,7 +128,15 @@ describe('engine pipeline: artifact parity with the former server orchestration'
     const session = await makeEngine()
     assertOk(await session.prepare({ posterBytes, content: '  hello  ' }, 1))
     const result = assertOk(
-      await session.assemble({ posterBytes, content: '  hello  ', placement: await validPlacement(posterBytes, '  hello  ', settings), ...settings }, 1),
+      await session.assemble(
+        {
+          posterBytes,
+          content: '  hello  ',
+          placement: await validPlacement(posterBytes, '  hello  ', settings),
+          ...settings,
+        },
+        1,
+      ),
     )
     expect(result.report.verification.expectedText).toBe('  hello  ')
     const rejected = await session.assemble(
@@ -417,7 +431,15 @@ describe('engine pattern colors', () => {
       await session.prepare({ posterBytes, content, settings: { ...settings, colors: palette } }, 1),
     )
     const result = assertOk(
-      await session.assemble({ posterBytes, content, placement: await validPlacement(posterBytes, content, coloredSettings), ...coloredSettings }, 1),
+      await session.assemble(
+        {
+          posterBytes,
+          content,
+          placement: await validPlacement(posterBytes, content, coloredSettings),
+          ...coloredSettings,
+        },
+        1,
+      ),
     )
     expect(result.report.verification.checks.every((c) => c.passed)).toBe(true)
     expect(result.report.pattern.colors).toEqual(palette)

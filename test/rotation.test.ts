@@ -453,9 +453,17 @@ describe('engine rotation end to end', () => {
     expect(prepared.placement.rotation).toBe(0)
     const rotated = { ...prepared.placement, rotation: 30 }
     const changedContent = 'a'.repeat(140)
-    const reapply = assertOk(await session.prepare({
-      posterBytes, content: changedContent, placement: rotated, previousTotalModules: prepared.qrMetadata.totalModules,
-    }, 2))
+    const reapply = assertOk(
+      await session.prepare(
+        {
+          posterBytes,
+          content: changedContent,
+          placement: rotated,
+          previousTotalModules: prepared.qrMetadata.totalModules,
+        },
+        2,
+      ),
+    )
     expect(reapply.qrMetadata.totalModules).toBeGreaterThan(prepared.qrMetadata.totalModules)
     expect(reprepare(reapply).rotation).toBe(30)
   })
@@ -517,7 +525,9 @@ describe('engine rotation end to end', () => {
   it('reuses the cached QR bundle across rotation-only prepare calls', async () => {
     const session = await makeEngine()
     const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
-    const rotated = assertOk(await session.prepare({ posterBytes, content, placement: { ...prepared.placement, rotation: 30 } }, 2))
+    const rotated = assertOk(
+      await session.prepare({ posterBytes, content, placement: { ...prepared.placement, rotation: 30 } }, 2),
+    )
     const digest = await nodeImaging.sha256Hex(new Uint8Array(await prepared.qr.arrayBuffer()))
     expect(await nodeImaging.sha256Hex(new Uint8Array(await rotated.qr.arrayBuffer()))).toBe(digest)
   })
