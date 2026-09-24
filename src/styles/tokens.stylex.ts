@@ -16,6 +16,8 @@ export const tokens = stylex.defineVars({
   accent: '#ff321e',
   /** Highlighter swipes and button fills (was `highlight`). */
   accentSoft: '#ffe4de',
+  /** Slider fill derived from vermilion in OKLCH (L 0.90, 15% source chroma, same hue). */
+  accentSliderFill: '#f5d6d0',
   /** Hover fills (was `highlightSoft`). */
   accentSoftest: '#fff1ed',
   /** AA-safe vermilion for body-size text (`#ff321e` is borders/large text only). */

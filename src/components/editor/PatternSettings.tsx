@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { toast } from 'react-toastify'
 import { encode } from 'uqr'
@@ -48,16 +48,117 @@ const styles = stylex.create({
     marginBottom: 8,
     fontWeight: 600,
   },
-  eccGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-    gap: 8,
-    '@container pattern-settings (max-width: 23.75rem)': {
-      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  eccSlider: {
+    position: 'relative',
+    height: 44,
+    isolation: 'isolate',
+  },
+  eccRamp: {
+    position: 'absolute',
+    inset: '2px 10px',
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    clipPath: 'polygon(0 100%, 100% 0, 100% 100%)',
+    pointerEvents: 'none',
+  },
+  eccInput: {
+    position: 'absolute',
+    zIndex: 1,
+    inset: 0,
+    display: 'block',
+    width: '100%',
+    height: 44,
+    margin: 0,
+    padding: 0,
+    appearance: 'none',
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
+    touchAction: 'pan-y',
+    ':focus-visible': {
+      outlineWidth: 3,
+      outlineStyle: 'solid',
+      outlineColor: tokens.accent,
+      outlineOffset: 4,
     },
-    '@container pattern-settings (max-width: 15rem)': {
-      gridTemplateColumns: 'minmax(0, 1fr)',
+    '::-webkit-slider-runnable-track': {
+      height: 44,
+      backgroundColor: 'transparent',
     },
+    '::-moz-range-track': {
+      height: 44,
+      backgroundColor: 'transparent',
+    },
+    '::-moz-range-progress': {
+      height: 44,
+      backgroundColor: 'transparent',
+    },
+    '::-webkit-slider-thumb': {
+      width: 20,
+      height: 20,
+      marginTop: 12,
+      boxSizing: 'border-box',
+      appearance: 'none',
+      backgroundColor: tokens.accent,
+      borderWidth: 3,
+      borderStyle: 'solid',
+      borderColor: tokens.ink,
+      borderRadius: '50%',
+      boxShadow: tokens.shadowField,
+    },
+    '::-moz-range-thumb': {
+      width: 20,
+      height: 20,
+      boxSizing: 'border-box',
+      backgroundColor: tokens.accent,
+      borderWidth: 3,
+      borderStyle: 'solid',
+      borderColor: tokens.ink,
+      borderRadius: '50%',
+      boxShadow: tokens.shadowField,
+    },
+  },
+  eccStops: {
+    position: 'relative',
+    height: '3.5rem',
+    marginInline: 10,
+    marginTop: 4,
+  },
+  eccStop: {
+    position: 'absolute',
+    top: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 2,
+    whiteSpace: 'nowrap',
+  },
+  eccStopMark: {
+    width: 2,
+    height: 7,
+    backgroundColor: tokens.ink,
+  },
+  eccStopLabel: {
+    color: tokens.ink,
+    fontSize: '0.8125rem',
+    fontWeight: 700,
+    lineHeight: 1.2,
+  },
+  eccStopRecovery: {
+    color: tokens.inkMuted,
+    fontSize: '0.75rem',
+    lineHeight: 1.2,
+    whiteSpace: 'nowrap',
+  },
+  eccPreviewFallback: {
+    fontSize: '0.75rem',
+    color: tokens.danger,
+    textAlign: 'center',
+    lineHeight: 1.3,
+    paddingInline: 4,
   },
   pixelGrid: {
     display: 'grid',
@@ -118,13 +219,6 @@ const styles = stylex.create({
     borderRadius: 6,
     overflow: 'hidden',
     padding: 4,
-  },
-  eccPreviewFallback: {
-    fontSize: '0.75rem',
-    color: tokens.danger,
-    textAlign: 'center',
-    lineHeight: 1.3,
-    paddingInline: 4,
   },
   eccLabel: {
     fontSize: '0.9375rem',
@@ -376,7 +470,12 @@ export default function PatternSettings({
   closeButtonRef: RefObject<HTMLButtonElement | null>
   isDialog: boolean
 }) {
+  const eccId = useId()
   const ecc = (settings.ecc ?? 'M') as 'L' | 'M' | 'Q' | 'H'
+  const selectedEccIndex = ECC_OPTIONS.findIndex((option) => option.value === ecc)
+  const eccIndex = selectedEccIndex >= 0 ? selectedEccIndex : 1
+  const selectedEcc = ECC_OPTIONS[eccIndex] ?? ECC_OPTIONS[1]
+  const eccProgress = (eccIndex / (ECC_OPTIONS.length - 1)) * 100
   const pixelStyle = (settings.pixelStyle ?? 'dot') as 'square' | 'rounded' | 'dot'
   const committed: QrPalette = settings.colors ?? DEFAULT_PALETTE
   // Transient local UI state (the MarkerDialog precedent): uncommitted colors and which
@@ -493,35 +592,51 @@ export default function PatternSettings({
         )}
       </div>
       <fieldset {...stylex.props(styles.eccFieldset)}>
-        <legend {...stylex.props(styles.eccLegend)}>Error correction</legend>
-        <div {...stylex.props(styles.eccGrid)} role="radiogroup" aria-label="Error correction level">
-          {ECC_OPTIONS.map((opt) => {
-            const selected = ecc === opt.value
-            return (
-              <label
-                key={opt.value}
-                {...stylex.props(styles.eccCard, selected ? styles.eccCardSelected : null)}
-                aria-selected={selected}
-              >
-                <input
-                  type="radio"
-                  name="ecc"
-                  value={opt.value}
-                  checked={selected}
-                  onChange={() => onSettings({ ecc: opt.value })}
-                  {...stylex.props(styles.eccRadio)}
-                  aria-label={`${opt.value} ${opt.hint} ${opt.recovery}`}
-                />
-                <span {...stylex.props(styles.eccPreviewBox)}>
-                  <MiniPixelQrPreview content="" ecc={opt.value} pixelStyle="rounded" allowEmpty />
-                </span>
-                <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
-                <span {...stylex.props(styles.eccRecovery)}>
-                  {opt.hint} {opt.recovery}
-                </span>
-              </label>
-            )
-          })}
+        <legend id={`${eccId}-legend`} {...stylex.props(styles.eccLegend)}>
+          Error correction
+        </legend>
+        <div {...stylex.props(styles.eccSlider)}>
+          <div
+            aria-hidden="true"
+            {...stylex.props(styles.eccRamp)}
+            style={{
+              backgroundImage: `linear-gradient(to right, ${tokens.accentSliderFill} 0%, ${tokens.accentSliderFill} ${eccProgress}%, ${tokens.paper} ${eccProgress}%, ${tokens.paper} 100%)`,
+            }}
+          />
+          <input
+            type="range"
+            name="ecc"
+            min={0}
+            max={ECC_OPTIONS.length - 1}
+            step={1}
+            value={eccIndex}
+            aria-labelledby={`${eccId}-legend`}
+            aria-valuetext={`${selectedEcc.value}, ${selectedEcc.hint}`}
+            onChange={(event) => {
+              const next = ECC_OPTIONS[Number(event.currentTarget.value)]
+              if (next && next.value !== ecc) onSettings({ ecc: next.value })
+            }}
+            {...stylex.props(styles.eccInput)}
+          />
+        </div>
+        <div aria-hidden="true" {...stylex.props(styles.eccStops)}>
+          {ECC_OPTIONS.map((option, index) => (
+            <div
+              key={option.value}
+              {...stylex.props(styles.eccStop)}
+              style={{
+                left: `${(index / (ECC_OPTIONS.length - 1)) * 100}%`,
+                transform:
+                  index === 0 ? 'none' : index === ECC_OPTIONS.length - 1 ? 'translateX(-100%)' : 'translateX(-50%)',
+                alignItems: index === 0 ? 'flex-start' : index === ECC_OPTIONS.length - 1 ? 'flex-end' : 'center',
+                textAlign: index === 0 ? 'start' : index === ECC_OPTIONS.length - 1 ? 'end' : 'center',
+              }}
+            >
+              <span {...stylex.props(styles.eccStopMark)} />
+              <span {...stylex.props(styles.eccStopLabel)}>{option.label}</span>
+              <span {...stylex.props(styles.eccStopRecovery)}>{option.recovery}</span>
+            </div>
+          ))}
         </div>
       </fieldset>
 
@@ -546,7 +661,7 @@ export default function PatternSettings({
                   aria-label={`${opt.value} ${opt.hint}`}
                 />
                 <span {...stylex.props(styles.eccPreviewBox)}>
-                  <MiniPixelQrPreview content="" ecc={ecc} pixelStyle={opt.value} allowEmpty />
+                  <MiniPixelQrPreview content="" ecc="L" pixelStyle={opt.value} allowEmpty />
                 </span>
                 <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
                 <span {...stylex.props(styles.eccRecovery)}>{opt.hint}</span>

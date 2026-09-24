@@ -31,7 +31,7 @@ No credentials or accounts are needed. QR text is never fetched as a URL. Upload
 
 ## Editing
 
-The error-correction and pixel-style cards preview QR styling encoded from an empty text value, so the options remain visible and comparable before content is entered.
+Error correction uses a four-stop slider for L, M, Q, and H, with approximate recovery percentages shown at each stop. Pixel-style cards preview QR styling encoded from an empty text value, so the options remain visible and comparable before content is entered.
 
 The editor is a single reactive workspace. Choose **URL**, **Text**, **Phone**, **WiFi**, **SMS**, **Email**, or **QRCode** in the header. URL, Text, and Phone use a single input; WiFi, SMS, Email, and QRCode open a native dialog. Valid entries update the preview after a short debounce, and form submission commits immediately. WiFi produces a `WIFI:` payload, SMS a `SMSTO:` payload, Email a `mailto:` URI, and Phone a `tel:` URI. QRCode accepts a PNG, decodes its text locally, and uses that text to generate the styled preview. A valid QR upload closes the dialog; an invalid upload leaves it open with an error. Assembly remains the export action.
 
