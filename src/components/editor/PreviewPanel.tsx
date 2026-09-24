@@ -1,12 +1,22 @@
 'use client'
 import dynamic from 'next/dynamic'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { toast } from 'react-toastify'
 import type { Result } from '@/lib/editor/state'
 import type { Placement, Settings } from '@/lib/editor/schema'
 import { canonicalizeRotation } from '@/core/rotate'
+import {
+  beginPlacementGesture,
+  canonicalGesturePlacement,
+  placementFrameTransform,
+  placementAtPointer,
+  placementTransform,
+  rebasePlacementGesture,
+  samePlacement,
+} from '@/lib/editor/placement-gesture'
+import type { PlacementGesture, PlacementGestureKind } from '@/lib/editor/placement-gesture'
 import { fillMaskImageData } from '@/lib/editor/mask-fill'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
@@ -169,6 +179,7 @@ const styles = stylex.create({
     borderTopColor: tokens.ink,
     '@media (max-width: 1000px)': { flexWrap: 'wrap' },
   },
+  sizeReadout: { display: 'block', marginTop: 4, fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums' },
   nudges: { display: 'flex', gap: 8 },
   nudge: { minWidth: 42, minHeight: 42, paddingBlock: 4, paddingInline: 8 },
   fillToolbar: {
@@ -331,24 +342,62 @@ function PosterCanvas({
   onGestureStart: () => void
 }) {
   const scroll = useRef<HTMLDivElement>(null)
+  const sizeFeedback = useRef<HTMLOutputElement | null>(null)
   const [viewport, setViewport] = useState(800)
   const [hoverMarker, setHoverMarker] = useState<string | null>(null)
-  const gesture = useRef<{
-    kind: 'move' | 'resize' | 'rotate'
-    pointer: number
-    startX: number
-    startY: number
-    box: Placement
-    centerX: number
-    centerY: number
-  } | null>(null)
+  const gesture = useRef<PlacementGesture | null>(null)
   const animation = useRef<number | null>(null)
-  useEffect(
-    () => () => {
-      if (animation.current !== null) cancelAnimationFrame(animation.current)
+  const settling = useRef(false)
+  const committedPlacement = useRef(placement)
+  committedPlacement.current = placement
+  const cancelGesture = useCallback(
+    (pointer?: number) => {
+      const active = gesture.current
+      if (pointer !== undefined && active?.pointer !== pointer) return
+      if (!active && !settling.current) return
+      gesture.current = null
+      settling.current = false
+      if (animation.current !== null) {
+        cancelAnimationFrame(animation.current)
+        animation.current = null
+      }
+      const svg = scroll.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
+      if (active && svg?.hasPointerCapture(active.pointer)) svg.releasePointerCapture(active.pointer)
+      const root = scroll.current?.querySelector<SVGGElement>('[data-gesture-target]')
+      if (root) root.setAttribute('transform', placementFrameTransform(committedPlacement.current))
+      if (sizeFeedback.current)
+        sizeFeedback.current.textContent = `QR size ${committedPlacement.current.size} px · ${committedPlacement.current.size / modules} px/module`
     },
-    [],
+    [modules],
   )
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || (!gesture.current && !settling.current)) return
+      event.preventDefault()
+      cancelGesture()
+    }
+    const onBlur = () => cancelGesture()
+    window.addEventListener('keydown', onKeyDown, true)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('blur', onBlur)
+      cancelGesture()
+    }
+  }, [cancelGesture])
+  const interactionSource = useRef({ poster, qr, width, height, modules, placement })
+  useEffect(() => {
+    const previous = interactionSource.current
+    const changed =
+      previous.poster !== poster ||
+      previous.qr !== qr ||
+      previous.width !== width ||
+      previous.height !== height ||
+      previous.modules !== modules ||
+      !samePlacement(previous.placement, placement)
+    if (changed && (gesture.current || settling.current)) cancelGesture()
+    interactionSource.current = { poster, qr, width, height, modules, placement }
+  }, [poster, qr, width, height, modules, placement, cancelGesture])
   const fit = Math.min(viewport / width, 640 / height, 1)
   useEffect(() => {
     const observer = new ResizeObserver((entries) => setViewport(entries[0]!.contentRect.width))
@@ -377,58 +426,32 @@ function PosterCanvas({
     const matrix = svg.getScreenCTM()?.inverse()
     return matrix ? point.matrixTransform(matrix) : { x: 0, y: 0 }
   }
-  const begin = (kind: 'move' | 'resize' | 'rotate', event: React.PointerEvent<SVGElement>) => {
-    if (fillActive) return
+  const begin = (kind: PlacementGestureKind, event: React.PointerEvent<SVGElement>) => {
+    if (fillActive || settling.current) return
     onGestureStart()
     event.preventDefault()
     const svg = scroll.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
     svg?.setPointerCapture(event.pointerId)
     const point = localPoint(event, svg ?? event.currentTarget.ownerSVGElement)
-    gesture.current = {
-      kind,
-      pointer: event.pointerId,
-      startX: point.x,
-      startY: point.y,
-      box: placement,
-      centerX: placement.x + placement.size / 2,
-      centerY: placement.y + placement.size / 2,
-    }
+    gesture.current = beginPlacementGesture(kind, event.pointerId, point, placement, event.altKey)
   }
   const move = (event: React.PointerEvent<SVGSVGElement>) => {
     const active = gesture.current
     if (!active || active.pointer !== event.pointerId) return
-    const point = localPoint(event, event.currentTarget),
-      dx = point.x - active.startX,
-      dy = point.y - active.startY
-    let next = active.box
-    if (active.kind === 'move')
-      next = { ...active.box, x: Math.round(active.box.x + dx), y: Math.round(active.box.y + dy) }
-    if (active.kind === 'resize') {
-      const size = Math.max(modules * 4, Math.round((active.box.size + dx + dy) / 2 / modules) * modules)
-      next = { ...active.box, size, x: Math.round(active.centerX - size / 2), y: Math.round(active.centerY - size / 2) }
-    }
-    if (active.kind === 'rotate') {
-      const before = Math.atan2(active.startY - active.centerY, active.startX - active.centerX)
-      const after = Math.atan2(point.y - active.centerY, point.x - active.centerX)
-      next = { ...active.box, rotation: canonicalizeRotation(active.box.rotation + ((after - before) * 180) / Math.PI) }
-    }
-    // Transient scene transform stays local until pointer-up.
-    // Keep the latest preview transform for the commit handler, without store writes.
-    ;(active as typeof active & { latest?: Placement }).latest = next
+    const point = localPoint(event, event.currentTarget)
+    if (active.kind === 'resize' && active.centerMode !== event.altKey)
+      rebasePlacementGesture(active, point, active.latest, event.altKey)
+    const next = placementAtPointer(active, point, modules, event.altKey)
+    active.latest = next
     if (animation.current === null)
       animation.current = requestAnimationFrame(() => {
         animation.current = null
         const latest = gesture.current
-        const box = (latest as (typeof latest & { latest?: Placement }) | null)?.latest
         const root = scroll.current?.querySelector<SVGGElement>('[data-gesture-target]')
-        if (!latest || !box || !root) return
-        const factor = box.size / latest.box.size
-        const cx = latest.box.x + latest.box.size / 2,
-          cy = latest.box.y + latest.box.size / 2
-        root.setAttribute(
-          'transform',
-          `translate(${box.x + box.size / 2} ${box.y + box.size / 2}) rotate(${box.rotation}) scale(${factor}) translate(${-cx} ${-cy})`,
-        )
+        if (!latest || !root) return
+        root.setAttribute('transform', placementTransform(latest.origin, latest.latest))
+        if (sizeFeedback.current)
+          sizeFeedback.current.textContent = `QR size ${latest.latest.size.toFixed(1)} px · ${(latest.latest.size / modules).toFixed(2)} px/module`
       })
   }
   const end = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -438,26 +461,67 @@ function PosterCanvas({
       cancelAnimationFrame(animation.current)
       animation.current = null
     }
+    const root = event.currentTarget.querySelector<SVGGElement>('[data-gesture-target]')
+    if (!root) {
+      cancelGesture(event.pointerId)
+      return
+    }
+    const point = localPoint(event, event.currentTarget)
+    if (active.kind === 'resize' && active.centerMode !== event.altKey)
+      rebasePlacementGesture(active, point, active.latest, event.altKey)
+    active.latest = placementAtPointer(active, point, modules, event.altKey)
+    root.setAttribute('transform', placementTransform(active.origin, active.latest))
+    const next = canonicalGesturePlacement(active, active.latest, modules)
+    gesture.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId)
-    gesture.current = null
-    onChange((active as typeof active & { latest?: Placement }).latest ?? active.box)
-  }
-  const cancel = (event: React.PointerEvent<SVGSVGElement>) => {
-    const active = gesture.current
-    if (!active || active.pointer !== event.pointerId) return
-    if (animation.current !== null) {
-      cancelAnimationFrame(animation.current)
-      animation.current = null
+    if (sizeFeedback.current)
+      sizeFeedback.current.textContent = `QR size ${next.size} px · ${next.size / modules} px/module`
+    if (samePlacement(next, active.origin)) {
+      root.setAttribute('transform', placementFrameTransform(active.origin))
+      return
     }
-    gesture.current = null
-    event.currentTarget.querySelector('[data-gesture-target]')?.removeAttribute('transform')
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const duration = reduceMotion ? 0 : 110
+    if (!duration) {
+      root.setAttribute('transform', placementTransform(active.origin, next))
+      onChange(next)
+      return
+    }
+
+    settling.current = true
+    const from = active.latest
+    const rotationDelta = ((next.rotation - from.rotation + 540) % 360) - 180
+    const start = performance.now()
+    const settle = (now: number) => {
+      const progress = Math.min(1, (now - start) / duration)
+      const eased = progress * progress * (3 - 2 * progress)
+      const pose: Placement = {
+        x: from.x + (next.x - from.x) * eased,
+        y: from.y + (next.y - from.y) * eased,
+        size: from.size + (next.size - from.size) * eased,
+        rotation: from.rotation + rotationDelta * eased,
+      }
+      root.setAttribute('transform', placementTransform(active.origin, pose))
+      if (progress < 1) {
+        animation.current = requestAnimationFrame(settle)
+      } else {
+        animation.current = null
+        settling.current = false
+        root.setAttribute('transform', placementTransform(active.origin, next))
+        onChange(next)
+      }
+    }
+    animation.current = requestAnimationFrame(settle)
   }
   const nudge = (dx: number, dy: number) => {
+    if (gesture.current || settling.current) cancelGesture()
     onGestureStart()
     onChange({ ...placement, x: placement.x + dx, y: placement.y + dy })
   }
-  const frame = (x: number, y: number, size: number) => `rotate(${placement.rotation} ${x + size / 2} ${y + size / 2})`
+  const frame = (x: number, y: number, size: number) =>
+    placementFrameTransform({ x, y, size, rotation: placement.rotation })
   return (
     <div {...stylex.props(styles.area)}>
       {toolbar && <div {...stylex.props(styles.tools)}>{toolbar}</div>}
@@ -466,8 +530,9 @@ function PosterCanvas({
         ref={scroll}
         tabIndex={0}
         role="group"
-        aria-label="Poster. Arrow keys move the QR; Shift moves ten pixels. Use the square and rotation handles to resize or rotate."
+        aria-label="Poster. Arrow keys move the QR; Shift moves ten pixels. Use the square and rotation handles to resize or rotate. Hold Alt while resizing to scale from the centre. Press Escape to cancel a gesture."
         onKeyDown={(event) => {
+          if (gesture.current || settling.current) return
           const delta = event.shiftKey ? 10 : 1
           const steps: Record<string, [number, number]> = {
             ArrowLeft: [-delta, 0],
@@ -509,10 +574,6 @@ function PosterCanvas({
               rotation: canonicalizeRotation(placement.rotation + (event.key === ']' ? 1 : -1)),
             })
           }
-          if (event.key === 'Escape' && gesture.current) {
-            event.currentTarget.querySelector('[data-gesture-target]')?.removeAttribute('transform')
-            gesture.current = null
-          }
         }}
       >
         <div {...stylex.props(styles.stageFrame)}>
@@ -524,7 +585,8 @@ function PosterCanvas({
             aria-label="Poster editing preview"
             onPointerMove={move}
             onPointerUp={end}
-            onPointerCancel={cancel}
+            onPointerCancel={(event) => cancelGesture(event.pointerId)}
+            onLostPointerCapture={(event) => cancelGesture(event.pointerId)}
             onClick={(event) => {
               if (!fillActive || !fillReady || (event.target as Element).closest('[data-gesture-target]')) return
               const p = localPoint(event, event.currentTarget)
@@ -631,11 +693,16 @@ function PosterCanvas({
         </div>
       </div>
       <div {...stylex.props(styles.footer)}>
-        <span>
-          {fillActive
-            ? 'Click the poster outside the QR to fill an enclosed area.'
-            : 'Assemble to check placement and render the final poster.'}
-        </span>
+        <div>
+          <span>
+            {fillActive
+              ? 'Click the poster outside the QR to fill an enclosed area.'
+              : 'Assemble to check placement and render the final poster.'}
+          </span>
+          <output ref={sizeFeedback} aria-live="off" {...stylex.props(styles.sizeReadout)}>
+            QR size {placement.size} px · {placement.size / modules} px/module
+          </output>
+        </div>
         <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
           <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>
             ←
