@@ -35,6 +35,7 @@ export interface PreparedPayload {
   qr: Blob
   qrMetadata: { totalModules: number; version: number }
   placement: Placement
+  bestPlacement: Placement
   validation: string | null
 }
 

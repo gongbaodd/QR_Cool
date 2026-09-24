@@ -93,6 +93,18 @@ export function canonicalPlacement(box: PlacementInput, totalModules: number): P
     rotation: canonicalizeRotation(box.rotation),
   }
 }
+
+export function recenterPlacement(box: PlacementInput, previousModules: number, nextModules: number): Placement {
+  const size = Math.max(4, Math.round(box.size / previousModules)) * nextModules
+  const offset = (box.size - size) / 2
+  return {
+    x: Math.round(box.x + offset),
+    y: Math.round(box.y + offset),
+    size,
+    rotation: canonicalizeRotation(box.rotation),
+  }
+}
+
 export function fitsMask(mask: Uint8Array, width: number, height: number, box: PlacementInput): boolean {
   if (
     ![box.x, box.y, box.size].every(Number.isInteger) ||

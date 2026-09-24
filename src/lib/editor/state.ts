@@ -1,4 +1,5 @@
 import type { Placement, Settings } from './schema'
+import { recenterPlacement } from './schema'
 import { DEFAULT_PALETTE } from '@/core/palette'
 export interface Prepared {
   apiVersion: 1
@@ -11,6 +12,7 @@ export interface Prepared {
   qr: Blob
   qrMetadata: { totalModules: number; version: number }
   placement: Placement
+  bestPlacement: Placement
   validation: string | null
 }
 export interface Result {
@@ -100,10 +102,7 @@ export function reducer(state: State, action: Action): State {
         ? {
             ...state,
             prepared: action.data,
-            placement:
-              !state.placement || state.prepared?.qrMetadata.totalModules !== action.data.qrMetadata.totalModules
-                ? action.data.placement
-                : state.placement,
+            placement: settlePreparedPlacement(state, action.data),
             busy: state.busy === 'prepare' ? null : state.busy,
             ...(state.error && state.field !== 'placement' ? {} : { error: null, field: null }),
           }
@@ -121,4 +120,13 @@ export function reducer(state: State, action: Action): State {
     case 'view':
       return { ...state, showingResult: action.result }
   }
+}
+
+function settlePreparedPlacement(state: State, prepared: Prepared): Placement {
+  if (!state.placement) return prepared.placement
+  const previousModules = state.prepared?.qrMetadata.totalModules
+  const nextModules = prepared.qrMetadata.totalModules
+  if (!previousModules || previousModules === nextModules) return state.placement
+
+  return recenterPlacement(state.placement, previousModules, nextModules)
 }

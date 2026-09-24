@@ -34,6 +34,7 @@ import type { Placement, Settings } from '@/lib/editor/schema'
 interface EngineSourcedLayout {
   layout: ResolvedLayout
   validation: string | null
+  bestPlacement: Placement
 }
 
 /** Bounded source cache: at most this many posters stay alive per session. */
@@ -88,7 +89,7 @@ export class EditorEngine {
     try {
       const resolved = await this.resolveLayout(input)
       const palette = { ...engineDefaults.colors, ...input.settings?.colors }
-      const value = await toPreparedPayload(this.imaging, resolved.layout, null, palette)
+      const value = await toPreparedPayload(this.imaging, resolved.layout, null, palette, resolved.bestPlacement)
       return this.settle(revision, { ok: true, value }, 'prepare')
     } catch (error) {
       return this.settle(revision, { ok: false, error: toEngineError(error) }, 'prepare')

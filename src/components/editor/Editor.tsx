@@ -367,6 +367,7 @@ function EditorWorkspace() {
           regionOnly={!contentSchema.safeParse(editorDocument.content).success}
           placementInvalid={editorDocument.field === 'placement'}
           placement={editorDocument.placement}
+          bestPlacement={editorDocument.prepared?.bestPlacement ?? null}
           modules={editorDocument.prepared?.qrMetadata.totalModules ?? 0}
           invalid={!!editorDocument.error}
           busy={busy}

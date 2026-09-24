@@ -52,6 +52,7 @@ describe('editor store', () => {
       qr: new Blob(),
       qrMetadata: { totalModules: 21, version: 1 },
       placement: { x: 0, y: 0, size: 84, rotation: 0 },
+      bestPlacement: { x: 0, y: 0, size: 84, rotation: 0 },
       validation: null,
     }
     const before = store.getState().document

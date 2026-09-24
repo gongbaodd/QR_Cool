@@ -30,7 +30,7 @@ import type { Imaging } from '@/core/imaging/types'
 import type { LoadedPng } from '@/core/image'
 import type { QrMetadata, RegionMask, ResolvedLayout, AssembleReport } from '@/core/types'
 import { parsePngHeader } from '@/lib/editor/png-guard'
-import { contentSchema } from '@/lib/editor/schema'
+import { contentSchema, recenterPlacement } from '@/lib/editor/schema'
 import type { Placement, Settings } from '@/lib/editor/schema'
 import type { EngineInput, PreparedPayload, AssemblePayload } from './types'
 
@@ -203,16 +203,14 @@ export function applyPlacement({
   input: Pick<EngineInput, 'placement' | 'previousTotalModules'>
   settings: Settings
   unchecked?: boolean
-}): { layout: ResolvedLayout; validation: string | null } {
+}): { layout: ResolvedLayout; validation: string | null; bestPlacement: Placement } {
   const { regionMask } = source
   const qrMetadata = qr.qrMetadata
+  const initialPlacement = suggestPlacement(regionMask, qrMetadata.totalModules)
   const previous = input.placement
   let requested = previous
   if (previous && input.previousTotalModules && input.previousTotalModules !== qrMetadata.totalModules) {
-    const size = Math.max(4, Math.round(previous.size / input.previousTotalModules)) * qrMetadata.totalModules
-    const offset = (previous.size - size) / 2
-    const origin = (value: number) => Math.round(value + offset)
-    requested = { ...previous, x: origin(previous.x), y: origin(previous.y), size }
+    requested = recenterPlacement(previous, input.previousTotalModules, qrMetadata.totalModules)
   }
   let validation: string | null = null
   let placement
@@ -232,15 +230,9 @@ export function applyPlacement({
       }
     }
   } else if (unchecked) {
-    const bounds = regionMask.bounds
-    const pitch = Math.max(4, Math.floor(Math.min(bounds.width, bounds.height) / qrMetadata.totalModules))
-    const size = pitch * qrMetadata.totalModules
     placement = {
-      x: Math.round(bounds.x + (bounds.width - size) / 2),
-      y: Math.round(bounds.y + (bounds.height - size) / 2),
-      size,
-      rotation: 0,
-      modulePixels: pitch,
+      ...initialPlacement,
+      modulePixels: initialPlacement.size / qrMetadata.totalModules,
       totalModules: qrMetadata.totalModules,
       mode: 'auto' as const,
       artPaddingModules: 0,
@@ -266,6 +258,7 @@ export function applyPlacement({
     // Auto-place searches only upright placements.
     placement.rotation = 0
   }
+  const bestPlacement = findBestInsetPlacement(regionMask, qrMetadata.totalModules, placement)
   const normalizedQr = validation ? qr.qrSource.file : undefined
   return {
     layout: {
@@ -281,6 +274,35 @@ export function applyPlacement({
       ...(normalizedQr !== undefined ? { normalizedQr } : {}),
     } as ResolvedLayout,
     validation,
+    bestPlacement,
+  }
+}
+
+function findBestInsetPlacement(regionMask: RegionMask, totalModules: number, fallback: Placement): Placement {
+  try {
+    const placement = placeQr(regionMask, totalModules)
+    return { x: placement.x, y: placement.y, size: placement.size, rotation: placement.rotation }
+  } catch (error) {
+    if (error instanceof QrPosterError) {
+      return {
+        ...fallback,
+        x: Math.round(regionMask.centroid.x - fallback.size / 2),
+        y: Math.round(regionMask.centroid.y - fallback.size / 2),
+      }
+    }
+    throw error
+  }
+}
+
+function suggestPlacement(regionMask: RegionMask, totalModules: number): Placement {
+  const bounds = regionMask.bounds
+  const pitch = Math.max(4, Math.floor(Math.min(bounds.width, bounds.height) / totalModules))
+  const size = pitch * totalModules
+  return {
+    x: Math.round(bounds.x + (bounds.width - size) / 2),
+    y: Math.round(bounds.y + (bounds.height - size) / 2),
+    size,
+    rotation: 0,
   }
 }
 
@@ -299,6 +321,7 @@ export async function toPreparedPayload(
   layout: ResolvedLayout,
   validation: string | null,
   palette: QrPalette = DEFAULT_PALETTE,
+  bestPlacement: Placement = layout.placement,
 ): Promise<PreparedPayload> {
   const { poster, regionMask, qrMetadata, placement } = layout
   const overlay = new Uint8Array(poster.width * poster.height * 4)
@@ -312,6 +335,7 @@ export async function toPreparedPayload(
     qr: bytesToBlob('qr.png', await transparentQrBackground(layout.qrSource.file, palette)),
     qrMetadata: { totalModules: qrMetadata.totalModules, version: qrMetadata.version },
     placement: { x: placement.x, y: placement.y, size: placement.size, rotation: placement.rotation },
+    bestPlacement,
     validation,
   }
 }

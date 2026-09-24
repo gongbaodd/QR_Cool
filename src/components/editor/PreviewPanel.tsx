@@ -182,6 +182,7 @@ const styles = stylex.create({
   sizeReadout: { display: 'block', marginTop: 4, fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums' },
   nudges: { display: 'flex', gap: 8 },
   nudge: { minWidth: 42, minHeight: 42, paddingBlock: 4, paddingInline: 8 },
+  bestPosition: { minHeight: 42, paddingBlock: 4, paddingInline: 10 },
   fillToolbar: {
     display: 'flex',
     alignItems: 'center',
@@ -315,6 +316,7 @@ function PosterCanvas({
   width,
   height,
   placement,
+  bestPlacement,
   modules,
   onChange,
   onMarkerClick,
@@ -331,6 +333,7 @@ function PosterCanvas({
   width: number
   height: number
   placement: Placement
+  bestPlacement: Placement
   modules: number
   onChange: (box: Placement) => void
   invalid: boolean
@@ -519,6 +522,17 @@ function PosterCanvas({
     if (gesture.current || settling.current) cancelGesture()
     onGestureStart()
     onChange({ ...placement, x: placement.x + dx, y: placement.y + dy })
+  }
+  const bestPosition: Placement = {
+    ...placement,
+    x: Math.round(bestPlacement.x + (bestPlacement.size - placement.size) / 2),
+    y: Math.round(bestPlacement.y + (bestPlacement.size - placement.size) / 2),
+  }
+  const moveToBestPosition = () => {
+    if (gesture.current || settling.current) cancelGesture()
+    if (samePlacement(bestPosition, placement)) return
+    onGestureStart()
+    onChange(bestPosition)
   }
   const frame = (x: number, y: number, size: number) =>
     placementFrameTransform({ x, y, size, rotation: placement.rotation })
@@ -724,6 +738,9 @@ function PosterCanvas({
           >
             →
           </button>
+          <button {...stylex.props(ui.button, styles.bestPosition)} type="button" onClick={moveToBestPosition}>
+            Best position
+          </button>
         </div>
       </div>
     </div>
@@ -741,6 +758,7 @@ export default function PreviewPanel({
   regionOnly,
   placementInvalid,
   placement,
+  bestPlacement,
   modules,
   invalid,
   busy,
@@ -772,6 +790,7 @@ export default function PreviewPanel({
   regionOnly: boolean
   placementInvalid: boolean
   placement: Placement | null
+  bestPlacement: Placement | null
   modules: number
   invalid: boolean
   busy: boolean
@@ -1065,6 +1084,7 @@ export default function PreviewPanel({
             width={dimensions!.width}
             height={dimensions!.height}
             placement={placement!}
+            bestPlacement={bestPlacement ?? placement!}
             modules={modules}
             onChange={onMove}
             onGestureStart={onPlacementGestureStart}
