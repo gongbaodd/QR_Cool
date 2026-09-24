@@ -1,7 +1,7 @@
 'use client'
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { toast } from 'react-toastify'
 import type { Result } from '@/lib/editor/state'
@@ -27,8 +27,6 @@ const MarkerDialog = dynamic(() => import('./MarkerDialog'))
 
 const styles = stylex.create({
   panel: { minWidth: 0, paddingBlock: 24, paddingInline: 24 },
-  heading: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 },
-  actions: { display: 'flex', gap: 8, flexWrap: 'wrap', '@media (min-width: 56.3125em)': { display: 'none' } },
   empty: {
     minHeight: 560,
     display: 'grid',
@@ -789,12 +787,6 @@ export default function PreviewPanel({
   onMaskFillCommit,
   onReturnToEditing,
   onExportRaster,
-  onMaskOpen,
-  onPatternSettingsOpen,
-  maskOpen,
-  patternSettingsOpen,
-  maskTriggerRef,
-  patternSettingsTriggerRef,
   pattern,
   onAssemble,
   assembleBusy,
@@ -822,12 +814,6 @@ export default function PreviewPanel({
   onMaskFillCommit: (mask: Blob) => void
   onReturnToEditing: () => void
   onExportRaster: (targetPitch: number) => Promise<RasterExportPayload>
-  onMaskOpen: () => void
-  onPatternSettingsOpen: () => void
-  maskOpen: boolean
-  patternSettingsOpen: boolean
-  maskTriggerRef: RefObject<HTMLButtonElement | null>
-  patternSettingsTriggerRef: RefObject<HTMLButtonElement | null>
   pattern: {
     settings: Settings
     onSettings: (patch: Partial<Settings>) => void
@@ -1070,30 +1056,6 @@ export default function PreviewPanel({
   ) : null
   return (
     <section {...stylex.props(styles.panel)} aria-label="Poster preview" aria-busy={busy}>
-      <div {...stylex.props(styles.heading)}>
-        <div {...stylex.props(styles.actions)}>
-          <button
-            ref={maskTriggerRef}
-            {...stylex.props(ui.button, ui.focusVisible)}
-            type="button"
-            aria-controls="mask-panel"
-            aria-expanded={maskOpen}
-            onClick={onMaskOpen}
-          >
-            Mask
-          </button>
-          <button
-            ref={patternSettingsTriggerRef}
-            {...stylex.props(ui.button, ui.focusVisible)}
-            type="button"
-            aria-controls="pattern-settings-panel"
-            aria-expanded={patternSettingsOpen}
-            onClick={onPatternSettingsOpen}
-          >
-            Pattern settings
-          </button>
-        </div>
-      </div>
       {showingResult && result ? (
         <ResultPanel
           key={result.revision}

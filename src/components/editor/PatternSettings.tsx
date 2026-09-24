@@ -37,6 +37,7 @@ const styles = stylex.create({
     boxShadow: tokens.shadowLg,
   },
   panelTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  closeButton: { display: 'grid', placeItems: 'center', minWidth: 44, minHeight: 44, padding: 0 },
   eccFieldset: {
     borderWidth: 0,
     padding: 0,
@@ -590,11 +591,14 @@ export default function PatternSettings({
         {isDialog && (
           <button
             ref={closeButtonRef}
-            {...stylex.props(ui.button, ui.focusVisible, ui.textButton)}
+            aria-label="Close pattern settings"
+            {...stylex.props(ui.button, ui.focusVisible, styles.closeButton)}
             type="button"
             onClick={onClose}
           >
-            Close
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
           </button>
         )}
       </div>

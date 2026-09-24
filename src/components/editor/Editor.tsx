@@ -47,6 +47,34 @@ const styles = stylex.create({
     minWidth: 0,
     marginTop: 48,
   },
+  edgeControl: {
+    position: 'fixed',
+    top: '50%',
+    zIndex: 6,
+    display: 'none',
+    placeItems: 'center',
+    width: 64,
+    height: 64,
+    transform: 'translateY(-50%)',
+    '@media (max-width: 56.25em)': { display: 'grid' },
+  },
+  edgeControlLeft: { left: 'max(0px, env(safe-area-inset-left))' },
+  edgeControlRight: { right: 'max(0px, env(safe-area-inset-right))' },
+  edgeButton: {
+    minWidth: 44,
+    minHeight: 44,
+    maxWidth: 'calc(100svh - 2rem)',
+    whiteSpace: 'normal',
+    textAlign: 'center',
+    transform: 'rotate(90deg)',
+    ':active': { transform: 'translate(2px, 3px) rotate(90deg)' },
+    ':disabled': { transform: 'rotate(90deg)' },
+  },
+  edgeButtonRight: {
+    transform: 'rotate(-90deg)',
+    ':active': { transform: 'translate(2px, 3px) rotate(-90deg)' },
+    ':disabled': { transform: 'rotate(-90deg)' },
+  },
 })
 
 const freshSeed = () => crypto.getRandomValues(new Uint32Array(1))[0]!
@@ -299,7 +327,7 @@ function EditorWorkspace() {
       {toastHost &&
         createPortal(
           <ToastContainer
-            position="top-right"
+            position={patternSettingsOpen ? 'bottom-center' : 'top-right'}
             autoClose={false}
             closeOnClick={false}
             newestOnTop
@@ -312,10 +340,19 @@ function EditorWorkspace() {
               borderRadius: tokens.sketchCard,
               fontFamily: 'inherit',
             }}
-            style={{
-              insetBlockStart: 'max(12px, env(safe-area-inset-top))',
-              insetInlineEnd: 'max(12px, env(safe-area-inset-right))',
-            }}
+            style={
+              patternSettingsOpen
+                ? {
+                    insetBlockStart: 'auto',
+                    insetBlockEnd: 'max(12px, env(safe-area-inset-bottom))',
+                    insetInlineStart: '50%',
+                    insetInlineEnd: 'auto',
+                  }
+                : {
+                    insetBlockStart: 'max(12px, env(safe-area-inset-top))',
+                    insetInlineEnd: 'max(12px, env(safe-area-inset-right))',
+                  }
+            }
           />,
           toastHost,
         )}
@@ -334,6 +371,42 @@ function EditorWorkspace() {
         onContentInvalid={cancelDraftCommit}
         inputRef={inputRef}
       />
+      {!editorDocument.showingResult && (
+        <>
+          <div {...stylex.props(styles.edgeControl, styles.edgeControlLeft)}>
+            <button
+              ref={maskTriggerRef}
+              type="button"
+              aria-label="Mask selection"
+              aria-controls="mask-panel"
+              aria-expanded={maskOpen}
+              {...stylex.props(ui.button, ui.focusVisible, styles.edgeButton)}
+              onClick={() => {
+                actions.setPatternSettingsOpen(false)
+                actions.setMaskOpen(true)
+              }}
+            >
+              Mask selection
+            </button>
+          </div>
+          <div {...stylex.props(styles.edgeControl, styles.edgeControlRight)}>
+            <button
+              ref={patternSettingsTriggerRef}
+              type="button"
+              aria-label="Pattern settings"
+              aria-controls="pattern-settings-panel"
+              aria-expanded={patternSettingsOpen}
+              {...stylex.props(ui.button, ui.focusVisible, styles.edgeButton, styles.edgeButtonRight)}
+              onClick={() => {
+                actions.setMaskOpen(false)
+                actions.setPatternSettingsOpen(true)
+              }}
+            >
+              Pattern settings
+            </button>
+          </div>
+        </>
+      )}
       <div {...stylex.props(styles.shell)}>
         <div {...stylex.props(styles.side)}>
           <ResponsiveEditorPanel
@@ -382,12 +455,6 @@ function EditorWorkspace() {
           onMaskFillCommit={(mask) => actions.replaceMask(new File([mask], TEXT_MASK_FILENAME, { type: 'image/png' }))}
           onReturnToEditing={() => actions.setResultView(false)}
           onExportRaster={exportRaster}
-          onMaskOpen={() => actions.setMaskOpen(true)}
-          onPatternSettingsOpen={() => actions.setPatternSettingsOpen(true)}
-          maskOpen={maskOpen}
-          patternSettingsOpen={patternSettingsOpen}
-          maskTriggerRef={maskTriggerRef}
-          patternSettingsTriggerRef={patternSettingsTriggerRef}
           pattern={{
             settings: editorDocument.settings,
             onSettings: actions.patchSettings,

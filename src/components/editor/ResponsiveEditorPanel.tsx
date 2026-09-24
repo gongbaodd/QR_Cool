@@ -1,19 +1,20 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { motion, useReducedMotion } from 'motion/react'
 import { MOBILE_LAYOUT_QUERY } from '@/lib/editor/responsive'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
-// Keep this query equivalent to the CSS drawer breakpoint below (900px at a 16px default).
+// Keep this query aligned with the CSS mobile-panel breakpoint below (900px at a 16px default).
 export { MOBILE_LAYOUT_QUERY } from '@/lib/editor/responsive'
 const styles = stylex.create({
   dialog: {
     margin: 0,
-    padding: 18,
+    padding: 0,
     minWidth: 0,
     color: tokens.ink,
-    backgroundColor: tokens.paper,
+    backgroundColor: 'transparent',
     border: 'none',
     borderWidth: 0,
     borderStyle: 'none',
@@ -22,28 +23,37 @@ const styles = stylex.create({
       position: 'static',
       width: 'auto',
       height: '100%',
-      overflow: 'auto',
-      padding: 0,
+      overflow: 'visible',
       backgroundColor: 'transparent',
     },
     '@media (max-width: 56.25em)': {
       position: 'fixed',
-      insetBlock: 0,
-      width: 'min(24rem, calc(100dvw - 2rem))',
-      maxWidth: 'calc(100dvw - 2rem)',
-      maxHeight: '100svh',
-      overflowY: 'auto',
-      boxShadow: tokens.shadowLg,
-      transitionProperty: 'transform',
-      transitionDuration: '180ms',
-      transitionTimingFunction: 'ease-out',
+      inset: 0,
+      width: '100vw',
+      height: '100svh',
+      maxWidth: 'none',
+      maxHeight: 'none',
+      overflow: 'hidden',
     },
-    '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0ms' },
     '::backdrop': { backgroundColor: 'rgba(16, 18, 17, 0.45)' },
   },
-  left: { '@media (max-width: 56.25em)': { insetInlineStart: 0, transform: 'translateX(-105%)' } },
-  right: { '@media (max-width: 56.25em)': { insetInlineEnd: 0, transform: 'translateX(105%)' } },
-  openLeft: { '@media (max-width: 56.25em)': { transform: 'translateX(0)' } },
+  surface: {
+    width: '100%',
+    height: '100%',
+    minWidth: 0,
+    boxSizing: 'border-box',
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+    padding:
+      'max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left))',
+    backgroundColor: tokens.paper,
+    '@media (min-width: 56.3125em)': {
+      height: '100%',
+      overflow: 'visible',
+      padding: 0,
+      backgroundColor: 'transparent',
+    },
+  },
   close: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
 })
 
@@ -73,8 +83,14 @@ export default function ResponsiveEditorPanel({
   const dialogRef = useRef<HTMLDialogElement | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const headingRef = useRef<HTMLHeadingElement | null>(null)
+  const previousMobile = useRef<boolean | null>(null)
+  const latestOpen = useRef(open)
+  const focusFrame = useRef<number | null>(null)
   const hasCustomHeader = typeof children === 'function'
-  const [mobile, setMobile] = useState(false)
+  const [mobile, setMobile] = useState<boolean | null>(null)
+  const prefersReducedMotion = useReducedMotion()
+  latestOpen.current = open
+
   useEffect(() => {
     const media = window.matchMedia(MOBILE_LAYOUT_QUERY)
     const update = () => setMobile(media.matches)
@@ -82,73 +98,112 @@ export default function ResponsiveEditorPanel({
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
+
   useEffect(() => {
     const dialog = dialogRef.current
-    if (!dialog) return
+    if (!dialog || mobile === null) return
+
     if (mobile) {
-      if (dialog.open) dialog.close()
-      if (open) {
+      // A non-modal desktop dialog must close before it can become modal.
+      if (previousMobile.current !== true && dialog.open) dialog.close()
+      if (open && !dialog.open) {
         dialog.showModal()
-        requestAnimationFrame(() => {
-          if (hasCustomHeader) closeButtonRef.current?.focus()
-          else headingRef.current?.focus()
+        if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current)
+        focusFrame.current = requestAnimationFrame(() => {
+          focusFrame.current = null
+          if (!latestOpen.current || !window.matchMedia(MOBILE_LAYOUT_QUERY).matches) return
+          requestAnimationFrame(() => {
+            if (!latestOpen.current || !window.matchMedia(MOBILE_LAYOUT_QUERY).matches) return
+            if (hasCustomHeader) closeButtonRef.current?.focus()
+            else headingRef.current?.focus()
+          })
         })
       }
-    } else if (!dialog.open) {
-      dialog.show()
+    } else {
+      if (previousMobile.current === true && dialog.open) dialog.close()
+      if (open) onOpenChange(false)
+      if (!dialog.open) dialog.show()
     }
-  }, [hasCustomHeader, mobile, open])
-  useEffect(() => {
-    if (!mobile) return
-    const dialog = dialogRef.current
-    if (!dialog) return
-    if (open && !dialog.open) dialog.showModal()
-    if (!open && dialog.open) dialog.close()
-  }, [mobile, open])
+    previousMobile.current = mobile
+  }, [hasCustomHeader, mobile, onOpenChange, open])
+
+  useEffect(
+    () => () => {
+      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current)
+    },
+    [],
+  )
+
   function close() {
     onOpenChange(false)
-    requestAnimationFrame(() => triggerRef.current?.focus())
   }
+
+  const hiddenX = side === 'left' ? '-100%' : '100%'
+  const motionTransition = prefersReducedMotion ? { duration: 0 } : { duration: 0.24, ease: 'easeOut' as const }
+
   return (
     <dialog
       ref={dialogRef}
       id={id}
-      {...stylex.props(styles.dialog, side === 'left' ? styles.left : styles.right, open && styles.openLeft)}
+      {...stylex.props(styles.dialog)}
       aria-label={hasCustomHeader ? title : undefined}
       aria-labelledby={hasCustomHeader ? undefined : `${id}-title`}
-      closedby="any"
+      closedby="closerequest"
       onCancel={(event) => {
         event.preventDefault()
         close()
       }}
       onClose={() => {
-        if (mobile && open) onOpenChange(false)
+        if (mobile && latestOpen.current) onOpenChange(false)
+        if (mobile && !latestOpen.current) {
+          requestAnimationFrame(() => {
+            if (latestOpen.current || !window.matchMedia(MOBILE_LAYOUT_QUERY).matches) return
+            const trigger = triggerRef.current
+            if (trigger?.getClientRects().length) trigger.focus()
+          })
+        }
       }}
       onClick={(event) => {
         if (event.target === dialogRef.current) close()
       }}
     >
-      {hasCustomHeader ? (
-        (
-          children as (controls: {
-            close: () => void
-            closeButtonRef: React.RefObject<HTMLButtonElement | null>
-            isDialog: boolean
-          }) => React.ReactNode
-        )({ close, closeButtonRef, isDialog: mobile })
-      ) : (
-        <>
-          <div {...stylex.props(styles.close)}>
-            <h2 id={`${id}-title`} ref={headingRef} tabIndex={-1} {...stylex.props(ui.sectionHeading)}>
-              {title}
-            </h2>
-            <button {...stylex.props(ui.button, ui.focusVisible, ui.textButton)} type="button" onClick={close}>
-              Close
-            </button>
-          </div>
-          {children}
-        </>
-      )}
+      <motion.div
+        {...stylex.props(styles.surface)}
+        initial={false}
+        animate={mobile === true ? (open ? 'open' : 'closed') : 'open'}
+        variants={{
+          open: { x: 0 },
+          closed: { x: hiddenX },
+        }}
+        transition={motionTransition}
+        onAnimationComplete={() => {
+          if (mobile !== true || open) return
+          const dialog = dialogRef.current
+          if (dialog?.open) dialog.close()
+        }}
+      >
+        {hasCustomHeader ? (
+          (
+            children as (controls: {
+              close: () => void
+              closeButtonRef: React.RefObject<HTMLButtonElement | null>
+              isDialog: boolean
+            }) => React.ReactNode
+          )({ close, closeButtonRef, isDialog: mobile === true })
+        ) : (
+          <>
+            <div {...stylex.props(styles.close)}>
+              <h2 id={`${id}-title`} ref={headingRef} tabIndex={-1} {...stylex.props(ui.sectionHeading)}>
+                {title}
+              </h2>
+              <button {...stylex.props(ui.button, ui.focusVisible, ui.textButton)} type="button" onClick={close}>
+                Slide back
+              </button>
+            </div>
+            {children}
+          </>
+        )}
+      </motion.div>
     </dialog>
   )
 }
