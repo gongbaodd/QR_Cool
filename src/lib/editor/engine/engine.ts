@@ -25,7 +25,6 @@ import {
   applyPlacement,
   toPreparedPayload,
   assemblePayload,
-  normalizeQr,
 } from './pipeline'
 import { toEngineError } from './mapping'
 import type { EngineError, EngineInput, EngineOutcome, PreparedPayload, AssemblePayload } from './types'
@@ -65,7 +64,8 @@ export class EditorEngine {
   private imaging: Imaging
   private sources = new Map<string, SourceEntry>()
   private qrBundles = new Map<string, Promise<QrBundle>>()
-  private latestRevision = 0
+  private latestPrepareRevision = 0
+  private latestAssemblyRevision = 0
 
   constructor(imaging: Imaging) {
     // Core modules resolve the backend through the seam singleton; installing it
@@ -78,19 +78,20 @@ export class EditorEngine {
   invalidate(): void {
     this.sources.clear()
     this.qrBundles.clear()
-    this.latestRevision = 0
+    this.latestPrepareRevision = 0
+    this.latestAssemblyRevision = 0
   }
 
   /** Step-2 payload for the current editor state. */
   async prepare(input: EngineInput, revision: number): Promise<EngineOutcome<PreparedPayload>> {
-    if (revision > this.latestRevision) this.latestRevision = revision
+    if (revision > this.latestPrepareRevision) this.latestPrepareRevision = revision
     try {
       const resolved = await this.resolveLayout(input)
       const palette = { ...engineDefaults.colors, ...input.settings?.colors }
-      const value = await toPreparedPayload(this.imaging, resolved.layout, resolved.validation, palette)
-      return this.settle(revision, { ok: true, value })
+      const value = await toPreparedPayload(this.imaging, resolved.layout, null, palette)
+      return this.settle(revision, { ok: true, value }, 'prepare')
     } catch (error) {
-      return this.settle(revision, { ok: false, error: toEngineError(error) })
+      return this.settle(revision, { ok: false, error: toEngineError(error) }, 'prepare')
     }
   }
 
@@ -111,12 +112,12 @@ export class EditorEngine {
     },
     revision: number,
   ): Promise<EngineOutcome<AssemblePayload>> {
-    if (revision > this.latestRevision) this.latestRevision = revision
+    if (revision > this.latestAssemblyRevision) this.latestAssemblyRevision = revision
     try {
       const value = await assemblePayload(this.imaging, input)
-      return this.settle(revision, { ok: true, value })
+      return this.settle(revision, { ok: true, value }, 'assemble')
     } catch (error) {
-      return this.settle(revision, { ok: false, error: toEngineError(error) })
+      return this.settle(revision, { ok: false, error: toEngineError(error) }, 'assemble')
     }
   }
 
@@ -124,8 +125,10 @@ export class EditorEngine {
   private settle<T>(
     revision: number,
     result: { ok: true; value: T } | { ok: false; error: EngineError },
+    mode: 'prepare' | 'assemble',
   ): EngineOutcome<T> {
-    if (revision < this.latestRevision) return { ok: false, stale: true, revision }
+    if (revision < (mode === 'prepare' ? this.latestPrepareRevision : this.latestAssemblyRevision))
+      return { ok: false, stale: true, revision }
     return { ...result, revision }
   }
 
@@ -134,8 +137,7 @@ export class EditorEngine {
     const { source } = await this.cachedSource(input.posterBytes, input.maskBytes)
     const qr = await this.cachedQr(input)
     const settings = { ...engineDefaults, ...input.settings }
-    const applied = applyPlacement({ source, qr, input, settings })
-    if (!applied.validation) applied.layout.normalizedQr = await normalizeQr(qr.qrSource, applied.layout.placement.size)
+    const applied = applyPlacement({ source, qr, input, settings, unchecked: true })
     return applied
   }
 

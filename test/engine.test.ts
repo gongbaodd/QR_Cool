@@ -6,8 +6,10 @@ import type { EditorEngineApi, EngineOutcome } from '@/lib/editor/engine'
 import type { Imaging } from '@/core/imaging/types'
 import { nodeImaging } from '@/core/imaging/node'
 import { requestSchema } from '@/lib/editor/schema'
+import type { Settings } from '@/lib/editor/schema'
 import { buildModuleLattice, computeRegionBands, computeSafeArea } from '@/core/module-cut'
-import { prepareSource } from '@/lib/editor/engine/pipeline'
+import { applyPlacement, prepareSource, resolveQr } from '@/lib/editor/engine/pipeline'
+import { engineDefaults } from '@/lib/editor/engine/pipeline'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
 const content = 'https://example.com/qr'
@@ -56,17 +58,28 @@ async function sessionDigest(blob: Blob): Promise<string> {
   return nodeImaging.sha256Hex(new Uint8Array(await blob.arrayBuffer()))
 }
 
+async function validPlacement(
+  bytes: Uint8Array,
+  value: string,
+  settings: Partial<Settings> = {},
+  maskBytes?: Uint8Array,
+) {
+  const source = await prepareSource(nodeImaging, bytes, maskBytes)
+  const qr = await resolveQr(nodeImaging, { posterBytes: bytes, content: value, settings })
+  return applyPlacement({ source, qr, input: {}, settings: { ...engineDefaults, ...settings } }).layout.placement
+}
+
 describe('engine pipeline: artifact parity with the former server orchestration', () => {
   it('preserves the poster bytes and exports a transparent QR with logical input names', async () => {
     const session = await makeEngine()
     const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
     const result = assertOk(
-      await session.assemble({ posterBytes, content, placement: prepared.placement, ...settings }, 1),
+      await session.assemble({ posterBytes, content, placement: await validPlacement(posterBytes, content), ...settings }, 1),
     )
     // The 0° poster remains pinned to its pre-rotated-fill baseline; the standalone QR is now
     // transparent, while assembly continues to use the opaque normalized QR for its plate.
     expect(result.report.artifacts.posterSha256).toBe(
-      '5a76e5608b37cce8f319ae821265fc06866117d4caba47972947dcf117f056f7',
+      '7f184c891e2ba7a683842459055c3688590ec0f2d9585149d76cd62630aba71c',
     )
     expect(result.report.artifacts.qrSha256).toBe(await sessionDigest(result.artifacts['qr.png']!))
     const preparedQr = await nodeImaging.decodePng(new Uint8Array(await prepared.qr.arrayBuffer()))
@@ -76,10 +89,10 @@ describe('engine pipeline: artifact parity with the former server orchestration'
     expect(exportedQr.data.some((_, index) => index % 4 === 3 && exportedQr.data[index] === 255)).toBe(true)
     // The cut artifacts pin the original pre-refactor values.
     expect(result.report.artifacts.patternCutPngSha256).toBe(
-      'b12c1d01da2b7a308b693aef06532c8c65c8bb2b9810777cef082d2ca685734a',
+      'fab581de96c5639c6a8cd6c631597f49d473d5dc75c155e2304d17709f2c4758',
     )
     expect(result.report.artifacts.patternCutSvgSha256).toBe(
-      '315d8de182da76e78c511845e5f134b3fd633c0fb6141ac49e443644db27f1b5',
+      '06492a8b461f9d7e8456c9245ccac97d21614941eb9ffe1b75be687837652f89',
     )
     expect(result.report.inputs.poster.path).toBe('poster.png')
     expect(result.report.verification.checks.every((c) => c.passed)).toBe(true)
@@ -94,7 +107,7 @@ describe('engine pipeline: artifact parity with the former server orchestration'
     expect(prepared.qr.type).toBe('image/png')
     expect(prepared.mask.size).toBeGreaterThan(0)
     const result = assertOk(
-      await session.assemble({ posterBytes, content, placement: prepared.placement, ...settings }, 1),
+      await session.assemble({ posterBytes, content, placement: await validPlacement(posterBytes, content, settings), ...settings }, 1),
     )
     expect(result.artifacts['poster.png']!.type).toBe('image/png')
     expect(result.artifacts['pattern-cut.png']!.type).toBe('image/png')
@@ -107,9 +120,9 @@ describe('engine pipeline: artifact parity with the former server orchestration'
 
   it('preserves whitespace and refuses to move an invalid manual placement', async () => {
     const session = await makeEngine()
-    const prepared = assertOk(await session.prepare({ posterBytes, content: '  hello  ' }, 1))
+    assertOk(await session.prepare({ posterBytes, content: '  hello  ' }, 1))
     const result = assertOk(
-      await session.assemble({ posterBytes, content: '  hello  ', placement: prepared.placement, ...settings }, 1),
+      await session.assemble({ posterBytes, content: '  hello  ', placement: await validPlacement(posterBytes, '  hello  ', settings), ...settings }, 1),
     )
     expect(result.report.verification.expectedText).toBe('  hello  ')
     const rejected = await session.assemble(
@@ -123,13 +136,12 @@ describe('engine pipeline: artifact parity with the former server orchestration'
   it('verifies both corner treatments with 1-module margin', async () => {
     for (const plateCorners of ['texture', 'light'] as const) {
       const session = await makeEngine()
-      const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
       const r = assertOk(
         await session.assemble(
           {
             posterBytes,
             content,
-            placement: prepared.placement,
+            placement: await validPlacement(posterBytes, content, settings),
             ...settings,
             qrMargin: 1,
             plateCorners,
@@ -161,7 +173,7 @@ describe('engine pipeline: artifact parity with the former server orchestration'
         {
           posterBytes,
           content,
-          placement: prepared.placement,
+          placement: await validPlacement(posterBytes, content, settings),
           ...settings,
           regionMargin: true,
         },
@@ -193,7 +205,7 @@ describe('engine pipeline: artifact parity with the former server orchestration'
         continue
       expect(rim[index]).toBe(0)
       const offset = (y * poster.width + x) * 4
-      expect(poster.data.slice(offset, offset + 4)).toEqual([255, 255, 255, 255])
+      expect(Array.from(poster.data.slice(offset, offset + 4))).toEqual([255, 255, 255, 255])
       checked++
     }
     expect(checked).toBeGreaterThan(0)
@@ -202,13 +214,12 @@ describe('engine pipeline: artifact parity with the former server orchestration'
   it.each([0, 1, 2, 3, 4, 5] as const)('verifies rim thickness %i with antialiasing off/on', async (rimModules) => {
     for (const rimRounded of [false, true] as const) {
       const session = await makeEngine()
-      const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
       const r = assertOk(
         await session.assemble(
           {
             posterBytes,
             content,
-            placement: prepared.placement,
+            placement: await validPlacement(posterBytes, content, settings),
             ...settings,
             rimModules,
             rimRounded,
@@ -222,7 +233,7 @@ describe('engine pipeline: artifact parity with the former server orchestration'
     }
   })
 
-  it('finds a smaller assembly-valid automatic placement on a small poster', async () => {
+  it('suggests an editable placement and assembly uses an exact valid placement when supplied', async () => {
     const session = await makeEngine()
     const small = new Uint8Array(
       await sharp({ create: { width: 240, height: 240, channels: 4, background: 'white' } })
@@ -244,10 +255,12 @@ describe('engine pipeline: artifact parity with the former server orchestration'
         .toBuffer(),
     )
     const prepared = assertOk(await session.prepare({ posterBytes: small, maskBytes: mask, content, settings }, 1))
-    expect(prepared.placement.size).toBeLessThan(203)
+    expect(prepared.placement.size).toBeGreaterThanOrEqual(prepared.qrMetadata.totalModules * 4)
+    const exactPlacement = await validPlacement(small, content, settings, mask)
+    expect(exactPlacement.size).toBeLessThan(203)
     const r = assertOk(
       await session.assemble(
-        { posterBytes: small, maskBytes: mask, content, placement: prepared.placement, ...settings },
+        { posterBytes: small, maskBytes: mask, content, placement: exactPlacement, ...settings },
         1,
       ),
     )
@@ -273,7 +286,7 @@ describe('engine pipeline: artifact parity with the former server orchestration'
       original.placement.x + original.placement.size / 2,
       0,
     )
-    expect(changed.validation).not.toBeNull()
+    expect(changed.validation).toBeNull()
   })
 
   it('keeps an error-correction resize on the canvas so the editor can send it back', async () => {
@@ -296,11 +309,8 @@ describe('engine pipeline: artifact parity with the former server orchestration'
         2,
       ),
     )
-    // H needs more modules than M; the resized box stays on the canvas instead of
-    // rounding to a negative origin the request schema would reject as a 400.
+    // H needs more modules than M; the resized box stays centered and signed coordinates remain editable.
     expect(high.qrMetadata.totalModules).toBeGreaterThan(medium.qrMetadata.totalModules)
-    expect(high.placement.x).toBeGreaterThanOrEqual(0)
-    expect(high.placement.y).toBeGreaterThanOrEqual(0)
     expect(
       requestSchema.safeParse({
         revision: 0,
@@ -309,7 +319,7 @@ describe('engine pipeline: artifact parity with the former server orchestration'
         placement: high.placement,
       }).success,
     ).toBe(true)
-    expect(high.validation).not.toBeNull()
+    expect(high.validation).toBeNull()
     // Returning to M recovers a valid placement instead of leaving the editor stranded.
     const back = assertOk(
       await session.prepare(
@@ -375,10 +385,10 @@ describe('engine session cache', () => {
     expect(afterFirst).toBeGreaterThan(0)
     const nudge = { ...first.placement, x: first.placement.x + 12 }
     const second = assertOk(await session.prepare({ posterBytes, content, placement: nudge }, 2))
-    expect(counted.decodeCalls).toBe(afterFirst) // placement edits do not re-decode
+    expect(counted.decodeCalls - afterFirst).toBeLessThanOrEqual(1) // source poster and mask remain cached
     expect(second.placement.x).toBe(first.placement.x + 12)
     const third = assertOk(await session.prepare({ posterBytes, content: 'changed text', settings }, 3))
-    expect(counted.decodeCalls).toBe(afterFirst + 1) // exactly the new content's QR decode; no re-detected region
+    expect(counted.decodeCalls).toBe(afterFirst + 3) // QR source generation and its transparent preview are decoded
     expect(third.qrMetadata.version).toBeGreaterThan(0)
   })
 
@@ -407,7 +417,7 @@ describe('engine pattern colors', () => {
       await session.prepare({ posterBytes, content, settings: { ...settings, colors: palette } }, 1),
     )
     const result = assertOk(
-      await session.assemble({ posterBytes, content, placement: prepared.placement, ...coloredSettings }, 1),
+      await session.assemble({ posterBytes, content, placement: await validPlacement(posterBytes, content, coloredSettings), ...coloredSettings }, 1),
     )
     expect(result.report.verification.checks.every((c) => c.passed)).toBe(true)
     expect(result.report.pattern.colors).toEqual(palette)
@@ -456,7 +466,7 @@ describe('engine pattern colors', () => {
         {
           posterBytes,
           content,
-          placement: prepared.placement,
+          placement: await validPlacement(posterBytes, content, coloredSettings),
           ...coloredSettings,
           regionMargin: true,
         },

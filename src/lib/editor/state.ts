@@ -3,6 +3,7 @@ import { DEFAULT_PALETTE } from '@/core/palette'
 export interface Prepared {
   apiVersion: 1
   revision: number
+  assetRevision: number
   width: number
   height: number
   mask: Blob
@@ -19,6 +20,7 @@ export interface Result {
 }
 export interface State {
   revision: number
+  assetRevision: number
   content: string
   settings: Settings
   prepared: Prepared | null
@@ -32,6 +34,7 @@ export interface State {
 export function createInitialState(): State {
   return {
     revision: 0,
+    assetRevision: 0,
     content: '',
     settings: {
       seed: 0,
@@ -63,10 +66,11 @@ export function createInitialState(): State {
 /** Backwards-compatible deterministic defaults for pure reducer consumers. */
 export const initialState: State = createInitialState()
 export type Action =
-  | { type: 'edit'; patch: Partial<Pick<State, 'content' | 'settings' | 'placement'>>; reset?: boolean }
+  | { type: 'edit'; patch: Partial<Pick<State, 'content' | 'settings' | 'placement'>>; reset?: boolean; assets?: boolean }
   | { type: 'busy'; mode: 'prepare' | 'assemble'; revision: number }
   | { type: 'prepared'; data: Prepared }
   | { type: 'result'; data: Result }
+  | { type: 'cancel-assemble' }
   | { type: 'error'; revision: number; message: string; field?: string }
   | { type: 'view'; result: boolean }
 export function reducer(state: State, action: Action): State {
@@ -76,6 +80,7 @@ export function reducer(state: State, action: Action): State {
         ...state,
         ...action.patch,
         revision: state.revision + 1,
+        assetRevision: state.assetRevision + (action.assets || action.reset ? 1 : 0),
         result: null,
         busy: null,
         error: null,
@@ -86,20 +91,24 @@ export function reducer(state: State, action: Action): State {
     case 'busy':
       return action.revision === state.revision ? { ...state, busy: action.mode, error: null, field: null } : state
     case 'prepared':
-      return action.data.revision === state.revision
+      return action.data.assetRevision === state.assetRevision
         ? {
             ...state,
             prepared: action.data,
-            placement: action.data.placement,
-            busy: null,
-            error: action.data.validation,
-            field: action.data.validation ? 'placement' : null,
+            placement:
+              !state.placement || state.prepared?.qrMetadata.totalModules !== action.data.qrMetadata.totalModules
+                ? action.data.placement
+                : state.placement,
+            busy: state.busy === 'prepare' ? null : state.busy,
+            ...(state.error && state.field !== 'placement' ? {} : { error: null, field: null }),
           }
         : state
     case 'result':
       return action.data.revision === state.revision
         ? { ...state, result: action.data, busy: null, showingResult: true }
         : state
+    case 'cancel-assemble':
+      return state.busy === 'assemble' ? { ...state, busy: null, result: null, showingResult: false } : state
     case 'error':
       return action.revision === state.revision
         ? { ...state, busy: null, error: action.message, field: action.field ?? null }

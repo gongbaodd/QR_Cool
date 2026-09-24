@@ -2,82 +2,57 @@ import { expect } from '@playwright/test'
 import { Given, Then, When } from '@cucumber/cucumber'
 import type { EditorWorld } from '../support/world.js'
 
-/** A fresh page on step 1 of the editor. */
-Given('the editor is open', async function (this: EditorWorld) {
-  await this.page.goto('/')
-  await expect(this.page.getByLabel('Text or URL', { exact: true })).toBeVisible()
-})
-
-/** Step 1 -> step 2. The continue button enables once the mask preview is ready. */
-When('I continue to the mask search step', async function (this: EditorWorld) {
-  await this.page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(this.page.getByRole('heading', { name: /Mask Search/i })).toBeVisible()
-  await expect(this.page.getByLabel('Mask text preview')).toBeVisible()
-})
-
-/** Step 2 -> step 3. Waits for the QR placement to become valid. */
-When('I continue to the adjust step', async function (this: EditorWorld) {
-  await expect(this.page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({ timeout: 10_000 })
-  await this.page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(this.page.getByRole('heading', { name: /Adjust QR/i })).toBeVisible()
-  await expect(this.page.getByRole('group', { name: /Poster canvas/ })).toBeVisible()
-})
-
-Given('I finished the first two steps', async function (this: EditorWorld) {
-  await this.page.goto('/')
-  await this.page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(this.page.getByRole('heading', { name: /Mask Search/i })).toBeVisible()
-  await expect(this.page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({ timeout: 10_000 })
-  await this.page.getByRole('button', { name: 'Continue', exact: true }).click()
-  await expect(this.page.getByRole('heading', { name: /Adjust QR/i })).toBeVisible()
-})
-
-/** Generic button press by accessible name, e.g. "Move right" or "Fill region". */
-When('I click {string}', async function (this: EditorWorld, name: string) {
-  await this.page.getByRole('button', { name }).click()
-})
-
-/** Click a control by its visible label, e.g. a checkbox such as "Show region". */
-When('I toggle {string}', async function (this: EditorWorld, label: string) {
-  await this.page.getByLabel(label).click()
-})
-
-/** Assert a message, heading, hint or count rendered anywhere on the page. */
-Then('I see the message {string}', async function (this: EditorWorld, text: string) {
-  await expect(this.page.getByText(text, { exact: false })).toBeVisible()
-})
-
-Then('I do not see the message {string}', async function (this: EditorWorld, text: string) {
-  await expect(this.page.getByText(text, { exact: false })).toHaveCount(0)
-})
-
-Then('the {string} button is enabled', async function (this: EditorWorld, name: string) {
-  await expect(this.page.getByRole('button', { name })).toBeEnabled({ timeout: 15_000 })
-})
-
-Then('the {string} button is disabled', async function (this: EditorWorld, name: string) {
-  await expect(this.page.getByRole('button', { name })).toBeDisabled()
-})
-
-/** Jump between wizard steps using the step rail on the left. */
-When('I go back to the step {string}', async function (this: EditorWorld, name: string) {
-  await this.page.getByRole('button', { name }).click()
-})
-
-/** Keyboard interaction outside a field, e.g. Escape closing a modal. */
 When('I press {string}', async function (this: EditorWorld, key: string) {
   await this.page.keyboard.press(key)
 })
 
-/** A click far outside any control acts as a light dismiss for overlays. */
-When('I click at the top-left corner of the page', async function (this: EditorWorld) {
-  await this.page.mouse.click(4, 4)
+Given('the editor has a committed QR', async function (this: EditorWorld) {
+  await this.page.goto('/')
+  await this.page.waitForTimeout(1_000)
+  await this.page.getByLabel('Text or URL', { exact: true }).fill('https://example.com/qr')
+  await expect(this.page.getByRole('img', { name: 'Poster editing preview' })).toBeVisible({ timeout: 30_000 })
+  const blank = this.page.getByRole('radio', { name: /Blank full-canvas mask/ })
+  if (!(await blank.isVisible())) await this.page.getByRole('button', { name: 'Mask', exact: true }).click()
+  await blank.click()
+  await expect(this.page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeEnabled()
+  await this.page.keyboard.press('Escape')
 })
 
-Then('the checkbox {string} is checked', async function (this: EditorWorld, label: string) {
-  await expect(this.page.getByLabel(label)).toBeChecked()
+When('I nudge the QR right', async function (this: EditorWorld) {
+  await this.page.getByRole('button', { name: 'Move right', exact: true }).click()
 })
 
-Then('the checkbox {string} is unchecked', async function (this: EditorWorld, label: string) {
-  await expect(this.page.getByLabel(label)).not.toBeChecked()
+When('I adjust the QR size and angle from the keyboard', async function (this: EditorWorld) {
+  await this.page.getByRole('group', { name: /Poster\./ }).focus()
+  await this.page.keyboard.press('-')
+  await this.page.keyboard.press(']')
+})
+
+Then('the SVG placement scene remains visible', async function (this: EditorWorld) {
+  await expect(this.page.locator('svg[aria-label="Poster editing preview"]')).toBeVisible()
+})
+
+When('I open the top-left marker settings', async function (this: EditorWorld) {
+  await this.page.getByRole('button', { name: 'Edit tl marker' }).click()
+})
+
+Then('the marker dialog is visible', async function (this: EditorWorld) {
+  await expect(this.page.getByRole('dialog', { name: 'TL finder marker' })).toBeVisible()
+  await expect(this.page.getByRole('radiogroup', { name: 'Marker shape' })).toBeVisible()
+})
+
+Then('the marker dialog is closed', async function (this: EditorWorld) {
+  await expect(this.page.getByRole('dialog', { name: 'TL finder marker' })).not.toBeVisible()
+})
+
+Then('I see the message {string}', async function (this: EditorWorld, text: string) {
+  await expect(this.page.getByText(text, { exact: false })).toBeVisible()
+})
+
+Then('the assembled poster is visible', async function (this: EditorWorld) {
+  await expect(this.page.getByRole('img', { name: 'Assembled artistic QR poster' })).toBeVisible({ timeout: 30_000 })
+})
+
+When('I return to editing', async function (this: EditorWorld) {
+  await this.page.getByRole('button', { name: 'Return to editing' }).click()
 })

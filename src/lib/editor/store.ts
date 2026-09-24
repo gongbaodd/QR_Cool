@@ -72,6 +72,7 @@ export interface EditorActions {
   setPatternSettingsOpen: (open: boolean) => void
   setResultView: (result: boolean) => void
   startEngine: (mode: 'prepare' | 'assemble', revision: number) => void
+  cancelAssembly: () => void
   acceptPrepared: (data: Prepared) => void
   acceptResult: (data: Result) => void
   failEngine: (revision: number, message: string, field?: string) => void
@@ -145,7 +146,7 @@ export function createEditorStore() {
               if (parsed.data === current.document.content) return { draft }
               return {
                 draft,
-                document: editDocument(current.document, { type: 'edit', patch: { content: parsed.data } }),
+                document: editDocument(current.document, { type: 'edit', patch: { content: parsed.data }, assets: true }),
               }
             })
             return committed
@@ -155,6 +156,7 @@ export function createEditorStore() {
               document: editDocument(current.document, {
                 type: 'edit',
                 patch: { settings: { ...current.document.settings, ...patch } },
+                assets: ['ecc', 'pixelStyle', 'finderMarkers', 'markerSub', 'colors'].some((key) => key in patch),
               }),
             })),
           setSeed: (seed) =>
@@ -197,7 +199,7 @@ export function createEditorStore() {
             }),
           replaceMask: (mask) =>
             set((current) => {
-              let document = editDocument(current.document, { type: 'edit', patch: {}, reset: true })
+              let document = editDocument(current.document, { type: 'edit', patch: {}, assets: true })
               if (mask.size > MAX_IMAGE_BYTES)
                 document = reducer(document, {
                   type: 'error',
@@ -272,6 +274,8 @@ export function createEditorStore() {
             set((current) => ({ document: reducer(current.document, { type: 'view', result }) })),
           startEngine: (mode, revision) =>
             set((current) => ({ document: reducer(current.document, { type: 'busy', mode, revision }) })),
+          cancelAssembly: () =>
+            set((current) => ({ document: reducer(current.document, { type: 'cancel-assemble' }) })),
           acceptPrepared: (data) =>
             set((current) => ({ document: reducer(current.document, { type: 'prepared', data }) })),
           acceptResult: (data) => set((current) => ({ document: reducer(current.document, { type: 'result', data }) })),

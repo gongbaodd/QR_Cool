@@ -15,12 +15,16 @@ export const selectPreparationError = (state: EditorStoreState) =>
 export const selectCommittedContentError = (state: EditorStoreState) =>
   state.document.field === 'content' ? state.document.error : null
 export const selectCurrent = (state: EditorStoreState) =>
-  !!state.document.prepared && state.document.prepared.revision === state.document.revision && !state.document.error
+  !!state.document.prepared &&
+  state.document.prepared.assetRevision === state.document.assetRevision &&
+  (!state.document.error || state.document.field === null || state.document.field === 'placement')
 export const selectBusy = (state: EditorStoreState) =>
   !!state.document.busy || state.maskSelection.busy || state.iconSearch.loading
 export const selectCanAssemble = (state: EditorStoreState) =>
   contentSchema.safeParse(state.document.content).success &&
-  selectCurrent(state) &&
+  !!state.document.prepared &&
+  state.document.prepared.assetRevision === state.document.assetRevision &&
+  (!state.document.error || state.document.field === null || state.document.field === 'placement') &&
   !!state.document.placement &&
   !selectBusy(state)
 export const selectVisibleContentError = (state: EditorStoreState) =>

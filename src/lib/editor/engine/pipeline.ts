@@ -196,11 +196,13 @@ export function applyPlacement({
   qr,
   input,
   settings,
+  unchecked = false,
 }: {
   source: PreparedSource
   qr: QrBundle
   input: Pick<EngineInput, 'placement' | 'previousTotalModules'>
   settings: Settings
+  unchecked?: boolean
 }): { layout: ResolvedLayout; validation: string | null } {
   const { regionMask } = source
   const qrMetadata = qr.qrMetadata
@@ -209,16 +211,14 @@ export function applyPlacement({
   if (previous && input.previousTotalModules && input.previousTotalModules !== qrMetadata.totalModules) {
     const size = Math.max(4, Math.round(previous.size / input.previousTotalModules)) * qrMetadata.totalModules
     const offset = (previous.size - size) / 2
-    // Recentre on the previous box, then keep the resized box on the canvas: a QR that
-    // grows at an edge would otherwise round to a negative origin, which the editor's
-    // request schema rejects on the next round trip and strands the placement.
-    const origin = (value: number, limit: number) =>
-      Math.min(Math.max(0, Math.round(value + offset)), Math.max(0, limit - size))
-    requested = { ...previous, x: origin(previous.x, regionMask.width), y: origin(previous.y, regionMask.height), size }
+    const origin = (value: number) => Math.round(value + offset)
+    requested = { ...previous, x: origin(previous.x), y: origin(previous.y), size }
   }
   let validation: string | null = null
   let placement
-  if (requested) {
+  if (requested && unchecked) {
+    placement = requested
+  } else if (requested) {
     try {
       placement = validatePlacement({ regionMask, qrMetadata, placement: requested, settings })
     } catch (e) {
@@ -230,6 +230,20 @@ export function applyPlacement({
         mode: 'manual' as const,
         artPaddingModules: 0,
       }
+    }
+  } else if (unchecked) {
+    const bounds = regionMask.bounds
+    const pitch = Math.max(4, Math.floor(Math.min(bounds.width, bounds.height) / qrMetadata.totalModules))
+    const size = pitch * qrMetadata.totalModules
+    placement = {
+      x: Math.round(bounds.x + (bounds.width - size) / 2),
+      y: Math.round(bounds.y + (bounds.height - size) / 2),
+      size,
+      rotation: 0,
+      modulePixels: pitch,
+      totalModules: qrMetadata.totalModules,
+      mode: 'auto' as const,
+      artPaddingModules: 0,
     }
   } else {
     const largest = placeQr(regionMask, qrMetadata.totalModules)
@@ -286,7 +300,7 @@ export async function toPreparedPayload(
   validation: string | null,
   palette: QrPalette = DEFAULT_PALETTE,
 ): Promise<PreparedPayload> {
-  const { poster, regionMask, qrMetadata, placement, normalizedQr } = layout
+  const { poster, regionMask, qrMetadata, placement } = layout
   const overlay = new Uint8Array(poster.width * poster.height * 4)
   for (let i = 0; i < regionMask.data.length; i++) if (regionMask.data[i]) overlay.set([75, 224, 182, 95], i * 4)
   return {
@@ -294,7 +308,8 @@ export async function toPreparedPayload(
     height: poster.height,
     mask: bytesToBlob('mask.png', await renderRegionMask(regionMask)),
     overlay: bytesToBlob('overlay.png', await rgbaToPng(overlay, poster.width, poster.height)),
-    qr: bytesToBlob('qr.png', await transparentQrBackground(normalizedQr, palette)),
+    // The upright reusable QR preview is independent of its editable placement size.
+    qr: bytesToBlob('qr.png', await transparentQrBackground(layout.qrSource.file, palette)),
     qrMetadata: { totalModules: qrMetadata.totalModules, version: qrMetadata.version },
     placement: { x: placement.x, y: placement.y, size: placement.size, rotation: placement.rotation },
     validation,

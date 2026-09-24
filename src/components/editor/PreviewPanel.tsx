@@ -4,10 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { toast } from 'react-toastify'
-import type Konva from 'konva'
 import type { Result } from '@/lib/editor/state'
-import { canonicalPlacement, fitsMask } from '@/lib/editor/schema'
-import type { Placement, PlacementInput, Settings } from '@/lib/editor/schema'
+import type { Placement, Settings } from '@/lib/editor/schema'
 import { canonicalizeRotation } from '@/core/rotate'
 import { fillMaskImageData } from '@/lib/editor/mask-fill'
 import { tokens } from '@/styles/tokens.stylex'
@@ -15,14 +13,6 @@ import { ui } from '@/styles/ui.stylex'
 
 const ResultPanel = dynamic(() => import('./ResultPanel'))
 const MarkerDialog = dynamic(() => import('./MarkerDialog'))
-
-/**
- * Canvas inks for the Konva stage. Konva paints into a raster context and cannot
- * resolve CSS custom properties, so these literals mirror `tokens.valid` (the
- * "placement fits" signal) and `tokens.danger` (the does-not-fit signal).
- */
-const VALID_INK = '#0b7a5e'
-const INVALID_INK = '#af2536'
 
 const styles = stylex.create({
   panel: { minWidth: 0, paddingBlock: 24, paddingInline: 24 },
@@ -308,341 +298,146 @@ function notifyFill(message: string, kind: 'error' | 'warning' | 'success') {
 }
 
 function PosterCanvas({
-  poster,
-  overlay,
-  mask,
-  qr,
-  width,
-  height,
-  placement,
-  modules,
-  onChange,
-  invalid,
-  onMarkerClick,
-  fillActive,
-  fillReady,
-  onFillAt,
-  toolbar,
+  poster, overlay, qr, width, height, placement, modules, onChange,
+  onMarkerClick, fillActive, fillReady, onFillAt, toolbar, onGestureStart,
 }: {
-  poster: string
-  overlay: string
-  mask: string
-  qr: string
-  width: number
-  height: number
-  placement: Placement
-  modules: number
-  onChange: (box: Placement) => void
-  invalid: boolean
+  poster: string; overlay: string; mask: string; qr: string; width: number; height: number
+  placement: Placement; modules: number; onChange: (box: Placement) => void; invalid: boolean
   onMarkerClick?: (kind: 'tl' | 'tr' | 'bl' | 'sub') => void
-  fillActive: boolean
-  fillReady: boolean
-  onFillAt: (x: number, y: number) => void
-  toolbar: ReactNode
+  fillActive: boolean; fillReady: boolean; onFillAt: (x: number, y: number) => void; toolbar: ReactNode
+  onGestureStart: () => void
 }) {
-  const [konva, setKonva] = useState<typeof import('react-konva') | null>(null)
-  useEffect(() => {
-    let live = true
-    void import('react-konva').then((module) => {
-      if (live) setKonva(module)
-    })
-    return () => {
-      live = false
-    }
-  }, [])
-  const maskImage = useImage(mask)
-  const [maskData, setMaskData] = useState<Uint8Array>()
-  useEffect(() => {
-    if (!maskImage) return
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')!
-    context.drawImage(maskImage, 0, 0)
-    const pixels = context.getImageData(0, 0, width, height).data
-    setMaskData(Uint8Array.from({ length: width * height }, (_, i) => pixels[i * 4]!))
-  }, [maskImage, width, height])
-  const posterImage = useImage(poster)
-  const overlayImage = useImage(overlay)
-  const qrImage = useImage(qr)
   const scroll = useRef<HTMLDivElement>(null)
-  const node = useRef<Konva.Group>(null)
-  const border = useRef<Konva.Rect>(null)
-  const transformer = useRef<Konva.Transformer>(null)
-  const stage = useRef<Konva.Stage>(null)
   const [viewport, setViewport] = useState(800)
   const [hoverMarker, setHoverMarker] = useState<string | null>(null)
+  const gesture = useRef<{ kind: 'move' | 'resize' | 'rotate'; pointer: number; startX: number; startY: number; box: Placement; centerX: number; centerY: number } | null>(null)
+  const animation = useRef<number | null>(null)
+  useEffect(() => () => { if (animation.current !== null) cancelAnimationFrame(animation.current) }, [])
+  const fit = Math.min(viewport / width, 640 / height, 1)
   useEffect(() => {
     const observer = new ResizeObserver((entries) => setViewport(entries[0]!.contentRect.width))
     if (scroll.current) observer.observe(scroll.current)
     return () => observer.disconnect()
   }, [])
-  useEffect(() => {
-    if (node.current) transformer.current?.nodes([node.current])
-  }, [qrImage])
-  const fit = Math.min(viewport / width, 640 / height, 1)
-  const scale = fit
   const pitch = modules ? placement.size / modules : 0
-  const margin = pitch
-  const displaySize = placement.size - 2 * margin
-  const n = modules - 4
-  const q = 2
-  const version = modules ? Math.floor((modules - 21) / 4) : 0
-  const markerHits: {
-    id: 'tl' | 'tr' | 'bl' | 'br'
-    kind: 'tl' | 'tr' | 'bl' | 'sub'
-    x: number
-    y: number
-    size: number
-  }[] = modules
-    ? [
-        { id: 'tl', kind: 'tl', x: q * pitch, y: q * pitch, size: 7 * pitch },
-        { id: 'tr', kind: 'tr', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
-        { id: 'bl', kind: 'bl', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
-        ...(version >= 2
-          ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch } as const]
-          : []),
-      ]
-    : []
-  useEffect(() => {
-    const container = stage.current?.container()
-    if (!container || !modules || !pitch) return
-    const n = modules - 4
-    const q = 2
-    const rects: { id: string; kind: string; x: number; y: number; size: number }[] = [
-      { id: 'tl', kind: 'tl', x: q * pitch, y: q * pitch, size: 7 * pitch },
-      { id: 'tr', kind: 'tr', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
-      { id: 'bl', kind: 'bl', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
-      ...(Math.floor((modules - 21) / 4) >= 2
-        ? [{ id: 'br', kind: 'sub', x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch }]
-        : []),
-    ].map((hit) => ({
-      id: hit.id,
-      kind: hit.kind,
-      x: (placement.x + hit.x) * scale,
-      y: (placement.y + hit.y) * scale,
-      size: hit.size * scale,
-    }))
-    container.dataset.markerTargets = JSON.stringify(rects)
-  }, [modules, pitch, placement.x, placement.y, scale])
-  function nudge(dx: number, dy: number) {
-    onChange({ ...placement, x: Math.max(0, placement.x + dx), y: Math.max(0, placement.y + dy) })
+  const q = 2, n = modules - 4, version = modules ? Math.floor((modules - 21) / 4) : 0
+  const markers: { id: string; kind: 'tl' | 'tr' | 'bl' | 'sub'; x: number; y: number; size: number }[] = modules ? [
+    { id: 'tl', kind: 'tl', x: q * pitch, y: q * pitch, size: 7 * pitch },
+    { id: 'tr', kind: 'tr', x: (q + n - 7) * pitch, y: q * pitch, size: 7 * pitch },
+    { id: 'bl', kind: 'bl', x: q * pitch, y: (q + n - 7) * pitch, size: 7 * pitch },
+    ...(version >= 2 ? [{ id: 'br', kind: 'sub' as const, x: (q + n - 9) * pitch, y: (q + n - 9) * pitch, size: 5 * pitch }] : []),
+  ] : []
+  const localPoint = (event: { clientX: number; clientY: number }, svg: SVGSVGElement | null) => {
+    if (!svg) return { x: 0, y: 0 }
+    const point = svg.createSVGPoint(); point.x = event.clientX; point.y = event.clientY
+    const matrix = svg.getScreenCTM()?.inverse()
+    return matrix ? point.matrixTransform(matrix) : { x: 0, y: 0 }
   }
-  function liveBox(): PlacementInput {
-    const current = node.current!
-    const size = current.width() * current.scaleX()
-    return {
-      x: current.x() - size / 2,
-      y: current.y() - size / 2,
-      size,
-      rotation: canonicalizeRotation(current.rotation()),
+  const begin = (kind: 'move' | 'resize' | 'rotate', event: React.PointerEvent<SVGElement>) => {
+    if (fillActive) return
+    onGestureStart()
+    event.preventDefault()
+    const svg = scroll.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
+    svg?.setPointerCapture(event.pointerId)
+    const point = localPoint(event, svg ?? event.currentTarget.ownerSVGElement)
+    gesture.current = { kind, pointer: event.pointerId, startX: point.x, startY: point.y, box: placement, centerX: placement.x + placement.size / 2, centerY: placement.y + placement.size / 2 }
+  }
+  const move = (event: React.PointerEvent<SVGSVGElement>) => {
+    const active = gesture.current
+    if (!active || active.pointer !== event.pointerId) return
+    const point = localPoint(event, event.currentTarget), dx = point.x - active.startX, dy = point.y - active.startY
+    let next = active.box
+    if (active.kind === 'move') next = { ...active.box, x: Math.round(active.box.x + dx), y: Math.round(active.box.y + dy) }
+    if (active.kind === 'resize') {
+      const size = Math.max(modules * 4, Math.round((active.box.size + dx + dy) / 2 / modules) * modules)
+      next = { ...active.box, size, x: Math.round(active.centerX - size / 2), y: Math.round(active.centerY - size / 2) }
     }
+    if (active.kind === 'rotate') {
+      const before = Math.atan2(active.startY - active.centerY, active.startX - active.centerX)
+      const after = Math.atan2(point.y - active.centerY, point.x - active.centerX)
+      next = { ...active.box, rotation: canonicalizeRotation(active.box.rotation + (after - before) * 180 / Math.PI) }
+    }
+    // Transient scene transform stays local until pointer-up.
+    // Keep the latest preview transform for the commit handler, without store writes.
+    ;(active as typeof active & { latest?: Placement }).latest = next
+    if (animation.current === null) animation.current = requestAnimationFrame(() => {
+      animation.current = null
+      const latest = gesture.current
+      const box = (latest as typeof latest & { latest?: Placement } | null)?.latest
+      const root = scroll.current?.querySelector<SVGGElement>('[data-gesture-target]')
+      if (!latest || !box || !root) return
+      const factor = box.size / latest.box.size
+      const cx = latest.box.x + latest.box.size / 2, cy = latest.box.y + latest.box.size / 2
+      root.setAttribute('transform', `translate(${box.x + box.size / 2} ${box.y + box.size / 2}) rotate(${box.rotation}) scale(${factor}) translate(${-cx} ${-cy})`)
+    })
   }
-  if (!konva)
-    return (
-      <div {...stylex.props(styles.loading)} role="status">
-        Loading poster canvas…
-      </div>
-    )
-  const { Group, Stage, Layer, Image: CanvasImage, Rect, Transformer } = konva
-  return (
-    <div {...stylex.props(styles.area)}>
-      {toolbar && <div {...stylex.props(styles.tools)}>{toolbar}</div>}
-      <div
-        {...stylex.props(styles.scroll)}
-        ref={scroll}
-        tabIndex={0}
-        role="group"
-        aria-label="Poster canvas. Arrow keys move the QR; Shift moves ten pixels."
-        onKeyDown={(event) => {
-          const delta = event.shiftKey ? 10 : 1
-          const steps: Record<string, number[]> = {
-            ArrowLeft: [-delta, 0],
-            ArrowRight: [delta, 0],
-            ArrowUp: [0, -delta],
-            ArrowDown: [0, delta],
-          }
-          const step = steps[event.key]
-          if (step) {
-            event.preventDefault()
-            nudge(step[0]!, step[1]!)
-          }
-        }}
-      >
-        <div {...stylex.props(styles.stageFrame)}>
-          <Stage
-            ref={stage}
-            width={width * scale}
-            height={height * scale}
-            scaleX={scale}
-            scaleY={scale}
-            onClick={(event) => {
-              if (!fillActive || !fillReady || event.target !== event.target.getStage()) return
-              const pointer = stage.current?.getPointerPosition()
-              if (!pointer || scale <= 0) return
-              onFillAt(Math.floor(pointer.x / scale), Math.floor(pointer.y / scale))
-            }}
-            onTap={(event) => {
-              if (!fillActive || !fillReady || event.target !== event.target.getStage()) return
-              const pointer = stage.current?.getPointerPosition()
-              if (!pointer || scale <= 0) return
-              onFillAt(Math.floor(pointer.x / scale), Math.floor(pointer.y / scale))
-            }}
-          >
-            <Layer>
-              <CanvasImage image={posterImage} width={width} height={height} listening={false} />
-              <CanvasImage image={overlayImage} width={width} height={height} listening={false} />
-              <Group
-                ref={node}
-                x={placement.x + placement.size / 2}
-                y={placement.y + placement.size / 2}
-                offsetX={placement.size / 2}
-                offsetY={placement.size / 2}
-                width={placement.size}
-                height={placement.size}
-                rotation={placement.rotation}
-                draggable={!fillActive}
-                dragDistance={1}
-                onDragStart={() => setHoverMarker(null)}
-                onDragMove={(event) => {
-                  const box = canonicalPlacement(
-                    {
-                      ...placement,
-                      x: event.target.x() - placement.size / 2,
-                      y: event.target.y() - placement.size / 2,
-                    },
-                    modules,
-                  )
-                  border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? INVALID_INK : VALID_INK)
-                }}
-                onDragEnd={(event) =>
-                  onChange(
-                    canonicalPlacement(
-                      {
-                        ...placement,
-                        x: event.target.x() - placement.size / 2,
-                        y: event.target.y() - placement.size / 2,
-                      },
-                      modules,
-                    ),
-                  )
-                }
-                onTransform={() => {
-                  const box = canonicalPlacement(liveBox(), modules)
-                  border.current?.stroke(maskData && !fitsMask(maskData, width, height, box) ? INVALID_INK : VALID_INK)
-                }}
-                onTransformEnd={() => {
-                  const current = node.current!
-                  const box = canonicalPlacement(liveBox(), modules)
-                  current.scale({ x: 1, y: 1 })
-                  current.width(box.size)
-                  current.height(box.size)
-                  current.offsetX(box.size / 2)
-                  current.offsetY(box.size / 2)
-                  current.rotation(box.rotation)
-                  current.x(box.x + box.size / 2)
-                  current.y(box.y + box.size / 2)
-                  onChange(box)
-                }}
-              >
-                <Rect width={placement.size} height={placement.size} fill="transparent" />
-                <CanvasImage
-                  image={qrImage}
-                  x={margin}
-                  y={margin}
-                  width={displaySize}
-                  height={displaySize}
-                  crop={{ x: margin, y: margin, width: displaySize, height: displaySize }}
-                  imageSmoothingEnabled={false}
-                />
-                {markerHits.map((hit) => {
-                  const hovered = hoverMarker === hit.id
-                  return (
-                    <Rect
-                      key={hit.id}
-                      x={hit.x}
-                      y={hit.y}
-                      width={hit.size}
-                      height={hit.size}
-                      fill={VALID_INK}
-                      opacity={hovered ? 0.3 : 0.06}
-                      {...(hovered ? { stroke: 'rgba(16, 18, 17, 0.8)', strokeWidth: 2 / scale } : { strokeWidth: 0 })}
-                      listening={Boolean(onMarkerClick) && !fillActive}
-                      onMouseEnter={() => {
-                        setHoverMarker(hit.id)
-                        if (scroll.current) scroll.current.style.cursor = 'pointer'
-                      }}
-                      onMouseLeave={() => {
-                        setHoverMarker((current) => (current === hit.id ? null : current))
-                        if (scroll.current) scroll.current.style.cursor = ''
-                      }}
-                      onTap={() => onMarkerClick?.(hit.kind)}
-                      onClick={(event) => {
-                        event.cancelBubble = true
-                        onMarkerClick?.(hit.kind)
-                      }}
-                    />
-                  )
-                })}
-                <Rect
-                  ref={border}
-                  width={placement.size}
-                  height={placement.size}
-                  stroke={invalid ? INVALID_INK : VALID_INK}
-                  strokeWidth={2 / scale}
-                  listening={false}
-                />
-              </Group>
-              <Transformer
-                ref={transformer}
-                rotateEnabled
-                flipEnabled={false}
-                keepRatio
-                enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
-                anchorSize={14}
-                anchorCornerRadius={3}
-                borderStroke={invalid ? INVALID_INK : VALID_INK}
-                visible={!fillActive}
-                listening={!fillActive}
-                boundBoxFunc={(old, next) => {
-                  const radians = ((node.current?.rotation() ?? 0) * Math.PI) / 180
-                  const factor = Math.abs(Math.cos(radians)) + Math.abs(Math.sin(radians))
-                  return next.width < modules * 4 * scale * factor ? old : next
-                }}
-              />
-            </Layer>
-          </Stage>
-        </div>
-      </div>
-      <div {...stylex.props(styles.footer)}>
-        <span>
-          {fillActive ? 'Click the poster outside the QR to fill an enclosed area.' : 'Drag, resize, or rotate the QR.'}
-        </span>
-        <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
-          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>
-            ←
-          </button>
-          <button
-            {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)}
-            aria-label="Move up"
-            onClick={() => nudge(0, -1)}
-          >
-            ↑
-          </button>
-          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move down" onClick={() => nudge(0, 1)}>
-            ↓
-          </button>
-          <button
-            {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)}
-            aria-label="Move right"
-            onClick={() => nudge(1, 0)}
-          >
-            →
-          </button>
-        </div>
+  const end = (event: React.PointerEvent<SVGSVGElement>) => {
+    const active = gesture.current
+    if (!active || active.pointer !== event.pointerId) return
+    if (animation.current !== null) { cancelAnimationFrame(animation.current); animation.current = null }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    gesture.current = null
+    onChange((active as typeof active & { latest?: Placement }).latest ?? active.box)
+  }
+  const cancel = (event: React.PointerEvent<SVGSVGElement>) => {
+    const active = gesture.current
+    if (!active || active.pointer !== event.pointerId) return
+    if (animation.current !== null) { cancelAnimationFrame(animation.current); animation.current = null }
+    gesture.current = null
+    event.currentTarget.querySelector('[data-gesture-target]')?.removeAttribute('transform')
+  }
+  const nudge = (dx: number, dy: number) => { onGestureStart(); onChange({ ...placement, x: placement.x + dx, y: placement.y + dy }) }
+  const frame = (x: number, y: number, size: number) => `rotate(${placement.rotation} ${x + size / 2} ${y + size / 2})`
+  return <div {...stylex.props(styles.area)}>
+    {toolbar && <div {...stylex.props(styles.tools)}>{toolbar}</div>}
+    <div {...stylex.props(styles.scroll)} ref={scroll} tabIndex={0} role="group" aria-label="Poster. Arrow keys move the QR; Shift moves ten pixels. Use the square and rotation handles to resize or rotate." onKeyDown={(event) => {
+      const delta = event.shiftKey ? 10 : 1
+      const steps: Record<string, [number, number]> = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] }
+      if (steps[event.key]) { event.preventDefault(); nudge(...steps[event.key]!) }
+      if (event.key === '+' || event.key === '=') {
+        event.preventDefault(); onGestureStart(); const size = placement.size + modules
+        onChange({ ...placement, size, x: Math.round(placement.x - modules / 2), y: Math.round(placement.y - modules / 2) })
+      }
+      if (event.key === '-' || event.key === '_') {
+        event.preventDefault(); onGestureStart(); const size = Math.max(modules * 4, placement.size - modules)
+        onChange({ ...placement, size, x: Math.round(placement.x + (placement.size - size) / 2), y: Math.round(placement.y + (placement.size - size) / 2) })
+      }
+      if (event.key === '[' || event.key === ']') {
+        event.preventDefault(); onGestureStart(); onChange({ ...placement, rotation: canonicalizeRotation(placement.rotation + (event.key === ']' ? 1 : -1)) })
+      }
+      if (event.key === 'Escape' && gesture.current) {
+        event.currentTarget.querySelector('[data-gesture-target]')?.removeAttribute('transform')
+        gesture.current = null
+      }
+    }}>
+      <div {...stylex.props(styles.stageFrame)}>
+        <svg width={width * fit} height={height * fit} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Poster editing preview" onPointerMove={move} onPointerUp={end} onPointerCancel={cancel} onClick={(event) => {
+          if (!fillActive || !fillReady || (event.target as Element).closest('[data-gesture-target]')) return
+          const p = localPoint(event, event.currentTarget); onFillAt(Math.floor(p.x), Math.floor(p.y))
+        }}>
+          <image href={poster} width={width} height={height} />
+          <image href={overlay} width={width} height={height} pointerEvents="none" />
+          <g data-gesture-target="" transform={frame(placement.x, placement.y, placement.size)} onPointerDown={(event) => begin('move', event)} style={{ touchAction: 'none' }}>
+            <svg x={placement.x + pitch} y={placement.y + pitch} width={placement.size - 2 * pitch} height={placement.size - 2 * pitch} viewBox={`${placement.x + pitch} ${placement.y + pitch} ${placement.size - 2 * pitch} ${placement.size - 2 * pitch}`} overflow="hidden">
+              <image data-qr-image="" href={qr} x={placement.x} y={placement.y} width={placement.size} height={placement.size} preserveAspectRatio="none" style={{ touchAction: 'none' }} />
+            </svg>
+            {markers.map((marker) => <rect data-marker-target="" key={marker.id} x={placement.x + marker.x} y={placement.y + marker.y} width={marker.size} height={marker.size} fill="#ff321e" fillOpacity={hoverMarker === marker.id ? 0.28 : 0.06} tabIndex={onMarkerClick && !fillActive ? 0 : -1} role="button" aria-label={`Edit ${marker.kind} marker`} onPointerDown={(event) => event.stopPropagation()} onPointerEnter={() => setHoverMarker(marker.id)} onPointerLeave={() => setHoverMarker(null)} onClick={(event) => { event.stopPropagation(); if (!fillActive) onMarkerClick?.(marker.kind) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onMarkerClick?.(marker.kind) }} />)}
+            <rect data-selection-outline="" x={placement.x} y={placement.y} width={placement.size} height={placement.size} fill="none" stroke="#101211" strokeDasharray="7 5" strokeWidth={Math.max(2, 2 / fit)} pointerEvents="none" />
+            <rect data-resize-handle="" x={placement.x + placement.size - 10 / fit} y={placement.y + placement.size - 10 / fit} width={20 / fit} height={20 / fit} fill="#fdf8f2" stroke="#101211" strokeWidth={2 / fit} cursor="nwse-resize" onPointerDown={(event) => { event.stopPropagation(); begin('resize', event) }} style={{ touchAction: 'none' }} />
+            <circle data-rotation-handle="" cx={placement.x + placement.size / 2} cy={placement.y - 18 / fit} r={9 / fit} fill="#fdf8f2" stroke="#101211" strokeWidth={2 / fit} cursor="grab" onPointerDown={(event) => { event.stopPropagation(); begin('rotate', event) }} style={{ touchAction: 'none' }} />
+          </g>
+        </svg>
       </div>
     </div>
-  )
+    <div {...stylex.props(styles.footer)}><span>{fillActive ? 'Click the poster outside the QR to fill an enclosed area.' : 'Assemble to check placement and render the final poster.'}</span>
+      <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
+        <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>←</button>
+        <button {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)} aria-label="Move up" onClick={() => nudge(0, -1)}>↑</button>
+        <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move down" onClick={() => nudge(0, 1)}>↓</button>
+        <button {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)} aria-label="Move right" onClick={() => nudge(1, 0)}>→</button>
+      </div>
+    </div>
+  </div>
 }
 
 export default function PreviewPanel({
@@ -662,6 +457,7 @@ export default function PreviewPanel({
   error,
   current,
   onMove,
+  onPlacementGestureStart,
   onMaskFillCommit,
   onReturnToEditing,
   onMaskOpen,
@@ -692,6 +488,7 @@ export default function PreviewPanel({
   error: string | null
   current: boolean
   onMove: (box: Placement) => void
+  onPlacementGestureStart: () => void
   onMaskFillCommit: (mask: Blob) => void
   onReturnToEditing: () => void
   onMaskOpen: () => void
@@ -980,6 +777,7 @@ export default function PreviewPanel({
             placement={placement!}
             modules={modules}
             onChange={onMove}
+            onGestureStart={onPlacementGestureStart}
             invalid={invalid}
             onMarkerClick={setMarkerDialog}
             fillActive={fillActive}

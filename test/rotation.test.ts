@@ -89,8 +89,8 @@ describe('canonicalPlacement', () => {
     const canonical = canonicalPlacement({ x: 10.4, y: -3.2, size: 123, rotation: -33.5 }, 41)
     expect(canonical.rotation).toBe(326.5)
     expect(canonical.size % 41).toBe(0)
-    expect(canonical.x).toBeGreaterThanOrEqual(0)
-    expect(canonical.y).toBe(0)
+    expect(canonical.x).toBe(10)
+    expect(canonical.y).toBe(-3)
   })
 })
 
@@ -452,7 +452,11 @@ describe('engine rotation end to end', () => {
     const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
     expect(prepared.placement.rotation).toBe(0)
     const rotated = { ...prepared.placement, rotation: 30 }
-    const reapply = assertOk(await session.prepare({ posterBytes, content, placement: rotated }, 2))
+    const changedContent = 'a'.repeat(140)
+    const reapply = assertOk(await session.prepare({
+      posterBytes, content: changedContent, placement: rotated, previousTotalModules: prepared.qrMetadata.totalModules,
+    }, 2))
+    expect(reapply.qrMetadata.totalModules).toBeGreaterThan(prepared.qrMetadata.totalModules)
     expect(reprepare(reapply).rotation).toBe(30)
   })
 
@@ -467,8 +471,9 @@ describe('engine rotation end to end', () => {
     const modules = prepared.qrMetadata.totalModules
     const centreX = prepared.placement.x + prepared.placement.size / 2
     const centreY = prepared.placement.y + prepared.placement.size / 2
-    let sizeFactor = rotation === 90 ? 1 : 0.7
+    let sizeFactor = 0.95
     let placement = prepared.placement
+    let attempt = await session.assemble({ posterBytes, content, placement: prepared.placement, ...settings }, 3)
     for (;;) {
       const size = Math.floor((prepared.placement.size * sizeFactor) / modules) * modules
       placement = {
@@ -477,12 +482,12 @@ describe('engine rotation end to end', () => {
         size,
         rotation,
       }
-      const attempt = assertOk(await session.prepare({ posterBytes, content, placement }, 2))
-      if (!attempt.validation) break
+      attempt = await session.assemble({ posterBytes, content, placement, ...settings }, 3)
+      if (attempt.ok) break
       sizeFactor -= 0.05
       if (sizeFactor <= 0.2) throw new Error('no rotated placement fits the fixture region')
     }
-    const result = assertOk(await session.assemble({ posterBytes, content, placement, ...settings }, 3))
+    const result = assertOk(attempt)
     expect(result.report.placement.rotation).toBe(rotation)
     expect(result.report.qualified).toBe(true)
     expect(result.report.verification.checks.every((check) => check.passed)).toBe(true)
@@ -505,28 +510,16 @@ describe('engine rotation end to end', () => {
     const session = await makeEngine()
     const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
     const placement = { ...prepared.placement, rotation: 45 }
-    const attempt = await session.prepare({ posterBytes, content, placement }, 2)
-    const value = assertOk(attempt)
-    if (!value.validation) {
-      // The fixture's region happens to hold the full 45° footprint; force an invalid 89° swap.
-      const swapped = { x: 0, y: 0, size: prepared.placement.size, rotation: 45 }
-      const rejected = await session.assemble({ posterBytes, content, placement: swapped, ...settings }, 3)
-      expect(rejected.ok).toBe(false)
-      return
-    }
-    expect(value.validation).toMatch(/painted region/i)
+    const rejected = await session.assemble({ posterBytes, content, placement, ...settings }, 2)
+    expect(rejected.ok).toBe(false)
   })
 
   it('reuses the cached QR bundle across rotation-only prepare calls', async () => {
     const session = await makeEngine()
     const prepared = assertOk(await session.prepare({ posterBytes, content }, 1))
-    const rotated = assertOk(
-      await session.prepare({ posterBytes, content, placement: { ...prepared.placement, rotation: 30 } }, 2),
-    )
-    if (!rotated.validation) {
-      const digest = await nodeImaging.sha256Hex(new Uint8Array(await prepared.qr.arrayBuffer()))
-      expect(await nodeImaging.sha256Hex(new Uint8Array(await rotated.qr.arrayBuffer()))).toBe(digest)
-    }
+    const rotated = assertOk(await session.prepare({ posterBytes, content, placement: { ...prepared.placement, rotation: 30 } }, 2))
+    const digest = await nodeImaging.sha256Hex(new Uint8Array(await prepared.qr.arrayBuffer()))
+    expect(await nodeImaging.sha256Hex(new Uint8Array(await rotated.qr.arrayBuffer()))).toBe(digest)
   })
 
   it('assembles a tapered uploaded mask at 30° without clipping the plate or the texture', async () => {
@@ -562,18 +555,16 @@ describe('engine rotation end to end', () => {
     // inside the rectangular part of the tapered mask.
     let sizeFactor = 0.8
     let placement = prepared.placement
+    let attempt = await session.assemble({ posterBytes: white, maskBytes, content, placement, ...settings }, 2)
     for (;;) {
       const size = Math.floor((200 * sizeFactor) / modules) * modules
       placement = { x: 140 - Math.floor(size / 2), y: 160 - Math.floor(size / 2), size, rotation: 30 }
-      const attempt = assertOk(await session.prepare({ posterBytes: white, maskBytes, content, placement }, 2))
-      if (!attempt.validation) break
+      attempt = await session.assemble({ posterBytes: white, maskBytes, content, placement, ...settings }, 2)
+      if (attempt.ok) break
       sizeFactor -= 0.05
       if (sizeFactor <= 0.2) throw new Error('no rotated placement fits the tapered fixture region')
     }
-
-    const result = assertOk(
-      await session.assemble({ posterBytes: white, maskBytes, content, placement, ...settings }, 3),
-    )
+    const result = assertOk(attempt)
     expect(result.report.placement.rotation).toBe(30)
     expect(result.report.qualified).toBe(true)
     expect(result.report.schemaVersion).toBe(8)

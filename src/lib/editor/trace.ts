@@ -5,6 +5,7 @@ type TraceSource = Pick<EditorStoreState, 'document' | 'draft' | 'sources' | 'ma
 
 export interface EditorTraceSnapshot {
   revision: number
+  assetRevision: number
   content: string
   draftContent: string
   draftError: string | null
@@ -12,6 +13,7 @@ export interface EditorTraceSnapshot {
   settings: EditorStoreState['document']['settings']
   placement: EditorStoreState['document']['placement']
   preparedRevision: number | null
+  preparedAssetRevision: number | null
   resultRevision: number | null
   busy: EditorStoreState['document']['busy']
   error: string | null
@@ -41,6 +43,7 @@ export interface EditorTrace {
 export function traceSnapshot(current: TraceSource): EditorTraceSnapshot {
   return {
     revision: current.document.revision,
+    assetRevision: current.document.assetRevision,
     content: current.document.content,
     draftContent: current.draft.content,
     draftError: current.draft.error,
@@ -48,6 +51,7 @@ export function traceSnapshot(current: TraceSource): EditorTraceSnapshot {
     settings: current.document.settings,
     placement: current.document.placement,
     preparedRevision: current.document.prepared?.revision ?? null,
+    preparedAssetRevision: current.document.prepared?.assetRevision ?? null,
     resultRevision: current.document.result?.revision ?? null,
     busy: current.document.busy,
     error: current.document.error,

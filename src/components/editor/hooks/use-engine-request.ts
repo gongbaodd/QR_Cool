@@ -8,6 +8,7 @@ import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorSto
 
 export interface EditorRequest {
   request: (mode: 'prepare' | 'assemble') => Promise<void>
+  cancelAssembly: () => void
   failedMode: 'prepare' | 'assemble' | null
 }
 
@@ -15,6 +16,7 @@ export interface EditorRequest {
 export function useEngineRequest(): EditorRequest {
   const store = useEditorStoreApi()
   const revision = useEditorStore((state) => state.document.revision)
+  const assetRevision = useEditorStore((state) => state.document.assetRevision)
   const poster = useEditorStore((state) => state.sources.poster)
   const mask = useEditorStore((state) => state.sources.mask)
   const maskBusy = useEditorStore((state) => state.maskSelection.busy)
@@ -22,7 +24,13 @@ export function useEngineRequest(): EditorRequest {
   const [failedRequest, setFailedRequest] = useState<{ revision: number; mode: 'prepare' | 'assemble' } | null>(null)
   const handle = useRef<EditorWorkerClientHandle | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const operation = useRef(0)
+  const assetOperation = useRef(0)
+  const assemblyOperation = useRef(0)
+
+  const cancelAssembly = useCallback(() => {
+    assemblyOperation.current += 1
+    store.getState().actions.cancelAssembly()
+  }, [store])
 
   const request = useCallback(
     async (mode: 'prepare' | 'assemble') => {
@@ -30,6 +38,7 @@ export function useEngineRequest(): EditorRequest {
         clearTimeout(timer.current)
         timer.current = null
       }
+      const operation = mode === 'prepare' ? assetOperation : assemblyOperation
       const token = ++operation.current
       const current = store.getState()
       const document = current.document
@@ -62,17 +71,27 @@ export function useEngineRequest(): EditorRequest {
             input.previousTotalModules = document.prepared.qrMetadata.totalModules
         }
         const latest = store.getState()
-        if (token !== operation.current || latest.document.revision !== requestRevision) return
+        if (
+          token !== operation.current ||
+          (mode === 'prepare'
+            ? latest.document.assetRevision !== document.assetRevision
+            : latest.document.revision !== requestRevision)
+        ) return
         const engine = (handle.current ??= createEditorWorkerClient()).get()
         if (mode === 'prepare') {
-          const prepared = await engine.prepare(input, requestRevision)
+          const prepared = await engine.prepare(input, document.assetRevision)
           if (token !== operation.current) return
           if (!prepared.ok) {
             if (!('stale' in prepared))
               settleError(token, requestRevision, prepared.error.message, prepared.error.field)
             return
           }
-          store.getState().actions.acceptPrepared({ apiVersion: 1, revision: prepared.revision, ...prepared.value })
+          store.getState().actions.acceptPrepared({
+            apiVersion: 1,
+            revision: requestRevision,
+            assetRevision: prepared.revision,
+            ...prepared.value,
+          })
         } else {
           const assembled = await engine.assemble(toAssembleInput(input, document.settings), requestRevision)
           if (token !== operation.current) return
@@ -92,9 +111,13 @@ export function useEngineRequest(): EditorRequest {
 
       function settleError(activeToken: number, expectedRevision: number, message: string, field?: string) {
         const latest = store.getState()
-        if (activeToken === operation.current && latest.document.revision === expectedRevision) {
-          setFailedRequest({ revision: expectedRevision, mode })
-          latest.actions.failEngine(expectedRevision, message, field)
+        const stillCurrent = mode === 'prepare'
+          ? activeToken === assetOperation.current && latest.document.assetRevision === document.assetRevision
+          : activeToken === assemblyOperation.current && latest.document.revision === expectedRevision
+        if (stillCurrent) {
+          setFailedRequest({ revision: latest.document.revision, mode })
+          if (mode === 'prepare') latest.actions.failEngine(latest.document.revision, message, field)
+          else latest.actions.failEngine(expectedRevision, message, field)
         }
       }
     },
@@ -110,13 +133,14 @@ export function useEngineRequest(): EditorRequest {
     return () => {
       if (timer.current) clearTimeout(timer.current)
       timer.current = null
-      operation.current += 1
+      assetOperation.current += 1
     }
-  }, [mask, maskBusy, poster, request, revision])
+  }, [mask, maskBusy, poster, request, assetRevision])
 
   useEffect(
     () => () => {
-      operation.current += 1
+      assetOperation.current += 1
+      assemblyOperation.current += 1
       if (timer.current) clearTimeout(timer.current)
       timer.current = null
       handle.current?.dispose()
@@ -127,6 +151,7 @@ export function useEngineRequest(): EditorRequest {
 
   return {
     request,
+    cancelAssembly,
     failedMode: documentError && failedRequest?.revision === revision ? failedRequest.mode : null,
   }
 }

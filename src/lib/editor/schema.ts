@@ -13,8 +13,8 @@ export const contentSchema = z
 export const rotationSchema = z.number().finite().default(0)
 export const placementSchema = z
   .object({
-    x: z.number().int().nonnegative(),
-    y: z.number().int().nonnegative(),
+    x: z.number().int(),
+    y: z.number().int(),
     size: z.number().int().positive(),
     rotation: rotationSchema,
   })
@@ -85,12 +85,10 @@ export type EditorRequest = z.infer<typeof requestSchema>
 export type PlacementInput = z.input<typeof placementSchema>
 
 export function canonicalPlacement(box: PlacementInput, totalModules: number): Placement {
-  // Dragging is clamped to the poster origin like the arrow-key nudges, so the editor
-  // never sends the request schema a negative coordinate it would reject with a 400.
-  // Rotation is stored as the live free angle, canonicalized to [0, 360); no 45° snap.
+  // Signed origins keep off-canvas placement editable; export performs strict bounds checks.
   return {
-    x: Math.max(0, Math.round(box.x)),
-    y: Math.max(0, Math.round(box.y)),
+    x: Math.round(box.x),
+    y: Math.round(box.y),
     size: Math.max(4, Math.round(box.size / totalModules)) * totalModules,
     rotation: canonicalizeRotation(box.rotation),
   }
