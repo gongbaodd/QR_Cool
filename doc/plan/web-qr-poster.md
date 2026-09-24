@@ -201,7 +201,7 @@ The full normalized QR square is the placement constraint; the smaller module pl
 ### 9. Run formatting and linting before commits (completed)
 
 - Added Husky as a dev dependency with the `prepare` lifecycle script so hooks are installed automatically after dependency installation.
-- Added `.husky/pre-commit` to run `pnpm format && pnpm lint:fix` before each commit, reusing the repository's existing `oxfmt` and `oxlint` scripts.
+- `.husky/pre-commit` runs `lint-staged` and `pnpm typecheck`. The staged-file tasks use `oxlint --fix` and `oxfmt`, then add fixes to the current commit while preserving unstaged edits in partially staged files.
 
 ### 10. Split the step panels into deferred chunks (completed, 2026-09-21)
 
