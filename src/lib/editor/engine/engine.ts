@@ -19,15 +19,25 @@ import type { RegionMask, ResolvedLayout } from '@/core/types'
 import { setImaging } from '@/core/imaging'
 import type { QrBundle } from './pipeline'
 import {
+  assembleRasterVariant,
   engineDefaults,
   prepareSource,
   resolveQr,
   applyPlacement,
   toPreparedPayload,
   assemblePayload,
+  validatePlacement,
 } from './pipeline'
+import { QrPosterError } from '@/core/errors'
 import { toEngineError } from './mapping'
-import type { EngineError, EngineInput, EngineOutcome, PreparedPayload, AssemblePayload } from './types'
+import type {
+  EngineError,
+  EngineInput,
+  EngineOutcome,
+  PreparedPayload,
+  AssemblePayload,
+  RasterExportPayload,
+} from './types'
 import type { Placement, Settings } from '@/lib/editor/schema'
 
 /** Assembled layout shared by prepare and assemble. */
@@ -117,6 +127,80 @@ export class EditorEngine {
     try {
       const value = await assemblePayload(this.imaging, input)
       return this.settle(revision, { ok: true, value }, 'assemble')
+    } catch (error) {
+      return this.settle(revision, { ok: false, error: toEngineError(error) }, 'assemble')
+    }
+  }
+
+  /** Render the first verified smaller poster at or above the requested integer module pitch. */
+  async exportRaster(
+    input: EngineInput & {
+      placement: Placement
+      seed: number
+      qrMargin: 1
+      plateCorners: Settings['plateCorners']
+      regionMargin?: boolean
+      rimModules?: number
+      rimRounded?: boolean
+      ecc?: Settings['ecc']
+      pixelStyle?: Settings['pixelStyle']
+      finderMarkers?: Settings['finderMarkers']
+      markerSub?: Settings['markerSub']
+      colors?: Settings['colors']
+    },
+    targetPitch: number,
+    revision: number,
+  ): Promise<EngineOutcome<RasterExportPayload>> {
+    if (revision > this.latestAssemblyRevision) this.latestAssemblyRevision = revision
+    try {
+      const settings: Settings = {
+        ...engineDefaults,
+        seed: input.seed,
+        qrMargin: input.qrMargin,
+        plateCorners: input.plateCorners,
+        regionMargin: input.regionMargin ?? engineDefaults.regionMargin,
+        rimModules: input.rimModules ?? engineDefaults.rimModules,
+        rimRounded: input.rimRounded ?? engineDefaults.rimRounded,
+        ecc: input.ecc ?? engineDefaults.ecc,
+        pixelStyle: input.pixelStyle ?? engineDefaults.pixelStyle,
+        finderMarkers: input.finderMarkers ?? engineDefaults.finderMarkers,
+        markerSub: input.markerSub ?? engineDefaults.markerSub,
+        colors: input.colors ?? engineDefaults.colors,
+      }
+      const resolved = await this.resolveLayout({ ...input, settings })
+      const originalPlacement = validatePlacement({
+        regionMask: resolved.layout.regionMask,
+        qrMetadata: resolved.layout.qrMetadata,
+        placement: input.placement,
+        settings,
+      })
+      let lastLayoutError: QrPosterError | undefined
+      for (let pitch = Math.max(4, Math.ceil(targetPitch)); pitch < originalPlacement.modulePixels; pitch++) {
+        try {
+          const value = await assembleRasterVariant(
+            this.imaging,
+            resolved.layout,
+            settings,
+            originalPlacement,
+            pitch,
+            input.transparentBlank ?? false,
+          )
+          return this.settle(revision, { ok: true, value }, 'assemble')
+        } catch (error) {
+          if (
+            error instanceof QrPosterError &&
+            ['QR_LAYOUT_INVALID', 'MASK_INVALID', 'VERIFICATION_FAILED'].includes(error.code)
+          ) {
+            lastLayoutError = error
+            continue
+          }
+          throw error
+        }
+      }
+      throw new QrPosterError(
+        'QR_LAYOUT_INVALID',
+        lastLayoutError?.message ?? 'The original poster is the smallest verified export for this layout.',
+      )
     } catch (error) {
       return this.settle(revision, { ok: false, error: toEngineError(error) }, 'assemble')
     }

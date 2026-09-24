@@ -45,6 +45,14 @@ export interface AssemblePayload {
   artifacts: Record<string, Blob>
 }
 
+export interface RasterExportPayload {
+  poster: Blob
+  width: number
+  height: number
+  modulePixels: number
+  bytes: number
+}
+
 export type EngineOutcome<T> =
   | { ok: true; revision: number; value: T }
   | { ok: false; stale: true; revision: number }

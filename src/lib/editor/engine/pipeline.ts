@@ -10,6 +10,12 @@
 
 import { assembleResolved, markerBandRects } from '@/core/assemble'
 import { renderRegionMask } from '@/core/artifacts'
+import {
+  buildPosterSvg,
+  dimensionsAtPitch,
+  resizeAreaPremultiplied,
+  resizeRegionMaskConservative,
+} from '@/core/export-sizes'
 import { decodePng, rgbaToPng } from '@/core/image'
 import { buildManualRegionMask, detectRegionMask } from '@/core/mask'
 import { placeQr, findClosestSquare } from '@/core/placement'
@@ -28,11 +34,11 @@ import { regionPixelBounds } from '@/core/rotate'
 import { QrPosterError } from '@/core/errors'
 import type { Imaging } from '@/core/imaging/types'
 import type { LoadedPng } from '@/core/image'
-import type { QrMetadata, RegionMask, ResolvedLayout, AssembleReport } from '@/core/types'
+import type { QrMetadata, QrPlacement, RegionMask, ResolvedLayout, AssembleReport } from '@/core/types'
 import { parsePngHeader } from '@/lib/editor/png-guard'
 import { contentSchema, recenterPlacement } from '@/lib/editor/schema'
 import type { Placement, Settings } from '@/lib/editor/schema'
-import type { EngineInput, PreparedPayload, AssemblePayload } from './types'
+import type { EngineInput, PreparedPayload, AssemblePayload, RasterExportPayload } from './types'
 
 /** Builds a Blob with the mime type implied by the artifact name (PNG/SVG/JSON). */
 export function bytesToBlob(name: string, bytes: Uint8Array): Blob {
@@ -397,10 +403,80 @@ export async function assemblePayload(
         .join(', ')}). Adjust the placement and try again.`,
       4,
     )
+  const artifacts = Object.fromEntries(
+    Object.entries(result.artifacts).map(([name, bytes]) => [name, bytesToBlob(name, bytes)]),
+  )
+  artifacts['poster.svg'] = bytesToBlob(
+    'poster.svg',
+    new TextEncoder().encode(
+      buildPosterSvg(result.artifacts['poster.png']!, layout.poster.width, layout.poster.height),
+    ),
+  )
   return {
     report: result.report as AssembleReport,
-    artifacts: Object.fromEntries(
-      Object.entries(result.artifacts).map(([name, pngBytes]) => [name, bytesToBlob(name, pngBytes)]),
-    ),
+    artifacts,
+  }
+}
+
+export async function assembleRasterVariant(
+  imaging: Imaging,
+  original: ResolvedLayout,
+  settings: Settings,
+  originalPlacement: QrPlacement,
+  targetPitch: number,
+  transparentBlank: boolean,
+): Promise<RasterExportPayload> {
+  const originalPitch = originalPlacement.modulePixels
+  if (!Number.isInteger(targetPitch) || targetPitch < 4 || targetPitch >= originalPitch)
+    throw new QrPosterError('INVALID_INPUT', 'Choose a smaller export with modules of at least 4px.')
+
+  const dimensions = dimensionsAtPitch(original.poster.width, original.poster.height, originalPitch, targetPitch)
+  const regionMask = resizeRegionMaskConservative(original.regionMask, dimensions.width, dimensions.height)
+  const scale = targetPitch / originalPitch
+  const size = original.qrMetadata.totalModules * targetPitch
+  const requested = {
+    x: Math.round((originalPlacement.x + originalPlacement.size / 2) * scale - size / 2),
+    y: Math.round((originalPlacement.y + originalPlacement.size / 2) * scale - size / 2),
+    size,
+    rotation: originalPlacement.rotation,
+  }
+  const placement = validatePlacement({ regionMask, qrMetadata: original.qrMetadata, placement: requested, settings })
+  const posterData = resizeAreaPremultiplied(original.poster, dimensions.width, dimensions.height)
+  const posterFile = await imaging.encodePngRgba(posterData, dimensions.width, dimensions.height)
+  const poster = {
+    path: `poster-${dimensions.width}x${dimensions.height}.png`,
+    file: posterFile,
+    data: posterData,
+    ...dimensions,
+    sha256: await imaging.sha256Hex(posterFile),
+  }
+  const normalizedQr = await normalizeQr(original.qrSource, size)
+  const { maskInput: _maskInput, ...withoutMaskInput } = original
+  const layout: ResolvedLayout = {
+    ...withoutMaskInput,
+    poster,
+    regionMask,
+    placement,
+    normalizedQr,
+  }
+  const result = await assembleResolved(layout, {
+    seed: settings.seed,
+    qrMargin: settings.qrMargin,
+    radius: settings.plateCorners === 'light' ? 0 : targetPitch * 2,
+    regionMargin: settings.regionMargin,
+    rimModules: settings.rimModules,
+    rimRounded: settings.rimRounded,
+    pixelStyle: settings.pixelStyle,
+    transparentBlank,
+    palette: settings.colors,
+  })
+  if (!result.report.qualified)
+    throw new QrPosterError('VERIFICATION_FAILED', 'This raster size did not pass pixel verification.', 4)
+  const png = result.artifacts['poster.png']!
+  return {
+    poster: bytesToBlob(`poster-${dimensions.width}x${dimensions.height}.png`, png),
+    ...dimensions,
+    modulePixels: targetPitch,
+    bytes: png.byteLength,
   }
 }

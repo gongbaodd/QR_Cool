@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as Comlink from 'comlink'
-import type { EngineInput, AssembleInput } from '@/lib/editor/engine'
+import type { EngineInput, AssembleInput, RasterExportPayload } from '@/lib/editor/engine'
 import { contentSchema, MAX_IMAGE_BYTES, type Settings } from '@/lib/editor/schema'
 import { selectCanAssemble } from '@/lib/editor/selectors'
 import { createEditorWorkerClient, type EditorWorkerClientHandle } from '@/lib/editor/worker/editor-worker-client'
@@ -8,6 +8,7 @@ import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorSto
 
 export interface EditorRequest {
   request: (mode: 'prepare' | 'assemble') => Promise<void>
+  exportRaster: (targetPitch: number) => Promise<RasterExportPayload>
   cancelAssembly: () => void
   failedMode: 'prepare' | 'assemble' | null
 }
@@ -26,6 +27,7 @@ export function useEngineRequest(): EditorRequest {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const assetOperation = useRef(0)
   const assemblyOperation = useRef(0)
+  const exportOperation = useRef(0)
 
   const cancelAssembly = useCallback(() => {
     assemblyOperation.current += 1
@@ -126,6 +128,47 @@ export function useEngineRequest(): EditorRequest {
     [store],
   )
 
+  const exportRaster = useCallback(
+    async (targetPitch: number): Promise<RasterExportPayload> => {
+      const token = ++exportOperation.current
+      const current = store.getState()
+      const document = current.document
+      const sourcePoster = current.sources.poster
+      const sourceMask = current.sources.mask
+      if (!sourcePoster || !document.placement || !document.result || document.result.revision !== document.revision)
+        throw new Error('Assemble the current poster before choosing another size.')
+      const requestRevision = document.revision
+      const input: EngineInput = {
+        posterBytes: await toTransferredBytes(sourcePoster),
+        transparentBlank: current.sources.transparentBlank,
+        content: document.content,
+        placement: document.placement,
+        settings: document.settings,
+      }
+      if (sourceMask) input.maskBytes = await toTransferredBytes(sourceMask)
+      if (token !== exportOperation.current || store.getState().document.revision !== requestRevision)
+        throw new Error('Raster export was cancelled.')
+      const engine = (handle.current ??= createEditorWorkerClient()).get()
+      const exported = await engine.exportRaster(
+        toAssembleInput(input, document.settings),
+        targetPitch,
+        requestRevision,
+      )
+      if (token !== exportOperation.current || store.getState().document.revision !== requestRevision)
+        throw new Error('Raster export was cancelled.')
+      if (!exported.ok) {
+        if ('stale' in exported) throw new Error('Raster export was cancelled.')
+        throw new Error(exported.error.message)
+      }
+      return exported.value
+    },
+    [store],
+  )
+
+  useEffect(() => {
+    exportOperation.current += 1
+  }, [revision])
+
   useEffect(() => {
     if (!poster || maskBusy) return
     timer.current = setTimeout(() => {
@@ -143,6 +186,7 @@ export function useEngineRequest(): EditorRequest {
     () => () => {
       assetOperation.current += 1
       assemblyOperation.current += 1
+      exportOperation.current += 1
       if (timer.current) clearTimeout(timer.current)
       timer.current = null
       handle.current?.dispose()
@@ -153,6 +197,7 @@ export function useEngineRequest(): EditorRequest {
 
   return {
     request,
+    exportRaster,
     cancelAssembly,
     failedMode: documentError && failedRequest?.revision === revision ? failedRequest.mode : null,
   }

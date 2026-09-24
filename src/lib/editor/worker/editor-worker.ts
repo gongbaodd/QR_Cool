@@ -17,6 +17,8 @@ export const api = {
     (await engine).prepare(input, revision),
   assemble: async (input: Parameters<EditorEngineApi['assemble']>[0], revision: number) =>
     (await engine).assemble(input, revision),
+  exportRaster: async (input: Parameters<EditorEngineApi['exportRaster']>[0], targetPitch: number, revision: number) =>
+    (await engine).exportRaster(input, targetPitch, revision),
   invalidate: async () => (await engine).invalidate(),
 }
 export type EditorWorkerApi = typeof api

@@ -70,7 +70,7 @@ function EditorWorkspace() {
   const maskBusy = useEditorStore((state) => state.maskSelection.busy)
   const iconSearch = useIconSearch()
   const maskSelection = useMaskSelection({})
-  const { request, failedMode, cancelAssembly } = useEngineRequest()
+  const { request, exportRaster, failedMode, cancelAssembly } = useEngineRequest()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const draftCommitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const maskTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -381,6 +381,7 @@ function EditorWorkspace() {
           onPlacementGestureStart={cancelAssembly}
           onMaskFillCommit={(mask) => actions.replaceMask(new File([mask], TEXT_MASK_FILENAME, { type: 'image/png' }))}
           onReturnToEditing={() => actions.setResultView(false)}
+          onExportRaster={exportRaster}
           onMaskOpen={() => actions.setMaskOpen(true)}
           onPatternSettingsOpen={() => actions.setPatternSettingsOpen(true)}
           maskOpen={maskOpen}

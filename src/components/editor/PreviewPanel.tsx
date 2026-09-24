@@ -5,6 +5,7 @@ import type { ReactNode, RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { toast } from 'react-toastify'
 import type { Result } from '@/lib/editor/state'
+import type { RasterExportPayload } from '@/lib/editor/engine'
 import type { Placement, Settings } from '@/lib/editor/schema'
 import { canonicalizeRotation } from '@/core/rotate'
 import {
@@ -786,6 +787,7 @@ export default function PreviewPanel({
   onPlacementGestureStart,
   onMaskFillCommit,
   onReturnToEditing,
+  onExportRaster,
   onMaskOpen,
   onPatternSettingsOpen,
   maskOpen,
@@ -818,6 +820,7 @@ export default function PreviewPanel({
   onPlacementGestureStart: () => void
   onMaskFillCommit: (mask: Blob) => void
   onReturnToEditing: () => void
+  onExportRaster: (targetPitch: number) => Promise<RasterExportPayload>
   onMaskOpen: () => void
   onPatternSettingsOpen: () => void
   maskOpen: boolean
@@ -1091,7 +1094,16 @@ export default function PreviewPanel({
         </div>
       </div>
       {showingResult && result ? (
-        <ResultPanel result={result} artifacts={artifacts} onReturnToEditing={onReturnToEditing} />
+        <ResultPanel
+          key={result.revision}
+          result={result}
+          artifacts={artifacts}
+          dimensions={dimensions!}
+          placement={placement!}
+          modules={modules}
+          onExportRaster={onExportRaster}
+          onReturnToEditing={onReturnToEditing}
+        />
       ) : keepPlacementCanvas ? (
         <div {...stylex.props(styles.canvas)}>
           <PosterCanvas

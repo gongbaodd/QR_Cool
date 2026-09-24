@@ -6,11 +6,18 @@
 
 import type { Imaging } from '@/core/imaging/types'
 import { EditorEngine } from './engine'
-import type { EngineOutcome, PreparedPayload, AssemblePayload, EngineInput, EngineError } from './types'
+import type {
+  EngineOutcome,
+  PreparedPayload,
+  AssemblePayload,
+  RasterExportPayload,
+  EngineInput,
+  EngineError,
+} from './types'
 import type { Placement, Settings } from '@/lib/editor/schema'
 
 export type { EditorEngine }
-export type { EngineOutcome, PreparedPayload, AssemblePayload, EngineInput, EngineError }
+export type { EngineOutcome, PreparedPayload, AssemblePayload, RasterExportPayload, EngineInput, EngineError }
 export type { EngineInput as EngineRequest }
 
 export type AssembleInput = EngineInput & {
@@ -32,6 +39,11 @@ export type AssembleInput = EngineInput & {
 export interface EditorEngineApi {
   prepare: (input: EngineInput, revision: number) => Promise<EngineOutcome<PreparedPayload>>
   assemble: (input: AssembleInput, revision: number) => Promise<EngineOutcome<AssemblePayload>>
+  exportRaster: (
+    input: AssembleInput,
+    targetPitch: number,
+    revision: number,
+  ) => Promise<EngineOutcome<RasterExportPayload>>
   invalidate: () => void
 }
 
@@ -40,6 +52,7 @@ export async function createEditorEngine(imaging: Imaging): Promise<EditorEngine
   return {
     prepare: (input, revision) => engine.prepare(input, revision),
     assemble: (input, revision) => engine.assemble(input, revision),
+    exportRaster: (input, targetPitch, revision) => engine.exportRaster(input, targetPitch, revision),
     invalidate: () => engine.invalidate(),
   }
 }
