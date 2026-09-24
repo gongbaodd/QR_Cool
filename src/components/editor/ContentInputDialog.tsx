@@ -299,7 +299,7 @@ export default function ContentInputDialog({
         <>
           <div {...stylex.props(styles.header)}>
             <h2 {...stylex.props(styles.title)} id={titleId}>
-              {dialogKind} QR code
+              {dialogKind} to QR code
             </h2>
             <button
               {...stylex.props(ui.button, ui.textButton)}
