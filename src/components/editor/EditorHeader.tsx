@@ -279,11 +279,6 @@ export default function EditorHeader({
           ))}
         </div>
       </form>
-      <span {...stylex.props(styles.meta)}>
-        Local processing.
-        <br />
-        No account or saved uploads.
-      </span>
       <ContentInputDialog
         kind={dialogKind}
         onClose={() => setDialogKind(null)}
