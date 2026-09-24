@@ -1,8 +1,10 @@
 'use client'
 import Link from 'next/link'
-import { useState } from 'react'
-import type { RefObject } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent, RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { motion, useReducedMotion } from 'motion/react'
+import { MOBILE_LAYOUT_QUERY } from '@/lib/editor/responsive'
 import { QR_EXAMPLES } from '@/lib/editor/examples'
 import type { ContentKind } from '@/lib/editor/content-input'
 import { buildSimpleContent } from '@/lib/editor/content-input'
@@ -11,7 +13,7 @@ import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
 const styles = stylex.create({
-  header: {
+  shell: {
     position: 'sticky',
     insetBlockStart: 0,
     zIndex: 5,
@@ -25,7 +27,37 @@ const styles = stylex.create({
     borderBottomWidth: 2,
     borderBottomStyle: 'solid',
     borderBottomColor: tokens.ink,
-    '@media (max-width: 56.25em)': { gridTemplateColumns: '1fr', gap: 8, paddingInline: 16 },
+    '@media (max-width: 56.25em)': {
+      position: 'relative',
+      zIndex: 5,
+      display: 'block',
+      paddingBlock: 0,
+      paddingInline: 0,
+      backgroundColor: 'transparent',
+      borderBottomWidth: 0,
+      borderBottomStyle: 'none',
+    },
+  },
+  bar: {
+    display: 'flex',
+    alignItems: 'center',
+    gridColumn: '1',
+    gridRow: '1',
+    '@media (max-width: 56.25em)': {
+      width: '100%',
+      blockSize: '3.75rem',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      padding: 0,
+      backgroundColor: tokens.card,
+      borderBottomWidth: 2,
+      borderBottomStyle: 'solid',
+      borderBottomColor: tokens.ink,
+    },
+  },
+  barOpen: {
+    '@media (max-width: 56.25em)': { borderBottomWidth: 0, borderBottomStyle: 'none' },
   },
   wordmark: {
     display: 'inline-flex',
@@ -37,22 +69,114 @@ const styles = stylex.create({
     borderRadius: tokens.sketch,
     gridColumn: '1',
     gridRow: '1',
+    '@media (max-width: 56.25em)': { paddingInline: 0 },
   },
   mark: {
     display: 'block',
     flexShrink: 0,
     width: 'clamp(3.5rem, 16vw, 128px)',
     height: 'clamp(3.5rem, 16vw, 128px)',
+    '@media (max-width: 56.25em)': { width: 44, height: 44 },
+  },
+  mobileTrigger: {
+    display: 'none',
+    '@media (max-width: 56.25em)': {
+      display: 'flex',
+      flex: 1,
+      width: 'auto',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      minWidth: 0,
+      paddingBlock: 9,
+      paddingInline: 13,
+      borderWidth: 2,
+      borderStyle: 'solid',
+      borderColor: tokens.ink,
+      borderRadius: tokens.sketchAlt,
+      backgroundColor: 'white',
+      color: tokens.ink,
+      boxShadow: tokens.shadowField,
+      fontFamily: 'inherit',
+      fontSize: '1rem',
+      lineHeight: 1.5,
+      textAlign: 'start',
+      cursor: 'pointer',
+    },
+  },
+  triggerLabel: {
+    minWidth: 0,
+    overflow: 'hidden',
+    whiteSpace: 'nowrap',
+    textOverflow: 'ellipsis',
+  },
+  triggerIcon: {
+    flexShrink: 0,
+    width: 10,
+    height: 10,
+    borderInlineEndWidth: 2,
+    borderInlineEndStyle: 'solid',
+    borderBlockEndWidth: 2,
+    borderBlockEndStyle: 'solid',
+    borderColor: tokens.ink,
+    transform: 'rotate(45deg) translateY(-2px)',
+    transitionProperty: 'transform',
+    transitionDuration: '180ms',
+    '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0ms' },
+  },
+  triggerIconOpen: { transform: 'rotate(225deg) translate(-2px, -1px)' },
+  formWrap: {
+    gridColumn: '2',
+    gridRow: '1',
+    minWidth: 0,
+    '@media (max-width: 56.25em)': {
+      position: 'absolute',
+      insetBlockStart: '100%',
+      insetInlineStart: 0,
+      width: '100%',
+      boxSizing: 'border-box',
+      zIndex: 1,
+      gridColumn: '1',
+      gridRow: '2',
+      height: 0,
+      maxHeight: 0,
+      overflow: 'hidden',
+      overflowY: 'auto',
+      visibility: 'hidden',
+      backgroundColor: tokens.card,
+      borderBottomWidth: 0,
+      borderBottomStyle: 'solid',
+      borderBottomColor: tokens.ink,
+    },
+  },
+  formWrapOpen: {
+    '@media (max-width: 56.25em)': {
+      maxHeight: 'calc(100dvh - 3.75rem)',
+      paddingBlockEnd: 12,
+      borderBottomWidth: 2,
+    },
   },
   form: {
     display: 'grid',
-    gridColumn: '2',
-    gridRow: '1',
     gridTemplateColumns: 'minmax(0, 1fr)',
     gap: 10,
     alignItems: 'end',
     minWidth: 0,
-    '@media (max-width: 56.25em)': { gridColumn: '1', gridRow: '2' },
+  },
+  closeDisclosure: {
+    display: 'none',
+    justifySelf: 'center',
+    placeItems: 'center',
+    width: 44,
+    height: 44,
+    paddingBlock: 0,
+    paddingInline: 0,
+    '@media (max-width: 56.25em)': { display: 'grid' },
+  },
+  closeDisclosureIcon: {
+    display: 'block',
+    width: 20,
+    height: 20,
   },
   field: { fontSize: '1rem', marginTop: 0 },
   kinds: {
@@ -144,7 +268,12 @@ export default function EditorHeader({
 }) {
   const [kind, setKind] = useState<ContentKind>('URL')
   const [dialogKind, setDialogKind] = useState<ContentKind | null>(null)
+  const [contentOpen, setContentOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState<boolean | null>(null)
   const [simpleTouched, setSimpleTouched] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const formRef = useRef<HTMLFormElement | null>(null)
+  const prefersReducedMotion = useReducedMotion()
   const [simpleValues, setSimpleValues] = useState<Record<'URL' | 'Text' | 'Phone', string>>({
     URL: '',
     Text: '',
@@ -196,6 +325,7 @@ export default function EditorHeader({
 
   const simpleKind = kind === 'URL' || kind === 'Text' || kind === 'Phone' ? kind : null
   const activeSimpleValue = simpleKind ? simpleValues[simpleKind] : ''
+  const triggerText = simpleKind ? activeSimpleValue.trim() || 'Enter content…' : `Edit ${kind} details`
   const simpleError =
     simpleKind && simpleTouched && !buildSimpleContent(simpleKind, activeSimpleValue)
       ? simpleKind === 'URL'
@@ -205,97 +335,199 @@ export default function EditorHeader({
           : 'Enter one line of text within the QR capacity limit.'
       : null
 
+  useEffect(() => {
+    const media = window.matchMedia(MOBILE_LAYOUT_QUERY)
+    const update = () => {
+      const nextMobile = media.matches
+      setIsMobile(nextMobile)
+      if (nextMobile) {
+        if (formRef.current?.contains(document.activeElement)) {
+          setContentOpen(false)
+          requestAnimationFrame(() => triggerRef.current?.focus())
+        }
+      } else {
+        setContentOpen(false)
+        if (document.activeElement === triggerRef.current) {
+          requestAnimationFrame(() => inputRef?.current?.focus())
+        }
+      }
+    }
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [inputRef])
+
+  useEffect(() => {
+    if (!contentOpen || !isMobile || dialogKind) return
+    const frame = requestAnimationFrame(() => {
+      const target = simpleKind
+        ? (inputRef?.current ?? formRef.current?.querySelector<HTMLElement>('[data-content-editor-trigger]'))
+        : formRef.current?.querySelector<HTMLElement>('[data-content-editor-trigger]')
+      target?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [contentOpen, dialogKind, inputRef, isMobile, simpleKind])
+
+  function closeContent() {
+    triggerRef.current?.focus()
+    setContentOpen(false)
+  }
+
+  function handleDisclosureKeyDown(event: KeyboardEvent) {
+    if (event.key !== 'Escape' || !contentOpen || dialogKind) return
+    event.preventDefault()
+    event.stopPropagation()
+    closeContent()
+  }
+
+  const animateForm =
+    isMobile === null
+      ? undefined
+      : isMobile
+        ? contentOpen
+          ? {
+              height: 'auto' as const,
+              opacity: 1,
+              y: 0,
+              visibility: 'visible' as const,
+              maxHeight: 'calc(100dvh - 3.75rem)',
+            }
+          : { height: 0, opacity: 0, y: -8, visibility: 'hidden' as const, maxHeight: 0 }
+        : undefined
+  const motionTransition = prefersReducedMotion ? { duration: 0 } : { duration: 0.22, ease: 'easeOut' as const }
+
   return (
-    <header {...stylex.props(styles.header)}>
-      <form
-        {...stylex.props(styles.form)}
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault()
-          submitSimple()
-        }}
+    <div {...stylex.props(styles.shell)} onKeyDownCapture={handleDisclosureKeyDown}>
+      <header {...stylex.props(styles.bar, contentOpen && styles.barOpen)}>
+        <Link href="/" aria-label="Home" {...stylex.props(styles.wordmark, ui.focusVisible)}>
+          <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={128} height={128} />
+        </Link>
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-label="Edit QR content"
+          aria-expanded={contentOpen}
+          aria-controls="mobile-content-form"
+          {...stylex.props(styles.mobileTrigger, ui.focusVisible)}
+          onClick={() => setContentOpen((open) => !open)}
+        >
+          <span {...stylex.props(styles.triggerLabel)}>{triggerText}</span>
+          <span aria-hidden="true" {...stylex.props(styles.triggerIcon, contentOpen && styles.triggerIconOpen)} />
+        </button>
+      </header>
+      <motion.div
+        id="mobile-content-form"
+        {...stylex.props(styles.formWrap, contentOpen && styles.formWrapOpen)}
+        animate={animateForm ?? false}
+        transition={motionTransition}
+        inert={isMobile === true && !contentOpen}
+        aria-hidden={isMobile === true && !contentOpen}
       >
-        {simpleKind ? (
-          <label {...stylex.props(ui.label)} htmlFor="content">
-            {simpleKind}
-            <input
-              {...stylex.props(ui.field, ui.focusVisible, styles.field)}
-              id="content"
-              ref={inputRef}
-              name="content"
-              type="text"
-              inputMode={simpleKind === 'URL' ? 'url' : simpleKind === 'Phone' ? 'tel' : 'text'}
-              autoComplete={simpleKind === 'Phone' ? 'tel' : 'off'}
-              enterKeyHint="go"
-              value={simpleValues[simpleKind]}
-              maxLength={8000}
-              aria-invalid={!!contentError || !!simpleError}
-              aria-describedby={simpleError || contentError ? 'content-error' : 'content-hint'}
-              onBlur={() => {
-                setSimpleTouched(true)
-                if (buildSimpleContent(simpleKind, activeSimpleValue)) onContentBlur()
-                else onContentInvalid()
-              }}
-              onChange={(event) => handleSimpleChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
-                event.preventDefault()
-                submitSimple()
-              }}
-            />
-            {simpleError && (
-              <span id="content-error" {...stylex.props(styles.localError)}>
-                {simpleError}
-              </span>
-            )}
-          </label>
-        ) : (
+        <form
+          ref={formRef}
+          {...stylex.props(styles.form)}
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault()
+            submitSimple()
+          }}
+        >
+          {simpleKind ? (
+            <label {...stylex.props(ui.label)} htmlFor="content">
+              {simpleKind}
+              <input
+                {...stylex.props(ui.field, ui.focusVisible, styles.field)}
+                id="content"
+                ref={inputRef}
+                name="content"
+                type="text"
+                inputMode={simpleKind === 'URL' ? 'url' : simpleKind === 'Phone' ? 'tel' : 'text'}
+                autoComplete={simpleKind === 'Phone' ? 'tel' : 'off'}
+                enterKeyHint="go"
+                value={simpleValues[simpleKind]}
+                maxLength={8000}
+                aria-invalid={!!contentError || !!simpleError}
+                aria-describedby={simpleError || contentError ? 'content-error' : 'content-hint'}
+                onBlur={() => {
+                  setSimpleTouched(true)
+                  if (buildSimpleContent(simpleKind, activeSimpleValue)) onContentBlur()
+                  else onContentInvalid()
+                }}
+                onChange={(event) => handleSimpleChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+                  event.preventDefault()
+                  submitSimple()
+                }}
+              />
+              {simpleError && (
+                <span id="content-error" {...stylex.props(styles.localError)}>
+                  {simpleError}
+                </span>
+              )}
+            </label>
+          ) : (
+            <button
+              type="button"
+              data-content-editor-trigger
+              {...stylex.props(ui.button, ui.focusVisible, ui.textButton, styles.openDialog)}
+              onClick={() => setDialogKind(kind)}
+            >
+              Edit {kind} details
+            </button>
+          )}
+          <fieldset {...stylex.props(styles.kinds)} aria-label="QR content type">
+            <legend {...stylex.props(styles.kindLegend)}>QR content type</legend>
+            {(['URL', 'Text', 'Phone', 'WiFi', 'SMS', 'Email', 'QRCode'] as const).map((choice) => (
+              <button
+                key={choice}
+                type="button"
+                aria-pressed={kind === choice}
+                {...stylex.props(styles.kind, kind === choice && styles.kindSelected, ui.focusVisible)}
+                onClick={() => selectKind(choice)}
+              >
+                {choice}
+              </button>
+            ))}
+          </fieldset>
+          <p id="content-hint" {...stylex.props(styles.status)} role="status">
+            {status}
+          </p>
+          {contentError && !simpleError && (
+            <span id="content-error" {...stylex.props(styles.srOnly)}>
+              {contentError}
+            </span>
+          )}
+          <div {...stylex.props(styles.examples)}>
+            {QR_EXAMPLES.map((example) => (
+              <button
+                key={example.value}
+                type="button"
+                {...stylex.props(styles.example, ui.focusVisible)}
+                onClick={() => handleExample(example.value)}
+              >
+                {example.label}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
-            {...stylex.props(ui.button, ui.focusVisible, ui.textButton, styles.openDialog)}
-            onClick={() => setDialogKind(kind)}
+            aria-label="Slide up"
+            {...stylex.props(ui.button, ui.focusVisible, styles.closeDisclosure)}
+            onClick={closeContent}
           >
-            Edit {kind} details
+            <svg {...stylex.props(styles.closeDisclosureIcon)} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 19V5m-7 7 7-7 7 7"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
-        )}
-        <fieldset {...stylex.props(styles.kinds)} aria-label="QR content type">
-          <legend {...stylex.props(styles.kindLegend)}>QR content type</legend>
-          {(['URL', 'Text', 'Phone', 'WiFi', 'SMS', 'Email', 'QRCode'] as const).map((choice) => (
-            <button
-              key={choice}
-              type="button"
-              aria-pressed={kind === choice}
-              {...stylex.props(styles.kind, kind === choice && styles.kindSelected, ui.focusVisible)}
-              onClick={() => selectKind(choice)}
-            >
-              {choice}
-            </button>
-          ))}
-        </fieldset>
-        <p id="content-hint" {...stylex.props(styles.status)} role="status">
-          {status}
-        </p>
-        {contentError && !simpleError && (
-          <span id="content-error" {...stylex.props(styles.srOnly)}>
-            {contentError}
-          </span>
-        )}
-        <div {...stylex.props(styles.examples)}>
-          {QR_EXAMPLES.map((example) => (
-            <button
-              key={example.value}
-              type="button"
-              {...stylex.props(styles.example, ui.focusVisible)}
-              onClick={() => handleExample(example.value)}
-            >
-              {example.label}
-            </button>
-          ))}
-        </div>
-      </form>
-      <Link href="/" aria-label="Home" {...stylex.props(styles.wordmark, ui.focusVisible)}>
-        <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={128} height={128} />
-      </Link>
+        </form>
+      </motion.div>
       <ContentInputDialog
         kind={dialogKind}
         onClose={() => setDialogKind(null)}
@@ -303,6 +535,6 @@ export default function EditorHeader({
         onSubmit={onSubmit}
         onContentInvalid={onContentInvalid}
       />
-    </header>
+    </div>
   )
 }

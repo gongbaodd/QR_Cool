@@ -1,11 +1,12 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { MOBILE_LAYOUT_QUERY } from '@/lib/editor/responsive'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
 // Keep this query equivalent to the CSS drawer breakpoint below (900px at a 16px default).
-export const MOBILE_LAYOUT_QUERY = '(max-width: 56.25em)'
+export { MOBILE_LAYOUT_QUERY } from '@/lib/editor/responsive'
 const styles = stylex.create({
   dialog: {
     margin: 0,
