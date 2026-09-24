@@ -115,7 +115,6 @@ export default function ContentInputDialog({
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitted, setSubmitted] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [uploadedName, setUploadedName] = useState('')
   const [wifi, setWifi] = useState<WifiFields>({ name: '', encryption: 'WPA/WPA2', password: '' })
   const [sms, setSms] = useState<SmsFields>({ phone: '', message: '' })
   const [email, setEmail] = useState<EmailFields>({ email: '', subject: '', message: '' })
@@ -129,7 +128,6 @@ export default function ContentInputDialog({
       setError(null)
       setTouched({})
       setSubmitted(false)
-      setUploadedName('')
       previousKind.current = kind
     }
     if (isModalKind(kind) && !dialog.open) dialog.showModal()
@@ -183,13 +181,12 @@ export default function ContentInputDialog({
       const request = ++requestId.current
       setError(null)
       setUploading(true)
-      setUploadedName('')
       try {
         const content = await decodeUploadedQr(file)
         if (request !== requestId.current) return
         onContentChange(content)
         onSubmit()
-        setUploadedName(file.name)
+        dialogRef.current?.close()
       } catch (cause) {
         if (request !== requestId.current) return
         setError(cause instanceof Error ? cause.message : 'Could not read this QR image.')
@@ -318,7 +315,6 @@ export default function ContentInputDialog({
                 <input {...dropzone.getInputProps()} aria-label="Upload QR code PNG" />
                 <span>{uploading ? 'Reading QR code…' : 'Drop a QR PNG here, or choose a file'}</span>
               </div>
-              {uploadedName && <p {...stylex.props(ui.hint)}>Decoded {uploadedName}</p>}
               {error && (
                 <p {...stylex.props(styles.error)} role="alert">
                   {error}
