@@ -28,7 +28,8 @@ const styles = stylex.create({
     borderBottomStyle: 'solid',
     borderBottomColor: tokens.ink,
     '@media (max-width: 56.25em)': {
-      position: 'relative',
+      position: 'sticky',
+      insetBlockStart: 0,
       zIndex: 5,
       display: 'block',
       paddingBlock: 0,
