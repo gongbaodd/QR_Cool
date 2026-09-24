@@ -18,9 +18,9 @@ const ECC_OPTIONS = [
 ] as const
 
 const PIXEL_OPTIONS = [
-  { value: 'square' as const, label: 'Square', hint: 'Sharp cells' },
-  { value: 'rounded' as const, label: 'Rounded', hint: 'Blended cells' },
-  { value: 'dot' as const, label: 'Dot', hint: 'Circles' },
+  { value: 'square' as const, label: 'Square' },
+  { value: 'rounded' as const, label: 'Rounded' },
+  { value: 'dot' as const, label: 'Dot' },
 ] as const
 
 const styles = stylex.create({
@@ -665,13 +665,12 @@ export default function PatternSettings({
                   checked={selected}
                   onChange={() => onSettings({ pixelStyle: opt.value })}
                   {...stylex.props(styles.eccRadio)}
-                  aria-label={`${opt.value} ${opt.hint}`}
+                  aria-label={opt.label}
                 />
                 <span {...stylex.props(styles.eccPreviewBox)}>
                   <MiniPixelQrPreview content="" ecc="L" pixelStyle={opt.value} allowEmpty />
                 </span>
                 <span {...stylex.props(styles.eccLabel)}>{opt.label}</span>
-                <span {...stylex.props(styles.eccRecovery)}>{opt.hint}</span>
               </label>
             )
           })}
