@@ -16,7 +16,7 @@ const styles = stylex.create({
     insetBlockStart: 0,
     zIndex: 5,
     display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1fr)',
+    gridTemplateColumns: 'auto minmax(0, 1fr)',
     gap: 20,
     alignItems: 'center',
     paddingBlock: 12,
@@ -35,15 +35,25 @@ const styles = stylex.create({
     color: tokens.ink,
     textDecoration: 'none',
     borderRadius: tokens.sketch,
-    marginInlineStart: 'auto',
+    gridColumn: '1',
+    gridRow: '1',
   },
   mark: {
     display: 'block',
     flexShrink: 0,
-    width: 'clamp(2.75rem, 5vw, 3.5rem)',
-    height: 'clamp(2.75rem, 5vw, 3.5rem)',
+    width: 'clamp(3.5rem, 16vw, 128px)',
+    height: 'clamp(3.5rem, 16vw, 128px)',
   },
-  form: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, alignItems: 'end', minWidth: 0 },
+  form: {
+    display: 'grid',
+    gridColumn: '2',
+    gridRow: '1',
+    gridTemplateColumns: 'minmax(0, 1fr)',
+    gap: 10,
+    alignItems: 'end',
+    minWidth: 0,
+    '@media (max-width: 56.25em)': { gridColumn: '1', gridRow: '2' },
+  },
   field: { fontSize: '1rem', marginTop: 0 },
   kinds: {
     display: 'flex',
@@ -281,11 +291,11 @@ export default function EditorHeader({
               {example.label}
             </button>
           ))}
-          <Link href="/" aria-label="Home" {...stylex.props(styles.wordmark, ui.focusVisible)}>
-            <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={56} height={56} />
-          </Link>
         </div>
       </form>
+      <Link href="/" aria-label="Home" {...stylex.props(styles.wordmark, ui.focusVisible)}>
+        <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={128} height={128} />
+      </Link>
       <ContentInputDialog
         kind={dialogKind}
         onClose={() => setDialogKind(null)}
