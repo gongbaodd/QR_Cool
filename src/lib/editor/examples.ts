@@ -4,10 +4,8 @@ export interface QrExample {
 }
 
 export const QR_EXAMPLES: QrExample[] = [
-  { label: 'Website', value: 'https://example.com' },
-  { label: 'Portfolio', value: 'https://qrcode.antfu.me' },
+  { label: 'Website', value: 'https://qr.growgen.xyz' },
+  { label: 'Portfolio', value: 'https://www.growgen.xyz/lab/' },
   { label: 'Hello', value: 'Hello mahu-QR' },
-  { label: 'Contact', value: 'https://github.com/antfu/qrcode-toolkit' },
-  { label: 'Product', value: 'https://shop.example/poster/001' },
-  { label: 'Menu', value: 'https://restaurant.example/menu' },
+  { label: 'Contact', value: 'https://p.growgen.xyz/' },
 ]
