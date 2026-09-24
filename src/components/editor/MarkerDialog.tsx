@@ -397,6 +397,7 @@ export default function MarkerDialog({
   }, [])
   const finder = kind !== 'sub'
   const finderId = kind === 'tr' || kind === 'bl' ? kind : 'tl'
+  const finderPosition = { tl: 'Top Left', tr: 'Top Right', bl: 'Bottom Left' }[finderId]
   const finderMarker = settings.finderMarkers[finderId]
   const markerStyle = finderMarker.style
   const markerShape = finderMarker.shape
@@ -409,7 +410,7 @@ export default function MarkerDialog({
     <dialog {...stylex.props(styles.dialog)} ref={dialogRef} closedby="any" aria-labelledby={titleId} onClose={onClose}>
       <div {...stylex.props(styles.header)}>
         <h3 {...stylex.props(styles.title)} id={titleId}>
-          {finder ? `${finderId.toUpperCase()} finder marker` : 'Alignment marker'}
+          {finder ? `${finderPosition} finder marker` : 'Alignment marker'}
         </h3>
         <button
           {...stylex.props(ui.button, ui.textButton)}
