@@ -1,10 +1,10 @@
 # Plan: Rebrand the editor as mahu-QR
 
-Status: **implemented** — a visual reskin plus brand assets. No behavior, layout structure, or engine change. The Wired-Elements sketch shape language (multi-corner radii, decorative tilts, wavy underlines, dashed outlines) and the Gloria Hallelujah handwriting UI font are deliberately **kept**: the rebrand is palette and mascot only. The brand source of truth is the mascot SVG saved verbatim at `public/brand/mahu-tiger.svg` (码码虎虎, copied byte-identical from the design source `~/Downloads/码码虎虎-圆形眼睛.svg`, md5 `ff01e1262bab426a083d01bcc60f2c5f`). Durable constraints landed in `AGENTS.md`, `README.md`, and `doc/plan/web-qr-poster.md`.
+Status: **implemented** — a visual reskin plus brand assets. No behavior, layout structure, or engine change. The Wired-Elements sketch shape language (multi-corner radii, decorative tilts, wavy underlines, dashed outlines) and the Gloria Hallelujah handwriting UI font are deliberately **kept**: the rebrand is palette and mascot only. The original rebrand mascot was saved verbatim at `public/brand/mahu-tiger.svg` (码码虎虎, copied byte-identical from the design source `~/Downloads/码码虎虎-圆形眼睛.svg`, md5 `ff01e1262bab426a083d01bcc60f2c5f`). The file has since been updated to the current head-only, three-path artwork, which is the present source of truth; the icon and static rasters now use that artwork. Durable constraints are in `AGENTS.md`, `README.md`, and `doc/plan/web-qr-poster.md`.
 
 ## 1. Brand source
 
-The mascot (`public/brand/mahu-tiger.svg`, 1254×1254, transparent background, two `<path>` elements, 49 blob subpaths):
+The original rebrand mascot (`public/brand/mahu-tiger.svg`, 1254×1254, transparent background, two `<path>` elements, 49 blob subpaths; see the note above for the updated current artwork):
 
 - **Two flat inks.** Near-black `#101211` (head, stripes, muzzle, eye structure — 32 subpaths) and vermilion `#ff321e` (ears, forehead mark, nose, cheek dots — 17 subpaths). No gradients, no outlines.
 - **Rounded blob geometry.** Every shape is a smooth closed cubic-Bézier curve; nothing rectangular survives.
@@ -46,10 +46,10 @@ Canonical file: `public/brand/mahu-tiger.svg` — **already landed**. The two `f
 
 | Asset           | Path                                                                 | Notes                                                                                                                                                                                   |
 | --------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Mascot (full)   | `public/brand/mahu-tiger.svg`                                        | done — 2 paths, 32 black + 17 red subpaths, grammar-checked                                                                                                                             |
-| Favicon         | `src/app/icon.svg`                                                   | Next file convention (`.svg` allowed in `app/**`; auto `<link rel="icon">`). Start from the full mascot; if it mushes at 16–32 px, commit a tighter head `viewBox` crop — do not redraw |
-| Touch icon      | `src/app/apple-icon.png` (180×180)                                   | rasterize once from the SVG (sharp dev dep, or a Playwright screenshot), commit; `.png` only per the convention                                                                         |
-| Social image    | `src/app/opengraph-image.png` (1200×630) + `opengraph-image.alt.txt` | compose once offline (mascot + wordmark on paper); commit; ≤ 8 MB                                                                                                                       |
+| Mascot (head)   | `public/brand/mahu-tiger.svg`                                        | Current artwork — three paths in two brand inks, transparent background                                                                                                               |
+| Favicon         | `src/app/icon.svg`                                                   | Updated head paths with a tight viewBox crop for legibility at 16–32 px                                                                                                               |
+| Touch icon      | `src/app/apple-icon.png` (180×180)                                   | Regenerated from the updated SVG on warm cream                                                                                                                                         |
+| Social image    | `src/app/opengraph-image.png` (1200×630) + `opengraph-image.alt.txt` | Updated head beside the existing wordmark and subtitle on warm cream; committed static PNG                                                                                             |
 | Wordmark lockup | in `EditorHeader`                                                    | tiger `<img>` ≈ 34 px + `mahu` (ink) `-QR` (accentText), keeping the wordmark tilt                                                                                                      |
 | Empty state     | `PreviewPanel`                                                       | the mascot inside the existing circular sketch card, above the "Your poster goes here" copy                                                                                             |
 
