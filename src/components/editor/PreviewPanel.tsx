@@ -88,7 +88,7 @@ const styles = stylex.create({
     borderColor: tokens.ink,
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
-    '@media (max-width: 56.25em)': { minHeight: 480, maxHeight: 560 },
+    '@media (max-width: 56.25em)': { minHeight: 480, maxHeight: 'none', overflow: 'hidden' },
   },
   regionContent: {
     flex: 1,
@@ -120,7 +120,7 @@ const styles = stylex.create({
     borderColor: tokens.ink,
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
-    '@media (max-width: 700px)': { maxHeight: 560 },
+    '@media (max-width: 700px)': { maxHeight: 'none', overflow: 'hidden' },
   },
   tools: {
     display: 'flex',
@@ -600,6 +600,7 @@ function PosterCanvas({
             viewBox={`0 0 ${width} ${height}`}
             role="img"
             aria-label="Poster editing preview"
+            style={{ touchAction: 'none' }}
             onPointerMove={move}
             onPointerUp={end}
             onPointerCancel={(event) => cancelGesture(event.pointerId)}
