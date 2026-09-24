@@ -8,7 +8,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 - Brand assets are committed static files, never generated routes: the mascot (header lockup and empty state), `src/app/icon.svg`, `src/app/apple-icon.png`, `src/app/opengraph-image.png` + `opengraph-image.alt.txt`. Rasters are regenerated from the SVG. Do not add `ImageResponse`/`opengraph-image.tsx` codegen.
 - The UI keeps the **Gloria Hallelujah** handwriting font (`handFont` in `src/styles/tokens.stylex.ts`, `@font-face` in `globals.css`); a rounded sans was considered and rejected. Text-mask fonts stay untouched. `public/fonts/ATTRIBUTION.md` is the license record for the bundled mask fonts.
 - Geometry keeps the Wired-Elements sketch language: multi-corner `sketch*` radii, decorative tilts, wavy underlines, dashed outlines, and hard offset shadows. `#ff321e` is for borders, focus rings, and large text only; body-size text uses the AA-safe `#c22312`. Canvas valid/danger signals stay distinct from the brand accent.
-- The engine does not rebrand: `DEFAULT_PALETTE` stays `#000000/#000000/#ffffff` and every golden output is byte-identical. The Tiger preset (`src/core/palette.ts`) is a one-tap suggestion the user opts into.
+- The engine does not rebrand: `DEFAULT_PALETTE` stays `#000000/#000000/#ffffff` and every golden output is byte-identical. The mascot's brand colors do not alter the default pattern palette.
 
 ## Commands
 

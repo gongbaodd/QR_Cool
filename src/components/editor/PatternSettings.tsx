@@ -4,14 +4,7 @@ import * as stylex from '@stylexjs/stylex'
 import { encode } from 'uqr'
 import '@simonwep/pickr/dist/themes/monolith.min.css'
 import type { Settings } from '@/lib/editor/schema'
-import {
-  DEFAULT_PALETTE,
-  TIGER_PRESET,
-  normalizeHex,
-  paletteGuard,
-  suggestPalette,
-  type QrPalette,
-} from '@/core/palette'
+import { DEFAULT_PALETTE, normalizeHex, paletteGuard, suggestPalette, type QrPalette } from '@/core/palette'
 import { usePickr } from './hooks/use-pickr'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
@@ -219,12 +212,6 @@ const styles = stylex.create({
     color: tokens.ink,
     fontWeight: 600,
     lineHeight: 1,
-  },
-  presetRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginBlock: 6,
   },
   hexInput: {
     width: '8ch',
@@ -622,20 +609,6 @@ export default function PatternSettings({
 
       <fieldset {...stylex.props(styles.colorsFieldset)}>
         <legend {...stylex.props(styles.eccLegend)}>Colors</legend>
-        <div {...stylex.props(styles.presetRow)}>
-          <button
-            type="button"
-            {...stylex.props(styles.suggestedChip)}
-            aria-label="Apply the Tiger brand palette: near-black pixels, vermilion markers, white background"
-            onClick={() => {
-              setCustomized({ marker: true, background: true })
-              attempt(TIGER_PRESET)
-            }}
-          >
-            <span {...stylex.props(styles.suggestedDot)} style={{ backgroundColor: TIGER_PRESET.pixel }} />
-            <span {...stylex.props(styles.suggestedLabel)}>Tiger preset</span>
-          </button>
-        </div>
         <ColorRow
           name="pixel"
           label="Pixel"
