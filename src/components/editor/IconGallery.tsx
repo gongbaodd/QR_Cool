@@ -171,7 +171,7 @@ export default function IconGallery({
           {loading ? `Searching icons for “${query}”…` : `Icons for “${query}” — ${total || items.length}`}
         </h3>
         <button
-          {...stylex.props(ui.button, ui.textButton)}
+          {...stylex.props(ui.button, ui.focusVisible, ui.textButton)}
           type="button"
           aria-label="Close icon gallery"
           onClick={onClose}
@@ -194,7 +194,7 @@ export default function IconGallery({
             return (
               <button
                 key={item.id}
-                {...stylex.props(ui.button, ui.fontCard, selected && ui.fontCardSelected)}
+                {...stylex.props(ui.button, ui.focusVisible, ui.fontCard, selected && ui.fontCardSelected)}
                 type="button"
                 aria-label={`Gallery icon ${item.name}`}
                 title={`${item.vendor}/${item.name}`}

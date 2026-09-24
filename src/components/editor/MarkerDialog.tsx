@@ -112,10 +112,6 @@ const styles = stylex.create({
     fontSize: '0.8125rem',
     fontWeight: 600,
     lineHeight: 1,
-    ':focus-visible': {
-      outline: `3px solid ${tokens.accent}`,
-      outlineOffset: 3,
-    },
   },
   toggleTrack: {
     display: 'flex',
@@ -187,8 +183,10 @@ const styles = stylex.create({
     boxShadow: tokens.shadow,
   },
   cardFocus: {
-    ':focus-within': {
-      outline: `3px solid ${tokens.accent}`,
+    ':has(input:focus-visible)': {
+      outlineWidth: 3,
+      outlineStyle: 'dotted',
+      outlineColor: tokens.accent,
       outlineOffset: 3,
     },
   },
@@ -475,7 +473,7 @@ export default function MarkerDialog({
           {finder ? `${finderPosition} finder marker` : 'Alignment marker'}
         </h3>
         <button
-          {...stylex.props(ui.button, ui.textButton)}
+          {...stylex.props(ui.button, ui.focusVisible, ui.textButton)}
           type="button"
           aria-label="Close marker settings"
           onClick={onClose}
@@ -495,7 +493,7 @@ export default function MarkerDialog({
                 role="switch"
                 aria-labelledby="rounded-marker-pixels-label"
                 aria-checked={markerStyle === 'rounded'}
-                {...stylex.props(styles.toggleButton)}
+                {...stylex.props(styles.toggleButton, ui.focusVisible)}
                 onClick={() => updateFinder({ style: markerStyle === 'rounded' ? 'square' : 'rounded' })}
               >
                 <span {...stylex.props(styles.toggleTrack, markerStyle === 'rounded' && styles.toggleTrackOn)}>
@@ -531,7 +529,7 @@ export default function MarkerDialog({
           </fieldset>
           <div {...stylex.props(styles.applyAllRow)}>
             <button
-              {...stylex.props(ui.button, ui.primary)}
+              {...stylex.props(ui.button, ui.focusVisible, ui.primary)}
               type="button"
               onClick={() => onSettings({ finderMarkers: { tl: finderMarker, tr: finderMarker, bl: finderMarker } })}
             >

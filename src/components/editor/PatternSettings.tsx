@@ -78,12 +78,6 @@ const styles = stylex.create({
     backgroundColor: 'transparent',
     cursor: 'pointer',
     touchAction: 'pan-y',
-    ':focus-visible': {
-      outlineWidth: 3,
-      outlineStyle: 'solid',
-      outlineColor: tokens.accent,
-      outlineOffset: 4,
-    },
     '::-webkit-slider-runnable-track': {
       height: 44,
       backgroundColor: 'transparent',
@@ -199,6 +193,14 @@ const styles = stylex.create({
     borderWidth: 3,
     boxShadow: tokens.shadow,
     transform: 'rotate(0.2deg)',
+  },
+  eccCardFocus: {
+    ':has(input:focus-visible)': {
+      outlineWidth: 3,
+      outlineStyle: 'dotted',
+      outlineColor: tokens.accent,
+      outlineOffset: 3,
+    },
   },
   eccRadio: {
     position: 'absolute',
@@ -446,7 +448,7 @@ function ColorRow({
       <button
         ref={pickrButtonRef}
         type="button"
-        {...stylex.props(styles.colorButton)}
+        {...stylex.props(styles.colorButton, ui.focusVisible)}
         aria-haspopup="dialog"
         aria-label={`${label} color, currently ${value}. Opens the ${name} color picker`}
       >
@@ -586,7 +588,12 @@ export default function PatternSettings({
       <div {...stylex.props(styles.panelTop)}>
         <h2 {...stylex.props(ui.panelTitle)}>Pattern settings</h2>
         {isDialog && (
-          <button ref={closeButtonRef} {...stylex.props(ui.button, ui.textButton)} type="button" onClick={onClose}>
+          <button
+            ref={closeButtonRef}
+            {...stylex.props(ui.button, ui.focusVisible, ui.textButton)}
+            type="button"
+            onClick={onClose}
+          >
             Close
           </button>
         )}
@@ -616,7 +623,7 @@ export default function PatternSettings({
               const next = ECC_OPTIONS[Number(event.currentTarget.value)]
               if (next && next.value !== ecc) onSettings({ ecc: next.value })
             }}
-            {...stylex.props(styles.eccInput)}
+            {...stylex.props(styles.eccInput, ui.focusVisible)}
           />
         </div>
         <div aria-hidden="true" {...stylex.props(styles.eccStops)}>
@@ -648,7 +655,7 @@ export default function PatternSettings({
             return (
               <label
                 key={opt.value}
-                {...stylex.props(styles.eccCard, selected ? styles.eccCardSelected : null)}
+                {...stylex.props(styles.eccCard, selected ? styles.eccCardSelected : null, styles.eccCardFocus)}
                 aria-selected={selected}
               >
                 <input

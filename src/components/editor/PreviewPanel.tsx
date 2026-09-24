@@ -141,14 +141,16 @@ const styles = stylex.create({
     '@media (max-width: 700px)': { gap: 8 },
   },
   scroll: {
+    margin: 6,
     padding: 18,
     backgroundColor: tokens.paper,
+  },
+  markerTarget: {
     ':focus-visible': {
-      outlineWidth: 3,
-      outlineStyle: 'dashed',
-      outlineColor: tokens.accent,
-      outlineOffset: 3,
-      borderRadius: 6,
+      stroke: tokens.accent,
+      strokeDasharray: '1 2',
+      strokeWidth: 3,
+      vectorEffect: 'non-scaling-stroke',
     },
   },
   stageFrame: {
@@ -540,7 +542,7 @@ function PosterCanvas({
     <div {...stylex.props(styles.area)}>
       {toolbar && <div {...stylex.props(styles.tools)}>{toolbar}</div>}
       <div
-        {...stylex.props(styles.scroll)}
+        {...stylex.props(styles.scroll, ui.focusVisible)}
         ref={scroll}
         tabIndex={0}
         role="group"
@@ -636,6 +638,7 @@ function PosterCanvas({
               </svg>
               {markers.map((marker) => (
                 <rect
+                  {...stylex.props(styles.markerTarget)}
                   data-marker-target=""
                   key={marker.id}
                   x={placement.x + marker.x}
@@ -655,7 +658,10 @@ function PosterCanvas({
                     if (!fillActive) onMarkerClick?.(marker.kind)
                   }}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') onMarkerClick?.(marker.kind)
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      onMarkerClick?.(marker.kind)
+                    }
                   }}
                 />
               ))}
@@ -718,27 +724,39 @@ function PosterCanvas({
           </output>
         </div>
         <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
-          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move left" onClick={() => nudge(-1, 0)}>
+          <button
+            {...stylex.props(ui.button, ui.focusVisible, styles.nudge)}
+            aria-label="Move left"
+            onClick={() => nudge(-1, 0)}
+          >
             ←
           </button>
           <button
-            {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)}
+            {...stylex.props(ui.button, ui.focusVisible, styles.nudge, ui.buttonAlt)}
             aria-label="Move up"
             onClick={() => nudge(0, -1)}
           >
             ↑
           </button>
-          <button {...stylex.props(ui.button, styles.nudge)} aria-label="Move down" onClick={() => nudge(0, 1)}>
+          <button
+            {...stylex.props(ui.button, ui.focusVisible, styles.nudge)}
+            aria-label="Move down"
+            onClick={() => nudge(0, 1)}
+          >
             ↓
           </button>
           <button
-            {...stylex.props(ui.button, styles.nudge, ui.buttonAlt)}
+            {...stylex.props(ui.button, ui.focusVisible, styles.nudge, ui.buttonAlt)}
             aria-label="Move right"
             onClick={() => nudge(1, 0)}
           >
             →
           </button>
-          <button {...stylex.props(ui.button, styles.bestPosition)} type="button" onClick={moveToBestPosition}>
+          <button
+            {...stylex.props(ui.button, ui.focusVisible, styles.bestPosition)}
+            type="button"
+            onClick={moveToBestPosition}
+          >
             Best position
           </button>
         </div>
@@ -1007,7 +1025,7 @@ export default function PreviewPanel({
     <div {...stylex.props(styles.fillToolbar)}>
       <div {...stylex.props(styles.fillActions)}>
         <button
-          {...stylex.props(ui.button, fillActive && ui.fontCardSelected)}
+          {...stylex.props(ui.button, ui.focusVisible, fillActive && ui.fontCardSelected)}
           type="button"
           aria-pressed={fillActive}
           disabled={!sourceMaskReady || fillPending || busy}
@@ -1018,7 +1036,7 @@ export default function PreviewPanel({
           {fillActive ? '✓ Filling region' : '🪣 Fill region'}
         </button>
         <button
-          {...stylex.props(ui.button, rimActive && ui.fontCardSelected)}
+          {...stylex.props(ui.button, ui.focusVisible, rimActive && ui.fontCardSelected)}
           type="button"
           aria-pressed={rimActive}
           onClick={() => pattern.onSettings({ rimModules: rimActive ? 0 : 1, rimRounded: false })}
@@ -1026,7 +1044,7 @@ export default function PreviewPanel({
           {rimActive ? '✓ Rim added' : '＋ Add Rim'}
         </button>
         <button
-          {...stylex.props(ui.button, marginActive && ui.fontCardSelected)}
+          {...stylex.props(ui.button, ui.focusVisible, marginActive && ui.fontCardSelected)}
           type="button"
           aria-pressed={marginActive}
           onClick={() => pattern.onSettings({ regionMargin: !marginActive })}
@@ -1036,7 +1054,7 @@ export default function PreviewPanel({
       </div>
       {!regionOnly && keepPlacementCanvas && (
         <button
-          {...stylex.props(ui.button, ui.primary)}
+          {...stylex.props(ui.button, ui.focusVisible, ui.primary)}
           type="button"
           disabled={!ready || !canAssemble || assembleBusy}
           onClick={onAssemble}
@@ -1052,7 +1070,7 @@ export default function PreviewPanel({
         <div {...stylex.props(styles.actions)}>
           <button
             ref={maskTriggerRef}
-            {...stylex.props(ui.button)}
+            {...stylex.props(ui.button, ui.focusVisible)}
             type="button"
             aria-controls="mask-panel"
             aria-expanded={maskOpen}
@@ -1062,7 +1080,7 @@ export default function PreviewPanel({
           </button>
           <button
             ref={patternSettingsTriggerRef}
-            {...stylex.props(ui.button)}
+            {...stylex.props(ui.button, ui.focusVisible)}
             type="button"
             aria-controls="pattern-settings-panel"
             aria-expanded={patternSettingsOpen}

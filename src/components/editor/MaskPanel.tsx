@@ -82,7 +82,12 @@ export default function MaskPanel({
         <div {...stylex.props(styles.cardTop)}>
           <h2 {...stylex.props(ui.panelTitle)}>MASK SELECTION</h2>
           {isDialog && (
-            <button ref={closeButtonRef} {...stylex.props(ui.button, ui.textButton)} type="button" onClick={onClose}>
+            <button
+              ref={closeButtonRef}
+              {...stylex.props(ui.button, ui.focusVisible, ui.textButton)}
+              type="button"
+              onClick={onClose}
+            >
               Close
             </button>
           )}
@@ -92,7 +97,7 @@ export default function MaskPanel({
         </label>
         <div {...stylex.props(styles.inputWrap)}>
           <input
-            {...stylex.props(ui.field, styles.maskField)}
+            {...stylex.props(ui.field, ui.focusVisible, styles.maskField)}
             id="maskSearch"
             name="maskSearch"
             value={mask.text}
@@ -101,7 +106,7 @@ export default function MaskPanel({
             onChange={(event) => mask.setText(event.target.value)}
           />
           <button
-            {...stylex.props(ui.button, styles.searchButton)}
+            {...stylex.props(ui.button, ui.focusVisible, styles.searchButton)}
             type="button"
             aria-haspopup="dialog"
             aria-label={
@@ -129,7 +134,7 @@ export default function MaskPanel({
             return (
               <button
                 key={entry.id}
-                {...stylex.props(ui.button, ui.fontCard, selected && ui.fontCardSelected)}
+                {...stylex.props(ui.button, ui.focusVisible, ui.fontCard, selected && ui.fontCardSelected)}
                 type="button"
                 role="radio"
                 aria-checked={selected}

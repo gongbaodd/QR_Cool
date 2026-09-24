@@ -6,6 +6,14 @@ import { tokens } from './tokens.stylex'
  * form fields and inline hints. Component-local layout lives next to its component.
  */
 export const ui = stylex.create({
+  focusVisible: {
+    ':focus-visible': {
+      outlineWidth: 3,
+      outlineStyle: 'dotted',
+      outlineColor: tokens.accent,
+      outlineOffset: 3,
+    },
+  },
   body: {
     margin: 0,
     color: tokens.ink,
@@ -132,12 +140,6 @@ export const ui = stylex.create({
     fontFamily: 'inherit',
     fontSize: 'inherit',
     lineHeight: 1.5,
-    ':focus-visible': {
-      outlineWidth: 3,
-      outlineStyle: 'dashed',
-      outlineColor: tokens.accent,
-      outlineOffset: 3,
-    },
   },
   /** Mirrors the mirrored sketch radius the label parity picks for even fields. */
   fieldAlt: {
@@ -182,13 +184,6 @@ export const ui = stylex.create({
     fontFamily: 'inherit',
     fontSize: 'inherit',
     lineHeight: 'inherit',
-    ':focus-visible': {
-      outlineWidth: 3,
-      outlineStyle: 'dashed',
-      outlineColor: tokens.accent,
-      outlineOffset: 3,
-      borderRadius: 6,
-    },
   },
   details: {
     fontSize: '1rem',
@@ -197,18 +192,12 @@ export const ui = stylex.create({
     paddingBlock: 10,
     color: tokens.accentText,
     cursor: 'pointer',
-    outlineOffset: 0,
+    outlineOffset: 3,
     textDecorationLine: 'underline',
     textDecorationStyle: 'wavy',
     textDecorationColor: tokens.accentSoft,
     textDecorationThickness: '0.1875em',
     textUnderlineOffset: '0.3125em',
-    ':focus-visible': {
-      outlineWidth: 3,
-      outlineStyle: 'dashed',
-      outlineColor: tokens.accent,
-      borderRadius: 6,
-    },
   },
   detailsLabel: {
     margin: '12px 0',
@@ -285,12 +274,6 @@ export const ui = stylex.create({
       boxShadow: 'none',
       transform: 'none',
     },
-    ':focus-visible': {
-      outlineWidth: 3,
-      outlineStyle: 'dashed',
-      outlineColor: tokens.accent,
-      outlineOffset: 3,
-    },
   },
   /** Second-of-type sketchy controls lean the other way, like the drawn buttons. */
   buttonAlt: {
@@ -353,12 +336,6 @@ export const ui = stylex.create({
       borderColor: '#8a938e',
       boxShadow: 'none',
     },
-    ':focus-visible': {
-      outlineWidth: 3,
-      outlineStyle: 'dashed',
-      outlineColor: tokens.accent,
-      outlineOffset: 3,
-    },
   },
   /** Step-navigation primaries carry a vermilion cast shadow instead of the ink one. */
   primaryShadow: {
@@ -413,13 +390,6 @@ export const ui = stylex.create({
     boxShadow: `0 -0.42em ${tokens.accentSoft} inset`,
     ':hover': {
       boxShadow: `0 -0.74em ${tokens.accentSoft} inset`,
-    },
-    ':focus-visible': {
-      outlineWidth: 3,
-      outlineStyle: 'dashed',
-      outlineColor: tokens.accent,
-      outlineOffset: 3,
-      borderRadius: 6,
     },
   },
 })

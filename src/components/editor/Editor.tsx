@@ -181,7 +181,11 @@ function EditorWorkspace() {
       <div>
         <span>{message}</span>
         {canRetry && retryMode && (
-          <button type="button" {...stylex.props(ui.button, ui.textButton)} onClick={() => void request(retryMode)}>
+          <button
+            type="button"
+            {...stylex.props(ui.button, ui.focusVisible, ui.textButton)}
+            onClick={() => void request(retryMode)}
+          >
             Retry {retryMode === 'prepare' ? 'preparation' : 'assembly'}
           </button>
         )}

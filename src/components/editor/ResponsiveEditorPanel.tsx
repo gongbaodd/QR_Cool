@@ -141,7 +141,7 @@ export default function ResponsiveEditorPanel({
             <h2 id={`${id}-title`} ref={headingRef} tabIndex={-1} {...stylex.props(ui.sectionHeading)}>
               {title}
             </h2>
-            <button {...stylex.props(ui.button, ui.textButton)} type="button" onClick={close}>
+            <button {...stylex.props(ui.button, ui.focusVisible, ui.textButton)} type="button" onClick={close}>
               Close
             </button>
           </div>

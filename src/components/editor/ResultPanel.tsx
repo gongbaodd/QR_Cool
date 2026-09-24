@@ -77,10 +77,10 @@ export default function ResultPanel({
         <img {...stylex.props(styles.poster)} src={artifacts['poster.png']} alt="Assembled artistic QR poster" />
       </div>
       <div {...stylex.props(styles.actions)}>
-        <a {...stylex.props(ui.primary)} href={artifacts['poster.png']} download="poster.png">
+        <a {...stylex.props(ui.primary, ui.focusVisible)} href={artifacts['poster.png']} download="poster.png">
           Download poster.png
         </a>
-        <button {...stylex.props(ui.button, styles.actionButton)} onClick={onReturnToEditing}>
+        <button {...stylex.props(ui.button, ui.focusVisible, styles.actionButton)} onClick={onReturnToEditing}>
           Return to editing
         </button>
       </div>
@@ -88,12 +88,12 @@ export default function ResultPanel({
         Artistic margins can affect scanning. Test the downloaded poster with your phone.
       </p>
       <details {...stylex.props(ui.details)}>
-        <summary {...stylex.props(ui.summary)}>Artifacts & verification</summary>
+        <summary {...stylex.props(ui.summary, ui.focusVisible)}>Artifacts & verification</summary>
         <div {...stylex.props(styles.downloads)}>
           {Object.keys(result.artifacts)
             .filter((name) => name !== 'poster.png')
             .map((name) => (
-              <a key={name} {...stylex.props(ui.textLink)} href={artifacts[name]} download={name}>
+              <a key={name} {...stylex.props(ui.textLink, ui.focusVisible)} href={artifacts[name]} download={name}>
                 {name}
               </a>
             ))}

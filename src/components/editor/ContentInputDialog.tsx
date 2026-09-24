@@ -59,7 +59,6 @@ const styles = stylex.create({
     borderRadius: tokens.sketchCard,
     backgroundColor: tokens.paper,
     cursor: 'pointer',
-    ':focus-visible': { outlineWidth: 3, outlineStyle: 'dashed', outlineColor: tokens.accent, outlineOffset: 3 },
   },
   error: { display: 'block', color: tokens.danger, fontSize: '0.9375rem', margin: '8px 0 0' },
 })
@@ -299,7 +298,7 @@ export default function ContentInputDialog({
               {dialogKind} to QR code
             </h2>
             <button
-              {...stylex.props(ui.button, ui.textButton)}
+              {...stylex.props(ui.button, ui.focusVisible, ui.textButton)}
               type="button"
               onClick={() => dialogRef.current?.close()}
             >
@@ -311,7 +310,7 @@ export default function ContentInputDialog({
               <p {...stylex.props(ui.hint)}>
                 Upload a PNG QR code. Its text will be decoded on this device and styled in the preview.
               </p>
-              <div {...dropzone.getRootProps()} {...stylex.props(styles.dropzone)}>
+              <div {...dropzone.getRootProps()} {...stylex.props(styles.dropzone, ui.focusVisible)}>
                 <input {...dropzone.getInputProps()} aria-label="Upload QR code PNG" />
                 <span>{uploading ? 'Reading QR code…' : 'Drop a QR PNG here, or choose a file'}</span>
               </div>
@@ -329,7 +328,7 @@ export default function ContentInputDialog({
                     <label {...stylex.props(ui.label)} htmlFor="wifi-name">
                       Network name
                       <input
-                        {...stylex.props(ui.field, styles.field)}
+                        {...stylex.props(ui.field, ui.focusVisible, styles.field)}
                         id="wifi-name"
                         name="networkName"
                         autoComplete="off"
@@ -352,7 +351,7 @@ export default function ContentInputDialog({
                     <label {...stylex.props(ui.label)} htmlFor="wifi-encryption">
                       Encryption
                       <select
-                        {...stylex.props(ui.field, ui.select, styles.field, styles.select)}
+                        {...stylex.props(ui.field, ui.focusVisible, ui.select, styles.field, styles.select)}
                         id="wifi-encryption"
                         name="encryption"
                         value={wifi.encryption}
@@ -367,7 +366,7 @@ export default function ContentInputDialog({
                     <label {...stylex.props(ui.label)} htmlFor="wifi-password">
                       Password
                       <input
-                        {...stylex.props(ui.field, styles.field)}
+                        {...stylex.props(ui.field, ui.focusVisible, styles.field)}
                         id="wifi-password"
                         name="password"
                         type="password"
@@ -395,7 +394,7 @@ export default function ContentInputDialog({
                     <label {...stylex.props(ui.label)} htmlFor="sms-phone">
                       Phone
                       <input
-                        {...stylex.props(ui.field, styles.field)}
+                        {...stylex.props(ui.field, ui.focusVisible, styles.field)}
                         id="sms-phone"
                         name="phone"
                         type="tel"
@@ -419,7 +418,7 @@ export default function ContentInputDialog({
                     <label {...stylex.props(ui.label)} htmlFor="sms-message">
                       Message
                       <textarea
-                        {...stylex.props(ui.field, ui.textarea, styles.field)}
+                        {...stylex.props(ui.field, ui.focusVisible, ui.textarea, styles.field)}
                         id="sms-message"
                         name="message"
                         value={sms.message}
@@ -445,7 +444,7 @@ export default function ContentInputDialog({
                     <label {...stylex.props(ui.label)} htmlFor="email-address">
                       Email
                       <input
-                        {...stylex.props(ui.field, styles.field)}
+                        {...stylex.props(ui.field, ui.focusVisible, styles.field)}
                         id="email-address"
                         name="email"
                         type="email"
@@ -487,7 +486,7 @@ export default function ContentInputDialog({
                     <label {...stylex.props(ui.label)} htmlFor="email-subject">
                       Subject
                       <input
-                        {...stylex.props(ui.field, styles.field)}
+                        {...stylex.props(ui.field, ui.focusVisible, styles.field)}
                         id="email-subject"
                         name="subject"
                         value={email.subject}
@@ -497,7 +496,7 @@ export default function ContentInputDialog({
                     <label {...stylex.props(ui.label)} htmlFor="email-message">
                       Message
                       <textarea
-                        {...stylex.props(ui.field, ui.textarea, styles.field)}
+                        {...stylex.props(ui.field, ui.focusVisible, ui.textarea, styles.field)}
                         id="email-message"
                         name="message"
                         value={email.message}
@@ -513,7 +512,7 @@ export default function ContentInputDialog({
                 </p>
               )}
               <div {...stylex.props(styles.actions)}>
-                <button {...stylex.props(ui.button, ui.textButton)} type="submit">
+                <button {...stylex.props(ui.button, ui.focusVisible, ui.textButton)} type="submit">
                   Update preview
                 </button>
               </div>

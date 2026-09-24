@@ -16,7 +16,7 @@ const styles = stylex.create({
     insetBlockStart: 0,
     zIndex: 5,
     display: 'grid',
-    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+    gridTemplateColumns: 'minmax(0, 1fr)',
     gap: 20,
     alignItems: 'center',
     paddingBlock: 12,
@@ -35,20 +35,20 @@ const styles = stylex.create({
     color: tokens.ink,
     textDecoration: 'none',
     borderRadius: tokens.sketch,
-    ':focus-visible': { outlineWidth: 3, outlineStyle: 'dashed', outlineColor: tokens.accent },
+    marginInlineStart: 'auto',
   },
   mark: {
     display: 'block',
     flexShrink: 0,
-    width: 'clamp(3.5rem, 16vw, 128px)',
-    height: 'clamp(3.5rem, 16vw, 128px)',
+    width: 'clamp(2.75rem, 5vw, 3.5rem)',
+    height: 'clamp(2.75rem, 5vw, 3.5rem)',
   },
   form: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, alignItems: 'end', minWidth: 0 },
   field: { fontSize: '1rem', marginTop: 0 },
   kinds: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 10,
     margin: 0,
     padding: 0,
     borderWidth: 0,
@@ -81,7 +81,14 @@ const styles = stylex.create({
   openDialog: { justifySelf: 'start', fontSize: '0.9375rem' },
   localError: { display: 'block', marginTop: 6, color: tokens.danger, fontSize: '0.875rem', lineHeight: 1.4 },
   meta: { minWidth: 150, fontSize: '0.875rem', color: tokens.inkMuted, lineHeight: 1.35 },
-  examples: { gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: -2 },
+  examples: {
+    gridColumn: '1 / -1',
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: -2,
+  },
   example: {
     paddingBlock: 3,
     paddingInline: 8,
@@ -190,9 +197,6 @@ export default function EditorHeader({
 
   return (
     <header {...stylex.props(styles.header)}>
-      <Link href="/" aria-label="Home" {...stylex.props(styles.wordmark)}>
-        <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={128} height={128} />
-      </Link>
       <form
         {...stylex.props(styles.form)}
         noValidate
@@ -201,25 +205,11 @@ export default function EditorHeader({
           submitSimple()
         }}
       >
-        <fieldset {...stylex.props(styles.kinds)} aria-label="QR content type">
-          <legend {...stylex.props(styles.kindLegend)}>QR content type</legend>
-          {(['URL', 'Text', 'Phone', 'WiFi', 'SMS', 'Email', 'QRCode'] as const).map((choice) => (
-            <button
-              key={choice}
-              type="button"
-              aria-pressed={kind === choice}
-              {...stylex.props(styles.kind, kind === choice && styles.kindSelected)}
-              onClick={() => selectKind(choice)}
-            >
-              {choice}
-            </button>
-          ))}
-        </fieldset>
         {simpleKind ? (
           <label {...stylex.props(ui.label)} htmlFor="content">
             {simpleKind}
             <input
-              {...stylex.props(ui.field, styles.field)}
+              {...stylex.props(ui.field, ui.focusVisible, styles.field)}
               id="content"
               ref={inputRef}
               name="content"
@@ -252,12 +242,26 @@ export default function EditorHeader({
         ) : (
           <button
             type="button"
-            {...stylex.props(ui.button, ui.textButton, styles.openDialog)}
+            {...stylex.props(ui.button, ui.focusVisible, ui.textButton, styles.openDialog)}
             onClick={() => setDialogKind(kind)}
           >
             Edit {kind} details
           </button>
         )}
+        <fieldset {...stylex.props(styles.kinds)} aria-label="QR content type">
+          <legend {...stylex.props(styles.kindLegend)}>QR content type</legend>
+          {(['URL', 'Text', 'Phone', 'WiFi', 'SMS', 'Email', 'QRCode'] as const).map((choice) => (
+            <button
+              key={choice}
+              type="button"
+              aria-pressed={kind === choice}
+              {...stylex.props(styles.kind, kind === choice && styles.kindSelected, ui.focusVisible)}
+              onClick={() => selectKind(choice)}
+            >
+              {choice}
+            </button>
+          ))}
+        </fieldset>
         <p id="content-hint" {...stylex.props(styles.status)} role="status">
           {status}
         </p>
@@ -271,12 +275,15 @@ export default function EditorHeader({
             <button
               key={example.value}
               type="button"
-              {...stylex.props(styles.example)}
+              {...stylex.props(styles.example, ui.focusVisible)}
               onClick={() => handleExample(example.value)}
             >
               {example.label}
             </button>
           ))}
+          <Link href="/" aria-label="Home" {...stylex.props(styles.wordmark, ui.focusVisible)}>
+            <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={56} height={56} />
+          </Link>
         </div>
       </form>
       <ContentInputDialog
