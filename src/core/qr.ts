@@ -9,6 +9,7 @@ import type { PixelStyle } from './pattern'
 import { QrPosterError } from './errors'
 import type { QrPalette } from './palette'
 import { DEFAULT_PALETTE, hexToRgb } from './palette'
+import { squirclePath } from './squircle'
 import type { LoadedPng } from './image'
 import { decodePng, luma, rgbaToPng } from './image'
 import type { QrMetadata, QrSourceTrim, VerificationCheck } from './types'
@@ -34,8 +35,8 @@ export interface GeneratedQr {
 }
 
 export type MarkerStyle = 'square' | 'rounded'
-export type MarkerShape = 'square' | 'circle' | 'octagon'
-export type MarkerInner = 'square' | 'circle' | 'plus' | 'diamond'
+export type MarkerShape = 'square' | 'circle' | 'octagon' | 'squircle'
+export type MarkerInner = 'square' | 'circle' | 'plus' | 'diamond' | 'squircle'
 export type MarkerSub = 'square' | 'circle'
 export type FinderMarkerSettings = { style: MarkerStyle; shape: MarkerShape; inner: MarkerInner }
 export type FinderMarkerSettingsMap = Record<'tl' | 'tr' | 'bl', FinderMarkerSettings>
@@ -160,6 +161,8 @@ function buildFinderSvg(
         parts.push(
           `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="${ink}"/>`,
         )
+      } else if (inner === 'squircle') {
+        parts.push(`<path d="${squirclePath(cx, cy, 1.5 * pitch)}" fill="${ink}"/>`)
       }
     } else if (shape === 'circle') {
       parts.push(`<circle cx="${cx}" cy="${cy}" r="${3.5 * pitch}" fill="${ink}"/>`)
@@ -181,6 +184,8 @@ function buildFinderSvg(
         parts.push(
           `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="${ink}"/>`,
         )
+      } else if (inner === 'squircle') {
+        parts.push(`<path d="${squirclePath(cx, cy, 1.5 * pitch)}" fill="${ink}"/>`)
       }
     } else if (shape === 'octagon') {
       const outer = octagonPoints(cx, cy, 3.5 * pitch)
@@ -204,6 +209,31 @@ function buildFinderSvg(
         parts.push(
           `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="${ink}"/>`,
         )
+      } else if (inner === 'squircle') {
+        parts.push(`<path d="${squirclePath(cx, cy, 1.5 * pitch)}" fill="${ink}"/>`)
+      }
+    } else if (shape === 'squircle') {
+      parts.push(`<path d="${squirclePath(cx, cy, 3.5 * pitch)}" fill="${ink}"/>`)
+      parts.push(`<path d="${squirclePath(cx, cy, 2.5 * pitch)}" fill="${light}"/>`)
+      if (inner === 'square') {
+        parts.push(
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 1.5 * pitch}" width="${3 * pitch}" height="${3 * pitch}" fill="${ink}"/>`,
+        )
+      } else if (inner === 'circle') {
+        parts.push(`<circle cx="${cx}" cy="${cy}" r="${1.5 * pitch}" fill="${ink}"/>`)
+      } else if (inner === 'plus') {
+        parts.push(
+          `<rect x="${cx - 0.5 * pitch}" y="${cy - 1.5 * pitch}" width="${pitch}" height="${3 * pitch}" fill="${ink}"/>`,
+        )
+        parts.push(
+          `<rect x="${cx - 1.5 * pitch}" y="${cy - 0.5 * pitch}" width="${3 * pitch}" height="${pitch}" fill="${ink}"/>`,
+        )
+      } else if (inner === 'diamond') {
+        parts.push(
+          `<polygon points="${cx},${cy - 1.5 * pitch} ${cx + 1.5 * pitch},${cy} ${cx},${cy + 1.5 * pitch} ${cx - 1.5 * pitch},${cy}" fill="${ink}"/>`,
+        )
+      } else {
+        parts.push(`<path d="${squirclePath(cx, cy, 1.5 * pitch)}" fill="${ink}"/>`)
       }
     }
   }

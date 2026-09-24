@@ -3,6 +3,7 @@ import { useEffect, useId, useRef } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { DEFAULT_PALETTE } from '@/core/palette'
 import type { QrPalette } from '@/core/palette'
+import { squirclePath } from '@/core/squircle'
 import type { Settings } from '@/lib/editor/schema'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
@@ -11,6 +12,7 @@ const MARKER_SHAPE_OPTIONS = [
   { value: 'square' as const, label: 'Square', hint: 'Square' },
   { value: 'circle' as const, label: 'Round', hint: 'Circle' },
   { value: 'octagon' as const, label: 'Octagon', hint: 'Octagon' },
+  { value: 'squircle' as const, label: 'Squircle', hint: 'Squircle' },
 ] as const
 
 const MARKER_INNER_OPTIONS = [
@@ -18,6 +20,7 @@ const MARKER_INNER_OPTIONS = [
   { value: 'circle' as const, label: 'Round', hint: 'Circle' },
   { value: 'plus' as const, label: 'Plus', hint: 'Plus' },
   { value: 'diamond' as const, label: 'Diamond', hint: 'Diamond' },
+  { value: 'squircle' as const, label: 'Squircle', hint: 'Squircle' },
 ] as const
 
 const MARKER_SUB_OPTIONS = [
@@ -183,6 +186,12 @@ const styles = stylex.create({
     borderWidth: 3,
     boxShadow: tokens.shadow,
   },
+  cardFocus: {
+    ':focus-within': {
+      outline: `3px solid ${tokens.accent}`,
+      outlineOffset: 3,
+    },
+  },
   radio: {
     position: 'absolute',
     opacity: 0,
@@ -215,7 +224,13 @@ const styles = stylex.create({
   },
 })
 
-function MiniMarkerShapePreview({ shape, palette }: { shape: 'square' | 'circle' | 'octagon'; palette: QrPalette }) {
+function MiniMarkerShapePreview({
+  shape,
+  palette,
+}: {
+  shape: 'square' | 'circle' | 'octagon' | 'squircle'
+  palette: QrPalette
+}) {
   const ink = palette.marker
   const light = palette.background
   // 7x7 finder preview normalized to 64px
@@ -257,6 +272,23 @@ function MiniMarkerShapePreview({ shape, palette }: { shape: 'square' | 'circle'
       </svg>
     )
   }
+  if (shape === 'squircle') {
+    return (
+      <svg
+        viewBox="0 0 7 7"
+        width={48}
+        height={48}
+        role="img"
+        aria-label={`marker ${shape}`}
+        style={{ display: 'block' }}
+      >
+        <rect width={7} height={7} fill={light} />
+        <path d={squirclePath(cx, cy, 3.5)} fill={ink} />
+        <path d={squirclePath(cx, cy, 2.5)} fill={light} />
+        <circle cx={cx} cy={cy} r={1.5} fill={ink} />
+      </svg>
+    )
+  }
   // octagon: For small preview we approximate with precomputed points for size 3.5 and 2.5
   const outerPts = `${cx + 1.07},${cy + 3.5} ${cx - 1.07},${cy + 3.5} ${cx - 3.5},${cy + 1.07} ${cx - 3.5},${cy - 1.07} ${cx - 1.07},${cy - 3.5} ${cx + 1.07},${cy - 3.5} ${cx + 3.5},${cy - 1.07} ${cx + 3.5},${cy + 1.07}`
   const innerPts = `${cx + 0.76},${cy + 2.5} ${cx - 0.76},${cy + 2.5} ${cx - 2.5},${cy + 0.76} ${cx - 2.5},${cy - 0.76} ${cx - 0.76},${cy - 2.5} ${cx + 0.76},${cy - 2.5} ${cx + 2.5},${cy - 0.76} ${cx + 2.5},${cy + 0.76}`
@@ -281,7 +313,7 @@ function MiniMarkerInnerPreview({
   inner,
   palette,
 }: {
-  inner: 'square' | 'circle' | 'plus' | 'diamond'
+  inner: 'square' | 'circle' | 'plus' | 'diamond' | 'squircle'
   palette: QrPalette
 }) {
   const ink = palette.marker
@@ -304,6 +336,7 @@ function MiniMarkerInnerPreview({
       {inner === 'diamond' && (
         <polygon points={`${cx},${cy - 1.5} ${cx + 1.5},${cy} ${cx},${cy + 1.5} ${cx - 1.5},${cy}`} fill={ink} />
       )}
+      {inner === 'squircle' && <path d={squirclePath(cx, cy, 1.5)} fill={ink} />}
     </svg>
   )
 }
@@ -337,7 +370,6 @@ function OptionCards<T extends string>({
   name,
   options,
   value,
-  columns,
   ariaLabel,
   onSelect,
   renderPreview,
@@ -345,7 +377,6 @@ function OptionCards<T extends string>({
   name: string
   options: ReadonlyArray<{ value: T; label: string; hint: string }>
   value: T
-  columns: number
   ariaLabel: string
   onSelect: (value: T) => void
   renderPreview: (value: T) => React.ReactNode
@@ -355,14 +386,14 @@ function OptionCards<T extends string>({
       {...stylex.props(styles.grid)}
       role="radiogroup"
       aria-label={ariaLabel}
-      style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+      style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 8rem), 1fr))' }}
     >
       {options.map((opt) => {
         const selected = value === opt.value
         return (
           <label
             key={opt.value}
-            {...stylex.props(styles.card, selected ? styles.cardSelected : null)}
+            {...stylex.props(styles.card, selected ? styles.cardSelected : null, styles.cardFocus)}
             aria-selected={selected}
           >
             <input
@@ -372,7 +403,7 @@ function OptionCards<T extends string>({
               checked={selected}
               onChange={() => onSelect(opt.value)}
               {...stylex.props(styles.radio)}
-              aria-label={`${opt.value} ${opt.hint}`}
+              aria-label={`${opt.label} ${ariaLabel.toLowerCase()}`}
             />
             <span {...stylex.props(styles.previewBox)}>{renderPreview(opt.value)}</span>
             <span {...stylex.props(styles.label)}>{opt.label}</span>
@@ -482,7 +513,6 @@ export default function MarkerDialog({
               name="markerShape"
               options={MARKER_SHAPE_OPTIONS}
               value={markerShape}
-              columns={3}
               ariaLabel="Marker shape"
               onSelect={(markerShapeValue) => updateFinder({ shape: markerShapeValue })}
               renderPreview={(value) => <MiniMarkerShapePreview shape={value} palette={palette} />}
@@ -494,7 +524,6 @@ export default function MarkerDialog({
               name="markerInner"
               options={MARKER_INNER_OPTIONS}
               value={markerInner}
-              columns={4}
               ariaLabel="Marker inner"
               onSelect={(markerInnerValue) => updateFinder({ inner: markerInnerValue })}
               renderPreview={(value) => <MiniMarkerInnerPreview inner={value} palette={palette} />}
@@ -516,7 +545,6 @@ export default function MarkerDialog({
             name="markerSub"
             options={MARKER_SUB_OPTIONS}
             value={markerSub}
-            columns={2}
             ariaLabel="Alignment marker shape"
             onSelect={(markerSubValue) => onSettings({ markerSub: markerSubValue })}
             renderPreview={(value) => <MiniSubMarkerPreview sub={value} palette={palette} />}

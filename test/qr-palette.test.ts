@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { generateQrFromContent, decodeQrBuffer } from '@/core/qr'
-import { decodePng } from '@/core/image'
+import { decodePng, rgbaToPng } from '@/core/image'
+import { resizeNearest } from '@/core/imaging/pixels'
 import { DEFAULT_PALETTE, TIGER_PRESET, hexToRgb, paletteGuard, type QrPalette } from '@/core/palette'
 
 const content = 'https://example.com/qr-colors'
@@ -74,5 +75,57 @@ describe('generated QR palette', () => {
       TIGER_PRESET,
     )
     expect(await decodeQrBuffer(generated.image.file)).toBe(content)
+  })
+
+  it('renders and decodes squircle outer and inner marker combinations', async () => {
+    const outerShapes = ['square', 'circle', 'octagon', 'squircle'] as const
+    const innerShapes = ['square', 'circle', 'plus', 'diamond', 'squircle'] as const
+    const configurations = [
+      ...innerShapes.map((inner) => ({ shape: 'squircle' as const, inner })),
+      ...outerShapes.map((shape) => ({ shape, inner: 'squircle' as const })),
+    ]
+    const pitch = 20
+    const centerX = (2 + 3.5) * pitch
+    const centerY = (2 + 3.5) * pitch
+
+    for (const marker of configurations) {
+      const generated = await generateQrFromContent(
+        content,
+        'M',
+        'dot',
+        'rounded',
+        'circle',
+        'circle',
+        'square',
+        {
+          tl: { style: 'rounded', ...marker },
+          tr: { style: 'rounded', shape: 'circle', inner: 'circle' },
+          bl: { style: 'rounded', shape: 'circle', inner: 'circle' },
+        },
+        palette,
+      )
+      const image = await decodePng(generated.image.file, 'squircle-qr.png', 'generated QR')
+      expect(await decodeQrBuffer(generated.image.file)).toBe(content)
+
+      if (marker.shape === 'squircle' && marker.inner === 'circle') {
+        const halfWidth = Math.floor(image.width / 2)
+        const halfHeight = Math.floor(image.height / 2)
+        const reducedPixels = resizeNearest(
+          { data: image.data, width: image.width, height: image.height },
+          halfWidth,
+          halfHeight,
+        )
+        expect(await decodeQrBuffer(await rgbaToPng(reducedPixels, halfWidth, halfHeight))).toBe(content)
+      }
+
+      if (marker.shape === 'squircle') {
+        const diagonal = (centerY + 2.7 * pitch) * image.width * 4 + (centerX + 2.7 * pitch) * 4
+        expect(isColor(image.data, diagonal, palette.marker)).toBe(true)
+      }
+      if (marker.inner === 'squircle') {
+        const innerEdge = (centerY * image.width + centerX + 1.4 * pitch) * 4
+        expect(isColor(image.data, innerEdge, palette.marker)).toBe(true)
+      }
+    }
   })
 })

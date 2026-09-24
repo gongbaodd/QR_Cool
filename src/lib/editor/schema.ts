@@ -34,22 +34,22 @@ export const settingsSchema = z
         tl: z
           .object({
             style: z.enum(['square', 'rounded']).default('rounded'),
-            shape: z.enum(['square', 'circle', 'octagon']).default('circle'),
-            inner: z.enum(['square', 'circle', 'plus', 'diamond']).default('circle'),
+            shape: z.enum(['square', 'circle', 'octagon', 'squircle']).default('circle'),
+            inner: z.enum(['square', 'circle', 'plus', 'diamond', 'squircle']).default('circle'),
           })
           .default({ style: 'rounded', shape: 'circle', inner: 'circle' }),
         tr: z
           .object({
             style: z.enum(['square', 'rounded']).default('rounded'),
-            shape: z.enum(['square', 'circle', 'octagon']).default('circle'),
-            inner: z.enum(['square', 'circle', 'plus', 'diamond']).default('circle'),
+            shape: z.enum(['square', 'circle', 'octagon', 'squircle']).default('circle'),
+            inner: z.enum(['square', 'circle', 'plus', 'diamond', 'squircle']).default('circle'),
           })
           .default({ style: 'rounded', shape: 'circle', inner: 'circle' }),
         bl: z
           .object({
             style: z.enum(['square', 'rounded']).default('rounded'),
-            shape: z.enum(['square', 'circle', 'octagon']).default('circle'),
-            inner: z.enum(['square', 'circle', 'plus', 'diamond']).default('circle'),
+            shape: z.enum(['square', 'circle', 'octagon', 'squircle']).default('circle'),
+            inner: z.enum(['square', 'circle', 'plus', 'diamond', 'squircle']).default('circle'),
           })
           .default({ style: 'rounded', shape: 'circle', inner: 'circle' }),
       })
