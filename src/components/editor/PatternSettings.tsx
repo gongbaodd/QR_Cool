@@ -1,6 +1,7 @@
 'use client'
-import { useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import * as stylex from '@stylexjs/stylex'
+import { toast } from 'react-toastify'
 import { encode } from 'uqr'
 import '@simonwep/pickr/dist/themes/monolith.min.css'
 import type { Settings } from '@/lib/editor/schema'
@@ -185,12 +186,6 @@ const styles = stylex.create({
     lineHeight: 1,
     whiteSpace: 'nowrap',
   },
-  colorHint: {
-    fontSize: '0.78125rem',
-    color: tokens.danger,
-    margin: 0,
-    lineHeight: 1.4,
-  },
 })
 
 function MiniPixelQrPreview({
@@ -322,6 +317,12 @@ function MiniPixelQrPreview({
 }
 
 type ColorKey = keyof QrPalette
+const COLOR_PALETTE_TOAST_ID = 'editor-color-palette-error'
+const COLOR_LABELS: Record<ColorKey, string> = {
+  pixel: 'Pixel',
+  marker: 'Marker',
+  background: 'Background',
+}
 type RowCallbacks = {
   onChange: (hex: string) => void
   onCommit: (hex: string) => void
@@ -337,32 +338,27 @@ function ColorRow({
   name,
   label,
   value,
-  guardMessage,
   callbacks,
 }: {
   name: ColorKey
   label: string
   value: string
-  guardMessage: string | null
   callbacks: RowCallbacks
 }) {
   const pickrButtonRef = useRef<HTMLButtonElement | null>(null)
   usePickr({ buttonRef: pickrButtonRef, color: value, callbacks })
   return (
-    <div>
-      <div {...stylex.props(styles.colorRow)}>
-        <button
-          ref={pickrButtonRef}
-          type="button"
-          {...stylex.props(styles.colorButton)}
-          aria-haspopup="dialog"
-          aria-label={`${label} color, currently ${value}. Opens the ${name} color picker`}
-        >
-          <span {...stylex.props(styles.colorChip)} style={{ backgroundColor: value }} />
-          <span {...stylex.props(styles.colorLabel)}>{label}</span>
-        </button>
-      </div>
-      {guardMessage && <p {...stylex.props(styles.colorHint)}>{guardMessage}</p>}
+    <div {...stylex.props(styles.colorRow)}>
+      <button
+        ref={pickrButtonRef}
+        type="button"
+        {...stylex.props(styles.colorButton)}
+        aria-haspopup="dialog"
+        aria-label={`${label} color, currently ${value}. Opens the ${name} color picker`}
+      >
+        <span {...stylex.props(styles.colorChip)} style={{ backgroundColor: value }} />
+        <span {...stylex.props(styles.colorLabel)}>{label}</span>
+      </button>
     </div>
   )
 }
@@ -392,23 +388,63 @@ export default function PatternSettings({
   })
   const view: QrPalette = pending ?? committed
   const guard = paletteGuard(view)
-  const hintFor = (key: ColorKey): string | null =>
-    guard.issues
-      .filter((i) => i.color === key)
-      .map((i) => i.message)
-      .join(' ') || null
+  const paletteErrorVisible = useRef(false)
+  useEffect(
+    () => () => {
+      toast.dismiss(COLOR_PALETTE_TOAST_ID)
+    },
+    [],
+  )
+  useEffect(() => {
+    // A live correction or a cancel/revert can make the pending palette valid
+    // without another explicit Save event. Remove feedback for that stale error.
+    if (paletteErrorVisible.current && guard.ok) {
+      toast.dismiss(COLOR_PALETTE_TOAST_ID)
+      paletteErrorVisible.current = false
+    }
+  }, [guard.ok])
   const samePalette = (left: QrPalette, right: QrPalette): boolean =>
     left.pixel === right.pixel && left.marker === right.marker && left.background === right.background
-  /** Commits when the guard passes; otherwise keeps the pending colors visible with the inline hint. */
+  /** Commits when the guard passes; otherwise keeps pending colors and reports every issue once. */
   const attempt = (next: QrPalette) => {
-    if (paletteGuard(next).ok) {
+    const result = paletteGuard(next)
+    if (result.ok) {
+      toast.dismiss(COLOR_PALETTE_TOAST_ID)
+      paletteErrorVisible.current = false
       setPending(null)
       onSettings({ colors: next })
     } else {
       setPending(next)
+      paletteErrorVisible.current = true
+      const content = (
+        <div>
+          <span>Choose colors that keep the QR readable:</span>
+          <ul>
+            {result.issues.map((issue, index) => (
+              <li key={`${issue.color}-${index}`}>
+                {COLOR_LABELS[issue.color]}: {issue.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )
+      const options = {
+        toastId: COLOR_PALETTE_TOAST_ID,
+        autoClose: false as const,
+        closeOnClick: false,
+        role: 'alert' as const,
+        ariaLabel: 'Color palette validation error',
+      }
+      if (toast.isActive(COLOR_PALETTE_TOAST_ID)) {
+        toast.update(COLOR_PALETTE_TOAST_ID, { render: content, type: 'error', ...options })
+      } else {
+        toast.error(content, options)
+      }
     }
   }
   const revertRow = (key: ColorKey) => {
+    toast.dismiss(COLOR_PALETTE_TOAST_ID)
+    paletteErrorVisible.current = false
     setPending((current) => {
       if (!current) return null
       const next: QrPalette = { ...current, [key]: committed[key] }
@@ -523,27 +559,9 @@ export default function PatternSettings({
       <fieldset {...stylex.props(styles.colorsFieldset)}>
         <legend {...stylex.props(styles.eccLegend)}>Colors</legend>
         <div {...stylex.props(styles.colorsRow)}>
-          <ColorRow
-            name="pixel"
-            label="Pixel"
-            value={view.pixel}
-            guardMessage={hintFor('pixel')}
-            callbacks={pixelCallbacks}
-          />
-          <ColorRow
-            name="marker"
-            label="Marker"
-            value={view.marker}
-            guardMessage={hintFor('marker')}
-            callbacks={markerCallbacks}
-          />
-          <ColorRow
-            name="background"
-            label="Background"
-            value={view.background}
-            guardMessage={hintFor('background')}
-            callbacks={backgroundCallbacks}
-          />
+          <ColorRow name="pixel" label="Pixel" value={view.pixel} callbacks={pixelCallbacks} />
+          <ColorRow name="marker" label="Marker" value={view.marker} callbacks={markerCallbacks} />
+          <ColorRow name="background" label="Background" value={view.background} callbacks={backgroundCallbacks} />
         </div>
       </fieldset>
     </div>

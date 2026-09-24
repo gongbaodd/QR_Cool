@@ -1,6 +1,7 @@
 'use client'
 import dynamic from 'next/dynamic'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import * as stylex from '@stylexjs/stylex'
 import { toast, ToastContainer } from 'react-toastify'
 import EditorStoreProvider, { useEditorStore, useEditorStoreApi } from './EditorStoreProvider'
@@ -17,7 +18,7 @@ import EditorHeader from './EditorHeader'
 import PreviewPanel from './PreviewPanel'
 import MaskPanel from './MaskPanel'
 import PatternSettings from './PatternSettings'
-import ResponsiveEditorPanel from './ResponsiveEditorPanel'
+import ResponsiveEditorPanel, { MOBILE_LAYOUT_QUERY } from './ResponsiveEditorPanel'
 import { useBlobUrls } from './hooks/use-blob-urls'
 import { useEngineRequest } from './hooks/use-engine-request'
 import { useIconSearch } from './hooks/use-icon-search'
@@ -75,6 +76,7 @@ function EditorWorkspace() {
   const maskTriggerRef = useRef<HTMLButtonElement | null>(null)
   const patternSettingsTriggerRef = useRef<HTMLButtonElement | null>(null)
   const initialization = useRef(0)
+  const [toastHost, setToastHost] = useState<HTMLElement | null>(null)
 
   const previews = useBlobUrls(
     editorDocument.prepared
@@ -100,6 +102,54 @@ function EditorWorkspace() {
   const patternSettingsOpen = useEditorStore((state) => state.panels.patternSettingsOpen)
   const busy = useEditorStore((state) => !!state.document.busy || state.maskSelection.busy || state.iconSearch.loading)
   const canAssemble = useEditorStore(selectCanAssemble)
+
+  // Keep a single Toastify host. Move it into the mobile pattern-settings dialog
+  // while that modal is open so its notifications stay visible and interactive.
+  useEffect(() => {
+    const host = document.createElement('div')
+    host.style.position = 'fixed'
+    host.style.inset = '0'
+    // The fixed host forms its own stacking context, so raise that context above
+    // the editor header as well as the Toastify container inside it.
+    host.style.zIndex = '10000'
+    host.style.pointerEvents = 'none'
+    document.body.appendChild(host)
+    setToastHost(host)
+    return () => host.remove()
+  }, [])
+
+  useEffect(() => {
+    if (!toastHost) return
+    const media = window.matchMedia(MOBILE_LAYOUT_QUERY)
+    let moveFrame: number | null = null
+    const moveHost = () => {
+      if (!media.matches || !patternSettingsOpen) {
+        document.body.appendChild(toastHost)
+        return
+      }
+      const dialog = document.getElementById('pattern-settings-panel')
+      if (dialog instanceof HTMLDialogElement && dialog.open) {
+        dialog.appendChild(toastHost)
+        return
+      }
+      // The drawer opens in a sibling effect. Retry after that effect has run.
+      if (moveFrame !== null) cancelAnimationFrame(moveFrame)
+      moveFrame = requestAnimationFrame(() => {
+        const openedDialog = document.getElementById('pattern-settings-panel')
+        if (openedDialog instanceof HTMLDialogElement && openedDialog.open) {
+          openedDialog.appendChild(toastHost)
+        } else {
+          document.body.appendChild(toastHost)
+        }
+      })
+    }
+    moveHost()
+    media.addEventListener('change', moveHost)
+    return () => {
+      media.removeEventListener('change', moveHost)
+      if (moveFrame !== null) cancelAnimationFrame(moveFrame)
+    }
+  }, [patternSettingsOpen, toastHost])
 
   useEffect(() => {
     if (!visibleError) {
@@ -242,25 +292,29 @@ function EditorWorkspace() {
 
   return (
     <main>
-      <ToastContainer
-        position="top-right"
-        autoClose={false}
-        closeOnClick={false}
-        newestOnTop
-        limit={4}
-        theme="light"
-        toastStyle={{
-          backgroundColor: tokens.card,
-          color: tokens.ink,
-          border: `2px solid ${tokens.ink}`,
-          borderRadius: tokens.sketchCard,
-          fontFamily: 'inherit',
-        }}
-        style={{
-          insetBlockStart: 'max(12px, env(safe-area-inset-top))',
-          insetInlineEnd: 'max(12px, env(safe-area-inset-right))',
-        }}
-      />
+      {toastHost &&
+        createPortal(
+          <ToastContainer
+            position="top-right"
+            autoClose={false}
+            closeOnClick={false}
+            newestOnTop
+            limit={4}
+            theme="light"
+            toastStyle={{
+              backgroundColor: tokens.card,
+              color: tokens.ink,
+              border: `2px solid ${tokens.ink}`,
+              borderRadius: tokens.sketchCard,
+              fontFamily: 'inherit',
+            }}
+            style={{
+              insetBlockStart: 'max(12px, env(safe-area-inset-top))',
+              insetInlineEnd: 'max(12px, env(safe-area-inset-right))',
+            }}
+          />,
+          toastHost,
+        )}
       <EditorHeader
         contentError={visibleError}
         status={

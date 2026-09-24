@@ -5,7 +5,7 @@ import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
 // Keep this query equivalent to the CSS drawer breakpoint below (900px at a 16px default).
-const MOBILE_LAYOUT_QUERY = '(max-width: 56.25em)'
+export const MOBILE_LAYOUT_QUERY = '(max-width: 56.25em)'
 const styles = stylex.create({
   dialog: {
     margin: 0,
