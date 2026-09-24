@@ -7,11 +7,6 @@ import type { Settings } from '@/lib/editor/schema'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
-const MARKER_STYLE_OPTIONS = [
-  { value: 'square' as const, label: 'Square', hint: 'Sharp' },
-  { value: 'rounded' as const, label: 'Round', hint: 'Rounded' },
-] as const
-
 const MARKER_SHAPE_OPTIONS = [
   { value: 'square' as const, label: 'Square', hint: 'Square' },
   { value: 'circle' as const, label: 'Round', hint: 'Circle' },
@@ -83,11 +78,80 @@ const styles = stylex.create({
     color: tokens.ink,
     marginBottom: 4,
   },
-  hint: {
-    fontSize: '0.875rem',
-    color: tokens.inkMuted,
-    marginBottom: 10,
-    lineHeight: 1.5,
+  toggleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    padding: 10,
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderStyle: 'solid',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketchAlt,
+    boxShadow: tokens.shadowField,
+  },
+  toggleLabel: {
+    fontSize: '0.9375rem',
+    fontWeight: 600,
+    lineHeight: 1.2,
+  },
+  toggleButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: tokens.ink,
+    cursor: 'pointer',
+    fontFamily: tokens.handFont,
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    lineHeight: 1,
+    ':focus-visible': {
+      outline: `3px solid ${tokens.accent}`,
+      outlineOffset: 3,
+    },
+  },
+  toggleTrack: {
+    display: 'flex',
+    alignItems: 'center',
+    width: 46,
+    height: 26,
+    padding: 3,
+    borderRadius: 999,
+    backgroundColor: tokens.inkMuted,
+    transitionProperty: 'background-color',
+    transitionDuration: '0.12s',
+    transitionTimingFunction: 'ease',
+  },
+  toggleTrackOn: {
+    backgroundColor: tokens.ink,
+  },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    backgroundColor: 'white',
+    transform: 'translateX(0)',
+    transitionProperty: 'transform',
+    transitionDuration: '0.12s',
+    transitionTimingFunction: 'ease',
+  },
+  toggleThumbOn: {
+    transform: 'translateX(20px)',
+  },
+  toggleState: {
+    width: '2ch',
+    fontSize: '0.8125rem',
+    fontWeight: 600,
+    textAlign: 'end',
+  },
+  applyAllRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginTop: 16,
   },
   grid: {
     display: 'grid',
@@ -269,39 +333,6 @@ function MiniSubMarkerPreview({ sub, palette }: { sub: 'square' | 'circle'; pale
   )
 }
 
-function MiniMarkerPixelPreview({ style, palette }: { style: 'square' | 'rounded'; palette: QrPalette }) {
-  const ink = palette.marker
-  const light = palette.background
-  // Show two adjacent modules to illustrate pixel join
-  if (style === 'square') {
-    return (
-      <svg
-        viewBox="0 0 2 1"
-        width={48}
-        height={32}
-        role="img"
-        aria-label={`pixel ${style}`}
-        style={{ display: 'block' }}
-      >
-        <rect width={2} height={1} fill={light} />
-        <rect x={0} y={0} width={1} height={1} fill={ink} />
-        <rect x={1} y={0} width={1} height={1} fill={ink} />
-      </svg>
-    )
-  }
-  return (
-    <svg viewBox="0 0 2 1" width={48} height={32} role="img" aria-label={`pixel ${style}`} style={{ display: 'block' }}>
-      <rect width={2} height={1} fill={light} />
-      <circle cx={0.5} cy={0.5} r={0.5} fill={ink} />
-      <circle cx={1.5} cy={0.5} r={0.5} fill={ink} />
-      <path
-        d="M0,0 L0,0.5 A0.5,0.5 0 0 1 0.5,0 Z M1.5,0 A0.5,0.5 0 0 0 2,0.5 L2,0 Z M0,1 L0,0.5 A0.5,0.5 0 0 0 0.5,1 Z M1.5,1 A0.5,0.5 0 0 1 2,0.5 L2,1 Z"
-        fill={ink}
-      />
-    </svg>
-  )
-}
-
 function OptionCards<T extends string>({
   name,
   options,
@@ -423,22 +454,30 @@ export default function MarkerDialog({
       </div>
       {finder ? (
         <>
-          <fieldset {...stylex.props(styles.fieldset)}>
-            <legend {...stylex.props(styles.legend)}>Marker pixel style</legend>
-            <p {...stylex.props(styles.hint)}>Pixel shape for marker modules.</p>
-            <OptionCards
-              name="markerStyle"
-              options={MARKER_STYLE_OPTIONS}
-              value={markerStyle}
-              columns={2}
-              ariaLabel="Marker pixel style"
-              onSelect={(markerStyleValue) => updateFinder({ style: markerStyleValue })}
-              renderPreview={(value) => <MiniMarkerPixelPreview style={value} palette={palette} />}
-            />
-          </fieldset>
+          <div {...stylex.props(styles.fieldset)}>
+            <div {...stylex.props(styles.toggleRow)}>
+              <span id="rounded-marker-pixels-label" {...stylex.props(styles.toggleLabel)}>
+                Rounded marker pixels
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-labelledby="rounded-marker-pixels-label"
+                aria-checked={markerStyle === 'rounded'}
+                {...stylex.props(styles.toggleButton)}
+                onClick={() => updateFinder({ style: markerStyle === 'rounded' ? 'square' : 'rounded' })}
+              >
+                <span {...stylex.props(styles.toggleTrack, markerStyle === 'rounded' && styles.toggleTrackOn)}>
+                  <span {...stylex.props(styles.toggleThumb, markerStyle === 'rounded' && styles.toggleThumbOn)} />
+                </span>
+                <span aria-hidden="true" {...stylex.props(styles.toggleState)}>
+                  {markerStyle === 'rounded' ? 'On' : 'Off'}
+                </span>
+              </button>
+            </div>
+          </div>
           <fieldset {...stylex.props(styles.fieldset)}>
             <legend {...stylex.props(styles.legend)}>Marker shape</legend>
-            <p {...stylex.props(styles.hint)}>Outer shape of this finder marker.</p>
             <OptionCards
               name="markerShape"
               options={MARKER_SHAPE_OPTIONS}
@@ -451,7 +490,6 @@ export default function MarkerDialog({
           </fieldset>
           <fieldset {...stylex.props(styles.fieldset)}>
             <legend {...stylex.props(styles.legend)}>Marker inner</legend>
-            <p {...stylex.props(styles.hint)}>Center of this finder marker.</p>
             <OptionCards
               name="markerInner"
               options={MARKER_INNER_OPTIONS}
@@ -462,28 +500,28 @@ export default function MarkerDialog({
               renderPreview={(value) => <MiniMarkerInnerPreview inner={value} palette={palette} />}
             />
           </fieldset>
-          <button
-            {...stylex.props(ui.button, ui.textButton)}
-            type="button"
-            onClick={() => onSettings({ finderMarkers: { tl: finderMarker, tr: finderMarker, bl: finderMarker } })}
-          >
-            Apply to all finder markers
-          </button>
+          <div {...stylex.props(styles.applyAllRow)}>
+            <button
+              {...stylex.props(ui.button, ui.primary)}
+              type="button"
+              onClick={() => onSettings({ finderMarkers: { tl: finderMarker, tr: finderMarker, bl: finderMarker } })}
+            >
+              Apply to all finder markers
+            </button>
+          </div>
         </>
       ) : (
-        <fieldset {...stylex.props(styles.fieldset)}>
-          <legend {...stylex.props(styles.legend)}>Sub marker</legend>
-          <p {...stylex.props(styles.hint)}>Shape of alignment markers.</p>
+        <div {...stylex.props(styles.fieldset)}>
           <OptionCards
             name="markerSub"
             options={MARKER_SUB_OPTIONS}
             value={markerSub}
             columns={2}
-            ariaLabel="Sub marker"
+            ariaLabel="Alignment marker shape"
             onSelect={(markerSubValue) => onSettings({ markerSub: markerSubValue })}
             renderPreview={(value) => <MiniSubMarkerPreview sub={value} palette={palette} />}
           />
-        </fieldset>
+        </div>
       )}
     </dialog>
   )
