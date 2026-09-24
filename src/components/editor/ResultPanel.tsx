@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createElement, useEffect, useMemo, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { toast } from 'react-toastify'
 import { rasterExportChoices } from '@/core/export-sizes'
@@ -11,6 +11,11 @@ import { ui } from '@/styles/ui.stylex'
 import { useBlobUrls } from './hooks/use-blob-urls'
 
 type ResolvedRasterChoice = Pick<RasterExportPayload, 'width' | 'height' | 'bytes'>
+type WiredComboElement = HTMLElement & {
+  selected: string
+  refreshSelection: () => void
+  readonly updateComplete: Promise<unknown>
+}
 
 const styles = stylex.create({
   result: {
@@ -62,18 +67,13 @@ const styles = stylex.create({
   },
   sizeField: { display: 'grid', gap: 4, textAlign: 'start' },
   sizeLabel: { fontSize: '0.875rem', color: tokens.inkMuted },
-  sizeSelect: {
-    minHeight: 44,
+  wiredSizeSelect: {
+    display: 'block',
     maxWidth: '100%',
-    paddingBlock: 8,
-    paddingInline: 12,
-    font: 'inherit',
     color: tokens.ink,
-    backgroundColor: tokens.card,
-    borderWidth: 2,
-    borderStyle: 'solid',
-    borderColor: tokens.ink,
-    borderRadius: tokens.sketch,
+    fontFamily: 'inherit',
+    fontSize: '1rem',
+    lineHeight: 1.5,
   },
   actionButton: {
     backgroundColor: tokens.card,
@@ -123,6 +123,12 @@ export default function ResultPanel({
   const [resolvedChoices, setResolvedChoices] = useState<Record<string, ResolvedRasterChoice>>({})
   const [minimumStatus, setMinimumStatus] = useState<'calculating' | 'ready' | 'original'>('calculating')
   const generation = useRef(0)
+  const wiredCombo = useRef<WiredComboElement | null>(null)
+  const selectedControlKey = pendingKey ?? selectedKey
+  const selectedControlKeyRef = useRef(selectedControlKey)
+  selectedControlKeyRef.current = selectedControlKey
+  const selectSizeRef = useRef(selectSize)
+  selectSizeRef.current = selectSize
   const variantName = variant ? `poster-${variant.width}x${variant.height}.png` : ''
   const variantUrls = useBlobUrls(variant ? { [variantName]: variant.poster } : {})
   const variantUrl = variant ? variantUrls[variantName] : undefined
@@ -197,6 +203,46 @@ export default function ResultPanel({
     }
   }
 
+  useEffect(() => {
+    let active = true
+    let combo: WiredComboElement | null = null
+    const onSelected = (event: Event) => {
+      const key = (event as CustomEvent<{ selected: string }>).detail.selected
+      void selectSizeRef.current(key)
+    }
+    void import('wired-elements/lib/wired-combo.js')
+      .then(() => customElements.whenDefined('wired-combo'))
+      .then(async () => {
+        const host = wiredCombo.current
+        if (!active || !(host instanceof customElements.get('wired-combo')!)) return
+        await host.updateComplete
+        if (!active || wiredCombo.current !== host) return
+        combo = host
+        combo.selected = selectedControlKeyRef.current
+        combo.refreshSelection()
+        combo.addEventListener('selected', onSelected)
+      })
+    return () => {
+      active = false
+      combo?.removeEventListener('selected', onSelected)
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void customElements.whenDefined('wired-combo').then(async () => {
+      const host = wiredCombo.current
+      if (!active || !(host instanceof customElements.get('wired-combo')!)) return
+      await host.updateComplete
+      if (!active || wiredCombo.current !== host) return
+      host.selected = selectedControlKey
+      host.refreshSelection()
+    })
+    return () => {
+      active = false
+    }
+  }, [selectedControlKey])
+
   return (
     <div {...stylex.props(styles.result)}>
       <div {...stylex.props(styles.posterFrame)}>
@@ -209,28 +255,32 @@ export default function ResultPanel({
         />
       </div>
       <div {...stylex.props(styles.exportControls)}>
-        <label {...stylex.props(styles.sizeField)}>
+        <div {...stylex.props(styles.sizeField)}>
           <span {...stylex.props(styles.sizeLabel)}>PNG size</span>
-          <select
-            {...stylex.props(styles.sizeSelect, ui.focusVisible)}
-            value={pendingKey ?? selectedKey}
-            onChange={(event) => void selectSize(event.target.value)}
-          >
-            <option value="original">
-              {dimensions.width} × {dimensions.height} px · {formatBytes(result.artifacts['poster.png']?.size ?? 0)}
-            </option>
-            {minimumStatus !== 'original' &&
-              choices.map((choice) => {
-                const resolved = resolvedChoices[choice.key]
-                return (
-                  <option key={choice.key} value={choice.key}>
-                    {resolved?.width ?? choice.width} × {resolved?.height ?? choice.height} px
-                    {resolved ? ` · ${formatBytes(resolved.bytes)}` : ''}
-                  </option>
-                )
-              })}
-          </select>
-        </label>
+          {createElement(
+            'wired-combo',
+            {
+              ...stylex.props(styles.wiredSizeSelect),
+              ref: wiredCombo,
+              'aria-label': 'PNG size',
+            },
+            createElement(
+              'wired-item',
+              { value: 'original' },
+              `${dimensions.width} × ${dimensions.height} px · ${formatBytes(result.artifacts['poster.png']?.size ?? 0)}`,
+            ),
+            ...(minimumStatus !== 'original'
+              ? choices.map((choice) => {
+                  const resolved = resolvedChoices[choice.key]
+                  return createElement(
+                    'wired-item',
+                    { key: choice.key, value: choice.key },
+                    `${resolved?.width ?? choice.width} × ${resolved?.height ?? choice.height} px${resolved ? ` · ${formatBytes(resolved.bytes)}` : ''}`,
+                  )
+                })
+              : []),
+          )}
+        </div>
       </div>
       <div {...stylex.props(styles.actions)}>
         <a {...stylex.props(ui.primary, ui.focusVisible)} href={posterUrl} download={pngName}>
