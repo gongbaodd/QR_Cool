@@ -27,7 +27,13 @@ import {
   transparentQrBackground,
 } from '@/core/qr'
 import { DEFAULT_PALETTE, paletteGuard, type QrPalette } from '@/core/palette'
-import { buildModuleLattice, computeSafeArea, computePlateModules, computeRegionBands } from '@/core/module-cut'
+import {
+  buildModuleLattice,
+  computePlateModules,
+  computeRegionBands,
+  computeSafeArea,
+  computeTightBlockQuietZone,
+} from '@/core/module-cut'
 import { selectPatternVersion } from '@/core/pattern'
 import { qrWorkingFrame, sampleMaskIntoQrFrame, assertFrameHoldsPlacement } from '@/core/rotate'
 import { regionPixelBounds } from '@/core/rotate'
@@ -123,7 +129,20 @@ export function validatePlacement({
     [grid, ...arms, ...(corners ? [] : cornerBlocks)],
     corners ? cornerBlocks : [],
   )
-  if (!safe.safe.some((cell, i) => cell && !margin[i] && !rim[i] && !plate.cells[i]))
+  const quietZone = computeTightBlockQuietZone(
+    mask,
+    canvasWidth,
+    canvasHeight,
+    safe.safe,
+    plate.cells,
+    lattice,
+    { x: origin.x, y: origin.y, size: p.size },
+    settings.rimModules === 0,
+  )
+  const hasDecorativeTexture = safe.safe.some(
+    (cell, i) => cell && !margin[i] && !rim[i] && !plate.cells[i] && !quietZone.cells[i],
+  )
+  if (!hasDecorativeTexture && quietZone.modules === 0)
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
       'No decorative texture fits beside this QR. Reduce its size or choose a larger region.',

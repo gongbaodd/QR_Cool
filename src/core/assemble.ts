@@ -8,6 +8,7 @@ import {
   computePlateModules,
   computeRegionBands,
   computeSafeArea,
+  computeTightBlockQuietZone,
   moduleCellIndex,
   renderModuleCoverage,
 } from './module-cut'
@@ -152,16 +153,28 @@ async function assembleUpright(
   }
   const regionMargin = options.regionMargin ?? false
   const { margin, rim } = computeRegionBands(safeArea.safe, lattice, rimModulesCount, regionMargin)
+  const quietZone = computeTightBlockQuietZone(
+    selection,
+    width,
+    height,
+    safeArea.safe,
+    plate.cells,
+    lattice,
+    { x: placement.x, y: placement.y, size: placement.size },
+    rimModulesCount === 0,
+  )
   let rimModuleCount = 0
   let marginModuleCount = 0
+  let regionMarginModuleCount = 0
   let textureModules = 0
   for (let index = 0; index < drawn.length; index++) {
     if (!drawn[index]) continue
-    if (margin[index]) marginModuleCount++
+    if (margin[index]) regionMarginModuleCount++
+    if (margin[index] || quietZone.cells[index]) marginModuleCount++
     else if (rim[index]) rimModuleCount++
     else textureModules++
   }
-  if (textureModules === 0 && (rimModulesCount > 0 || regionMargin)) {
+  if (textureModules === 0 && (rimModulesCount > 0 || regionMargin) && quietZone.modules === 0) {
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
       (regionMargin
@@ -223,8 +236,11 @@ async function assembleUpright(
   })
   const render = await decodePng(texturePng, 'pattern.png', 'rendered pattern')
   const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
-  if (regionMargin) {
-    paintRegionMargin(render.data, width, lattice, drawn, margin, qrRaw)
+  if (regionMargin) paintRegionMargin(render.data, width, lattice, drawn, margin, qrRaw)
+  if (quietZone.modules > 0) {
+    paintModuleCells(render.data, width, lattice, quietZone.cells, light)
+  }
+  if (regionMargin || quietZone.modules > 0) {
     texturePng = await rgbaToPng(render.data, width, height)
   }
 
@@ -370,15 +386,19 @@ async function assembleUpright(
 
   const warnings: string[] = []
   warnings.push(
-    `The light band is kept beside the three finder markers only: ${bandCells} cell(s) ` +
-      `${formatNumber(marginModules)} module deep (${marginPixels}px at ${pitch}px modules), with the ` +
-      `plate's ${plate.cornerModules} corner block module(s) handed back to the texture. The code's other ` +
-      `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not ` +
-      'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
+    quietZone.modules > 0
+      ? `The ${QUIET_ZONE_MODULES}-module QR quiet margin is kept light in this tight rectangular mask ` +
+          `(${quietZone.modules} safe cells); the finder band is ${formatNumber(marginModules)} module deep ` +
+          `(${marginPixels}px at ${pitch}px modules). The assembled poster is not decode-verified.`
+      : `The light band is kept beside the three finder markers only: ${bandCells} cell(s) ` +
+          `${formatNumber(marginModules)} module deep (${marginPixels}px at ${pitch}px modules), with the ` +
+          `plate's ${plate.cornerModules} corner block module(s) handed back to the texture. The code's other ` +
+          `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not ` +
+          'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
   )
   if (regionMargin)
     warnings.push(
-      `A one-module light margin follows the selected region inside its edge (${marginModuleCount} whole modules).`,
+      `A one-module light margin follows the selected region inside its edge (${regionMarginModuleCount} whole modules).`,
     )
   if (safeArea.partialModules > 0) {
     warnings.push(
@@ -606,16 +626,28 @@ async function assembleRotated(
   }
   const regionMargin = options.regionMargin ?? false
   const { margin, rim } = computeRegionBands(safeArea.safe, lattice, rimModulesCount, regionMargin)
+  const quietZone = computeTightBlockQuietZone(
+    workingMask,
+    frame.width,
+    frame.height,
+    safeArea.safe,
+    plate.cells,
+    lattice,
+    { x: frame.qr.x, y: frame.qr.y, size: placement.size },
+    rimModulesCount === 0,
+  )
   let rimModuleCount = 0
   let marginModuleCount = 0
+  let regionMarginModuleCount = 0
   let textureModules = 0
   for (let index = 0; index < drawn.length; index++) {
     if (!drawn[index]) continue
-    if (margin[index]) marginModuleCount++
+    if (margin[index]) regionMarginModuleCount++
+    if (margin[index] || quietZone.cells[index]) marginModuleCount++
     else if (rim[index]) rimModuleCount++
     else textureModules++
   }
-  if (textureModules === 0 && (rimModulesCount > 0 || regionMargin)) {
+  if (textureModules === 0 && (rimModulesCount > 0 || regionMargin) && quietZone.modules === 0) {
     throw new QrPosterError(
       'QR_LAYOUT_INVALID',
       (regionMargin
@@ -676,8 +708,11 @@ async function assembleRotated(
   })
   const render = await decodePng(texturePng, 'pattern.png', 'rendered pattern')
   const qrRaw = (await decodePng(normalizedQr, 'normalized QR', 'normalized QR')).data
-  if (regionMargin) {
-    paintRegionMargin(render.data, frame.width, lattice, drawn, margin, qrRaw)
+  if (regionMargin) paintRegionMargin(render.data, frame.width, lattice, drawn, margin, qrRaw)
+  if (quietZone.modules > 0) {
+    paintModuleCells(render.data, frame.width, lattice, quietZone.cells, light)
+  }
+  if (regionMargin || quietZone.modules > 0) {
     texturePng = await rgbaToPng(render.data, frame.width, frame.height)
   }
 
@@ -842,15 +877,19 @@ async function assembleRotated(
 
   const warnings: string[] = []
   warnings.push(
-    `The light band is kept beside the three finder markers only: ${bandCells} cell(s) ` +
-      `${formatNumber(marginModules)} module deep (${marginPixels}px at ${pitch}px modules), with the ` +
-      `plate's ${plate.cornerModules} corner block module(s) handed back to the texture. The code's other ` +
-      `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not ` +
-      'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
+    quietZone.modules > 0
+      ? `The ${QUIET_ZONE_MODULES}-module QR quiet margin is kept light in this tight rectangular mask ` +
+          `(${quietZone.modules} safe cells); the finder band is ${formatNumber(marginModules)} module deep ` +
+          `(${marginPixels}px at ${pitch}px modules). The assembled poster is not decode-verified.`
+      : `The light band is kept beside the three finder markers only: ${bandCells} cell(s) ` +
+          `${formatNumber(marginModules)} module deep (${marginPixels}px at ${pitch}px modules), with the ` +
+          `plate's ${plate.cornerModules} corner block module(s) handed back to the texture. The code's other ` +
+          `edges sit flush against the texture, so the profile's ${QUIET_ZONE_MODULES}-module quiet zone is not ` +
+          'kept and the assembled poster is not decode-verified; only the QR input and the geometry checks ran.',
   )
   if (regionMargin)
     warnings.push(
-      `A one-module light margin follows the selected region inside its edge (${marginModuleCount} whole modules).`,
+      `A one-module light margin follows the selected region inside its edge (${regionMarginModuleCount} whole modules).`,
     )
   if (safeArea.partialModules > 0) {
     warnings.push(
@@ -1075,6 +1114,33 @@ function paintRegionMargin(
       for (let x = left; x < left + pitch; x++) {
         const offset = (y * width + x) * 4
         for (let channel = 0; channel < 4; channel++) pixels[offset + channel] = markerBackground[channel]!
+      }
+    }
+  }
+}
+
+/** Paint selected whole modules with the configured QR background, preserving quiet-zone light. */
+function paintModuleCells(
+  pixels: Uint8Array,
+  width: number,
+  lattice: ModuleLattice,
+  cells: Uint8Array,
+  background: [number, number, number],
+): void {
+  const pitch = lattice.modulePixels
+  for (let index = 0; index < cells.length; index++) {
+    if (!cells[index]) continue
+    const row = Math.floor(index / lattice.columns)
+    const column = index - row * lattice.columns
+    const left = lattice.x + column * pitch
+    const top = lattice.y + row * pitch
+    for (let y = top; y < top + pitch; y++) {
+      for (let x = left; x < left + pitch; x++) {
+        const offset = (y * width + x) * 4
+        pixels[offset] = background[0]
+        pixels[offset + 1] = background[1]
+        pixels[offset + 2] = background[2]
+        pixels[offset + 3] = 255
       }
     }
   }

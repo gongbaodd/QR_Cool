@@ -51,6 +51,12 @@ export interface PlateModules {
   bounds: BoundingBox
 }
 
+/** Row-major safe cells in the QR's source quiet zone for a tight rectangular mask. */
+export interface TightBlockQuietZone {
+  cells: Uint8Array
+  modules: number
+}
+
 /**
  * Builds the module lattice covering the canvas. The origin is reduced to a phase inside one
  * module, so a caller can pass the placement box directly and get the same lattice the QR uses.
@@ -163,6 +169,80 @@ export function computeSafeArea(
         ? { x: 0, y: 0, width: 0, height: 0 }
         : { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
   }
+}
+
+/**
+ * Keeps the normalized QR's two-module light margin quiet when a solid rectangular mask nearly
+ * touches the placed QR on all four sides. The region and placement use exclusive right/bottom
+ * bounds; partially covered cells stay out because only safe cells can be returned.
+ */
+export function computeTightBlockQuietZone(
+  selection: Uint8Array,
+  width: number,
+  height: number,
+  safe: Uint8Array,
+  plate: Uint8Array,
+  lattice: ModuleLattice,
+  placement: ModuleWindow,
+  enabled: boolean,
+): TightBlockQuietZone {
+  const cells = new Uint8Array(safe.length)
+  if (
+    !enabled ||
+    selection.length !== width * height ||
+    safe.length !== lattice.columns * lattice.rows ||
+    plate.length !== safe.length ||
+    placement.size <= 0
+  ) {
+    return { cells, modules: 0 }
+  }
+
+  let minX = width
+  let minY = height
+  let maxX = 0
+  let maxY = 0
+  let selectedPixels = 0
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!selection[y * width + x]) continue
+      selectedPixels++
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x + 1)
+      maxY = Math.max(maxY, y + 1)
+    }
+  }
+  if (selectedPixels === 0) return { cells, modules: 0 }
+
+  // A selected-pixel count equal to the bounding rectangle's area proves every pixel in it is set.
+  const regionArea = (maxX - minX) * (maxY - minY)
+  if (selectedPixels !== regionArea) return { cells, modules: 0 }
+
+  const pitch = lattice.modulePixels
+  const leftGap = placement.x - minX
+  const topGap = placement.y - minY
+  const rightGap = maxX - (placement.x + placement.size)
+  const bottomGap = maxY - (placement.y + placement.size)
+  if ([leftGap, topGap, rightGap, bottomGap].some((gap) => gap < 0 || gap >= pitch)) return { cells, modules: 0 }
+
+  let modules = 0
+  for (let index = 0; index < safe.length; index++) {
+    if (!safe[index] || plate[index]) continue
+    const row = Math.floor(index / lattice.columns)
+    const column = index - row * lattice.columns
+    const x = lattice.x + column * pitch
+    const y = lattice.y + row * pitch
+    if (
+      x < placement.x ||
+      y < placement.y ||
+      x + pitch > placement.x + placement.size ||
+      y + pitch > placement.y + placement.size
+    )
+      continue
+    cells[index] = 1
+    modules++
+  }
+  return { cells, modules }
 }
 
 /**

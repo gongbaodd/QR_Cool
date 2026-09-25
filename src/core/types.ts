@@ -444,13 +444,13 @@ export interface AssembleReport {
   shape: {
     /** Canvas-pixel bounds of the drawn modules. */
     bounds: BoundingBox
-    /** Pixels the drawn modules cover: texture plus rim. */
+    /** Pixels the drawn modules cover: texture, rim, or light margin. */
     area: number
     /** Modules the cut draws. */
     modules: number
     /** Drawn modules forced dark as the rim. */
     rimModules: number
-    /** Drawn modules painted with the marker background as the region margin. */
+    /** Drawn modules painted light as the region edge or tight-QR quiet margin. */
     marginModules: number
     /** Drawn modules carrying the texture. */
     textureModules: number
