@@ -403,11 +403,12 @@ function PosterCanvas({
     if (!stage || !area || !section) return
     const footer = area.lastElementChild
     const measure = () => {
-      setViewport(stage.clientWidth)
       if (!(footer instanceof HTMLElement)) return
       const stageStyle = window.getComputedStyle(stage)
       const sectionStyle = window.getComputedStyle(section)
       const px = (value: string) => Number.parseFloat(value) || 0
+      const contentWidth = stage.clientWidth - px(stageStyle.paddingLeft) - px(stageStyle.paddingRight) - 4
+      setViewport(Math.max(0, contentWidth))
       const reserved =
         footer.getBoundingClientRect().height +
         px(sectionStyle.paddingBottom) +
