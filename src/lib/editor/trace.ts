@@ -22,6 +22,7 @@ export interface EditorTraceSnapshot {
   hasPoster: boolean
   hasMask: boolean
   maskOrigin: EditorStoreState['maskSelection']['origin']
+  maskSelection: EditorStoreState['maskSelection']['selection']
   maskText: string
   maskFontId: string
   selectedIconId: string | null
@@ -60,6 +61,7 @@ export function traceSnapshot(current: TraceSource): EditorTraceSnapshot {
     hasPoster: current.sources.poster !== null,
     hasMask: current.sources.mask !== null,
     maskOrigin: current.maskSelection.origin,
+    maskSelection: current.maskSelection.selection,
     maskText: current.maskSelection.text,
     maskFontId: current.maskSelection.fontId,
     selectedIconId: current.maskSelection.selectedIcon?.id ?? null,

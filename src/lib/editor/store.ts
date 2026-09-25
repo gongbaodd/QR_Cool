@@ -20,6 +20,7 @@ export interface SourcesState {
 
 export interface MaskSelectionState {
   origin: 'auto' | 'manual'
+  selection: 'auto' | 'font' | 'icon' | 'custom'
   text: string
   fontId: string
   selectedIcon: IconItem | null
@@ -60,6 +61,7 @@ export interface EditorActions {
   movePlacement: (placement: Placement) => void
   initializeSources: (poster: File, mask: File, seed: number, transparentBlank?: boolean) => void
   replaceMask: (mask: File) => void
+  selectCustomMask: (mask: File) => void
   setMaskBusy: (busy: boolean) => void
   setMaskText: (text: string) => void
   selectMaskFont: (fontId: string) => void
@@ -82,6 +84,7 @@ const initialDraft = (): DraftState => ({ content: '', error: null, blurred: fal
 const initialSources = (): SourcesState => ({ poster: null, mask: null, transparentBlank: false })
 const initialMaskSelection = (): MaskSelectionState => ({
   origin: 'auto',
+  selection: 'auto',
   text: 'A',
   fontId: 'blank',
   selectedIcon: null,
@@ -213,12 +216,26 @@ export function createEditorStore() {
                 })
               return { sources: { ...current.sources, mask }, document }
             }),
+          selectCustomMask: (mask) =>
+            set((current) => ({
+              sources: { ...current.sources, mask },
+              document: editDocument(current.document, { type: 'edit', patch: {}, assets: true }),
+              maskSelection: {
+                ...current.maskSelection,
+                origin: 'manual',
+                selection: 'custom',
+                selectedIcon: null,
+                busy: false,
+              },
+              iconSearch: { ...current.iconSearch, galleryMode: false },
+            })),
           setMaskBusy: (busy) => set((current) => ({ maskSelection: { ...current.maskSelection, busy } })),
           setMaskText: (text) =>
             set((current) => ({
               maskSelection: {
                 ...current.maskSelection,
                 origin: 'manual',
+                selection: 'font',
                 text: text.slice(0, TEXT_MASK_MAX_LENGTH),
                 selectedIcon: null,
               },
@@ -229,6 +246,7 @@ export function createEditorStore() {
               maskSelection: {
                 ...current.maskSelection,
                 origin: 'manual',
+                selection: 'font',
                 text: selectMaskText(current),
                 fontId,
                 selectedIcon: null,
@@ -239,6 +257,7 @@ export function createEditorStore() {
               maskSelection: {
                 ...current.maskSelection,
                 origin: 'manual',
+                selection: 'icon',
                 text: selectMaskText(current),
                 selectedIcon: item,
               },

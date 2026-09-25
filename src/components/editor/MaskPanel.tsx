@@ -1,9 +1,12 @@
 'use client'
-import type { RefObject } from 'react'
+import { useId, type RefObject } from 'react'
+import { useDropzone } from 'react-dropzone'
+import type { FileRejection } from 'react-dropzone'
 import * as stylex from '@stylexjs/stylex'
 import { TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH, searchControlState } from '@/lib/editor/text-mask'
 import type { IconSearch } from './hooks/use-icon-search'
 import type { MaskSelection } from './hooks/use-mask-selection'
+import { MAX_IMAGE_BYTES } from '@/lib/editor/schema'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
@@ -58,6 +61,31 @@ const styles = stylex.create({
     borderColor: 'transparent',
     borderRadius: 3,
   },
+  uploadSection: {
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 2,
+    borderTopStyle: 'dashed',
+    borderTopColor: tokens.ink,
+  },
+  uploadTitle: { margin: 0, fontSize: '1rem', fontWeight: 600 },
+  dropzone: {
+    display: 'grid',
+    placeItems: 'center',
+    minHeight: 96,
+    padding: 14,
+    textAlign: 'center',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: tokens.ink,
+    borderRadius: tokens.sketchCard,
+    backgroundColor: tokens.paper,
+    cursor: 'pointer',
+  },
+  dropzoneActive: { backgroundColor: tokens.accentSoft },
+  dropzoneDisabled: { cursor: 'wait', opacity: 0.65 },
+  uploadError: { display: 'block', color: tokens.danger, fontSize: '0.9375rem', margin: '8px 0 0' },
+  customActive: { marginBlock: 8, fontSize: '0.9375rem', fontWeight: 600, overflowWrap: 'anywhere' },
 })
 
 export default function MaskPanel({
@@ -75,6 +103,33 @@ export default function MaskPanel({
   closeButtonRef: RefObject<HTMLButtonElement | null>
   isDialog: boolean
 }) {
+  const uploadTitleId = useId()
+  const onMaskDrop = (accepted: File[], rejected: FileRejection[]) => {
+    const file = accepted[0]
+    if (file) {
+      mask.setUploadError(null)
+      void mask.selectCustomMask(file)
+      return
+    }
+    if (rejected.length) {
+      const errors = rejected.flatMap((entry) => entry.errors)
+      const message = errors.some((error) => error.code === 'file-too-large')
+        ? 'Choose a mask PNG no larger than 10 MiB.'
+        : errors.some((error) => error.code === 'too-many-files')
+          ? 'Choose one mask PNG at a time.'
+          : 'Choose a PNG image for the custom mask.'
+      mask.setUploadError(message)
+    }
+  }
+  const dropzone = useDropzone({
+    accept: { 'image/png': ['.png'] },
+    maxSize: MAX_IMAGE_BYTES,
+    maxFiles: 1,
+    multiple: false,
+    disabled: mask.busy || mask.uploading,
+    onDrop: onMaskDrop,
+  })
+  const uploadDisabled = mask.busy || mask.uploading
   const query = mask.text.trim()
   const searchState = searchControlState(query, search.fetchedQuery, search.results.length)
   return (
@@ -134,7 +189,7 @@ export default function MaskPanel({
         </div>
         <div {...stylex.props(styles.fontGrid)} role="radiogroup" aria-label="Mask font">
           {TEXT_MASK_FONTS.map((entry) => {
-            const selected = !mask.selectedIconId && mask.fontId === entry.id
+            const selected = mask.selection !== 'custom' && !mask.selectedIconId && mask.fontId === entry.id
             return (
               <button
                 key={entry.id}
@@ -157,11 +212,44 @@ export default function MaskPanel({
             )
           })}
         </div>
-        {mask.busy && (
+        {(mask.busy || mask.uploading) && (
           <p {...stylex.props(ui.hint, ui.status)} role="status">
-            Drawing mask…
+            {mask.uploading ? 'Checking custom mask…' : 'Drawing mask…'}
           </p>
         )}
+        <div {...stylex.props(styles.uploadSection)}>
+          <h3 id={uploadTitleId} {...stylex.props(styles.uploadTitle)}>
+            Custom mask PNG
+          </h3>
+          <div
+            {...dropzone.getRootProps({ 'aria-labelledby': uploadTitleId })}
+            {...stylex.props(
+              styles.dropzone,
+              ui.focusVisible,
+              dropzone.isDragActive && styles.dropzoneActive,
+              dropzone.isDragAccept && styles.dropzoneActive,
+              dropzone.isDragReject && styles.dropzoneDisabled,
+              uploadDisabled && styles.dropzoneDisabled,
+            )}
+          >
+            <input
+              {...dropzone.getInputProps({
+                'aria-label': 'Choose custom mask PNG',
+              })}
+            />
+            <span>{dropzone.isDragActive ? 'Drop the mask PNG here' : 'Drop a PNG here or choose a file'}</span>
+          </div>
+          {mask.selection === 'custom' && mask.customFileName && (
+            <p {...stylex.props(styles.customActive)}>
+              Custom mask active: <span>{mask.customFileName}</span>
+            </p>
+          )}
+          {mask.uploadError && (
+            <p {...stylex.props(styles.uploadError)} role="alert">
+              {mask.uploadError}
+            </p>
+          )}
+        </div>
       </div>
     </section>
   )

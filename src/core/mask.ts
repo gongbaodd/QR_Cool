@@ -8,6 +8,11 @@ const TOLERANT_LUMA_THRESHOLD = 96
 const DENSITY_THRESHOLD = 0.8
 const MIN_COMPONENT_FRACTION = 0.01
 
+/** Shared pixel rule for manual masks: opaque white selects the region. */
+export function isSelectedMaskPixel(r: number, g: number, b: number, alpha: number): boolean {
+  return alpha >= 128 && luma(r, g, b) >= 128
+}
+
 interface Component {
   label: number
   area: number
@@ -28,9 +33,14 @@ export function buildManualRegionMask(mask: LoadedPng, width: number, height: nu
   const selected = new Uint8Array(width * height)
   for (let index = 0; index < selected.length; index++) {
     const offset = index * 4
-    const alpha = mask.data[offset + 3]!
-    const brightness = luma(mask.data[offset]!, mask.data[offset + 1]!, mask.data[offset + 2]!)
-    selected[index] = alpha >= 128 && brightness >= 128 ? 255 : 0
+    selected[index] = isSelectedMaskPixel(
+      mask.data[offset]!,
+      mask.data[offset + 1]!,
+      mask.data[offset + 2]!,
+      mask.data[offset + 3]!,
+    )
+      ? 255
+      : 0
   }
 
   const stats = calculateMaskStats(selected, width, height)

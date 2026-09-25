@@ -19,7 +19,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 
 ## Invariants
 
-- Inputs are PNG only (10 MiB, 4 megapixels, one frame; guards run client-side in `src/lib/editor/png-guard.ts`). Masks must match the poster dimensions; white selects the region.
+- Inputs are PNG only (10 MiB, 4 megapixels, one frame; guards run client-side in `src/lib/editor/png-guard.ts`). Masks must match the poster dimensions; opaque white selects the region. Mask Selection accepts one custom PNG drop/upload at its bottom and rejects invalid or stale uploads without replacing the active mask.
 - Pixels outside the selected region, pixels in modules the region covers only in part, and pixels inside the placed QR stay bit-exact. Mandatory verification failures reject export.
 - The painted region is auto-detected from the dense central black shape; an uploaded mask overrides detection.
 - Tests never make paid calls: mock API responses, use local fixtures.
@@ -55,7 +55,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 
 ## State and lifecycle rules
 
-- Each mounted editor owns one scoped Zustand store and one lazily created, disposable worker session. Keep timers, operation tokens, worker handles, DOM/canvas refs, hover/dialog state, and object URLs outside the store; in-memory `File`/`Blob` references are not persisted or serialized.
+- Each mounted editor owns one scoped Zustand store and one lazily created, disposable worker session. Keep timers, operation tokens, worker handles, DOM/canvas refs, hover/dialog state, and object URLs outside the store; in-memory `File`/`Blob` references are not persisted or serialized. Commit a custom mask's selection kind and source file together in one document/asset revision, and guard async file validation against stale mask choices and poster replacement.
 - Preserve the pure reducer as the revision and stale-completion boundary. Use document and preview-asset revisions with independent operation/lifecycle guards so obsolete worker, mask, search, file, and `toBlob` completions cannot overwrite current state or clear a newer operation.
 - Use stable/narrow selectors rather than a root store subscription. Draft, UI-only, search, panel, and completion-status changes do not create document revisions or trigger preparation. Assembly readiness requires matching preview assets and a canonical placement; it does not depend on placement validation from preparation. Keep assembly failures authoritative while allowing explicit assembly retries.
 - Create object URLs only at the UI boundary, revoke them on replacement/unmount, and use the exact active assembled raster Blob for both preview and download. Generate size variants through the session-owned worker and drop stale completions by document revision and operation token. Do not add persistence, URL synchronization, undo/redo controls, or another async-state/RPC layer.
