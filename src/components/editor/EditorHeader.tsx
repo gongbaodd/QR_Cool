@@ -368,6 +368,26 @@ export default function EditorHeader({
   }, [inputRef])
 
   useEffect(() => {
+    const media = window.matchMedia(MOBILE_LAYOUT_QUERY)
+    if (media.matches) return
+
+    // Let the panels finish mounting before assigning the initial desktop focus.
+    const timer = window.setTimeout(() => {
+      if (media.matches) return
+      const input = inputRef?.current ?? formRef.current?.querySelector<HTMLInputElement>('input[name="content"]')
+      input?.focus({ preventScroll: true })
+    }, 100)
+    const cancelFocus = () => window.clearTimeout(timer)
+    window.addEventListener('pointerdown', cancelFocus, true)
+    window.addEventListener('keydown', cancelFocus, true)
+    return () => {
+      cancelFocus()
+      window.removeEventListener('pointerdown', cancelFocus, true)
+      window.removeEventListener('keydown', cancelFocus, true)
+    }
+  }, [inputRef])
+
+  useEffect(() => {
     if (!contentOpen || !isMobile || dialogKind) return
     const frame = requestAnimationFrame(() => {
       const target = simpleKind
@@ -408,24 +428,6 @@ export default function EditorHeader({
 
   return (
     <div {...stylex.props(styles.shell)} onKeyDownCapture={handleDisclosureKeyDown}>
-      <header {...stylex.props(styles.bar, contentOpen && styles.barOpen)}>
-        <Link href="/" aria-label="Mahu QR home" {...stylex.props(styles.wordmark, ui.focusVisible)}>
-          <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={128} height={128} />
-          <span {...stylex.props(styles.brandName)}>Mahu QR</span>
-        </Link>
-        <button
-          ref={triggerRef}
-          type="button"
-          aria-label="Edit QR content"
-          aria-expanded={contentOpen}
-          aria-controls="mobile-content-form"
-          {...stylex.props(styles.mobileTrigger, ui.focusVisible)}
-          onClick={() => setContentOpen((open) => !open)}
-        >
-          <span {...stylex.props(styles.triggerLabel)}>{triggerText}</span>
-          <span aria-hidden="true" {...stylex.props(styles.triggerIcon, contentOpen && styles.triggerIconOpen)} />
-        </button>
-      </header>
       <motion.div
         id="mobile-content-form"
         {...stylex.props(styles.formWrap, contentOpen && styles.formWrapOpen)}
@@ -539,6 +541,24 @@ export default function EditorHeader({
           </button>
         </form>
       </motion.div>
+      <header {...stylex.props(styles.bar, contentOpen && styles.barOpen)}>
+        <Link href="/" aria-label="Mahu QR home" {...stylex.props(styles.wordmark, ui.focusVisible)}>
+          <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={128} height={128} />
+          <span {...stylex.props(styles.brandName)}>Mahu QR</span>
+        </Link>
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-label="Edit QR content"
+          aria-expanded={contentOpen}
+          aria-controls="mobile-content-form"
+          {...stylex.props(styles.mobileTrigger, ui.focusVisible)}
+          onClick={() => setContentOpen((open) => !open)}
+        >
+          <span {...stylex.props(styles.triggerLabel)}>{triggerText}</span>
+          <span aria-hidden="true" {...stylex.props(styles.triggerIcon, contentOpen && styles.triggerIconOpen)} />
+        </button>
+      </header>
       <ContentInputDialog
         kind={dialogKind}
         onClose={() => setDialogKind(null)}

@@ -165,7 +165,9 @@ export default function ResponsiveEditorPanel({
       surface.style.transform = 'translateX(0)'
       controls.set('open')
       if (open) onOpenChange(false)
-      if (!dialog.open) dialog.show()
+      // Desktop panels are persistent content. show() would move focus into
+      // each panel on mount, leaving the ECC slider focused after hydration.
+      if (!dialog.open) dialog.open = true
     }
     previousMobile.current = mobile
   }, [controls, hasCustomHeader, hiddenX, mobile, onOpenChange, open, prefersReducedMotion])
