@@ -237,7 +237,9 @@ export default function MaskPanel({
                 'aria-label': 'Choose custom mask PNG',
               })}
             />
-            <span>{dropzone.isDragActive ? 'Drop the mask PNG here' : 'Drop a PNG here or choose a file'}</span>
+            <span>
+              {dropzone.isDragActive ? 'Drop the mask PNG here' : 'Drop a PNG here or choose a file (1000px × 1000px)'}
+            </span>
           </div>
           {mask.selection === 'custom' && mask.customFileName && (
             <p {...stylex.props(styles.customActive)}>
