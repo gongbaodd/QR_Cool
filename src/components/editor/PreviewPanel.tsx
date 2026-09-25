@@ -74,8 +74,7 @@ const styles = stylex.create({
   canvas: { minWidth: 0 },
   regionPreview: {
     minHeight: 720,
-    maxHeight: 820,
-    overflow: 'auto',
+    overflow: 'clip',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -86,7 +85,7 @@ const styles = stylex.create({
     borderColor: tokens.ink,
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
-    '@media (max-width: 56.25em)': { minHeight: 480, maxHeight: 'none', overflow: 'hidden' },
+    '@media (max-width: 56.25em)': { minHeight: 480 },
   },
   regionContent: {
     flex: 1,
@@ -109,27 +108,22 @@ const styles = stylex.create({
     backgroundSize: '16px 16px',
   },
   area: {
-    overflow: 'auto',
-    maxHeight: 820,
-    touchAction: 'pan-x pan-y',
+    overflow: 'clip',
     backgroundColor: '#fff',
     borderWidth: 2.5,
     borderStyle: 'solid',
     borderColor: tokens.ink,
     borderRadius: tokens.sketchCard,
     boxShadow: tokens.shadowLg,
-    '@media (max-width: 700px)': { maxHeight: 'none', overflow: 'hidden' },
   },
   tools: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     flexWrap: 'wrap',
+    minWidth: 0,
     gap: 12,
     padding: 12,
-    position: 'sticky',
-    top: 0,
-    zIndex: 1,
     width: '100%',
     boxSizing: 'border-box',
     fontSize: '0.9375rem',
@@ -139,7 +133,7 @@ const styles = stylex.create({
     borderBottomColor: tokens.ink,
     '@media (max-width: 700px)': { gap: 8 },
   },
-  scroll: {
+  scene: {
     margin: 6,
     padding: 18,
     backgroundColor: tokens.paper,
@@ -170,6 +164,8 @@ const styles = stylex.create({
     gap: 12,
     alignItems: 'center',
     justifyContent: 'space-between',
+    minWidth: 0,
+    boxSizing: 'border-box',
     paddingBlock: 12,
     paddingInline: 14,
     fontSize: '0.875rem',
@@ -181,7 +177,13 @@ const styles = stylex.create({
     '@media (max-width: 1000px)': { flexWrap: 'wrap' },
   },
   sizeReadout: { display: 'block', marginTop: 4, fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums' },
-  nudges: { display: 'flex', gap: 8 },
+  nudges: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    minWidth: 0,
+    gap: 8,
+  },
   nudge: { minWidth: 42, minHeight: 42, paddingBlock: 4, paddingInline: 8 },
   bestPosition: { minHeight: 42, paddingBlock: 4, paddingInline: 10 },
   fillToolbar: {
@@ -190,9 +192,10 @@ const styles = stylex.create({
     justifyContent: 'space-between',
     flex: '1 1 360px',
     flexWrap: 'wrap',
+    minWidth: 0,
     gap: 12,
   },
-  fillActions: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
+  fillActions: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', minWidth: 0, gap: 12 },
   note: {
     display: 'flex',
     justifyContent: 'space-between',
@@ -351,9 +354,10 @@ function PosterCanvas({
   toolbar: ReactNode
   onGestureStart: () => void
 }) {
-  const scroll = useRef<HTMLDivElement>(null)
+  const sceneRef = useRef<HTMLDivElement>(null)
   const sizeFeedback = useRef<HTMLOutputElement | null>(null)
   const [viewport, setViewport] = useState(800)
+  const [stageHeight, setStageHeight] = useState(480)
   const [hoverMarker, setHoverMarker] = useState<string | null>(null)
   const gesture = useRef<PlacementGesture | null>(null)
   const animation = useRef<number | null>(null)
@@ -371,9 +375,9 @@ function PosterCanvas({
         cancelAnimationFrame(animation.current)
         animation.current = null
       }
-      const svg = scroll.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
+      const svg = sceneRef.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
       if (active && svg?.hasPointerCapture(active.pointer)) svg.releasePointerCapture(active.pointer)
-      const root = scroll.current?.querySelector<SVGGElement>('[data-gesture-target]')
+      const root = sceneRef.current?.querySelector<SVGGElement>('[data-gesture-target]')
       if (root) root.setAttribute('transform', placementFrameTransform(committedPlacement.current))
       if (sizeFeedback.current)
         sizeFeedback.current.textContent = `QR size ${committedPlacement.current.size} px · ${committedPlacement.current.size / modules} px/module`
@@ -408,12 +412,48 @@ function PosterCanvas({
     if (changed && (gesture.current || settling.current)) cancelGesture()
     interactionSource.current = { poster, qr, width, height, modules, placement }
   }, [poster, qr, width, height, modules, placement, cancelGesture])
-  const fit = Math.min(viewport / width, 640 / height, 1)
   useEffect(() => {
-    const observer = new ResizeObserver((entries) => setViewport(entries[0]!.contentRect.width))
-    if (scroll.current) observer.observe(scroll.current)
-    return () => observer.disconnect()
+    const stage = sceneRef.current
+    const area = stage?.parentElement
+    const section = stage?.closest('section')
+    if (!stage || !area || !section) return
+    const footer = area.lastElementChild
+    const note = section.lastElementChild
+    const measure = () => {
+      setViewport(stage.clientWidth)
+      if (!(footer instanceof HTMLElement) || !(note instanceof HTMLElement)) return
+      const stageStyle = window.getComputedStyle(stage)
+      const sectionStyle = window.getComputedStyle(section)
+      const noteStyle = window.getComputedStyle(note)
+      const px = (value: string) => Number.parseFloat(value) || 0
+      const reserved =
+        footer.getBoundingClientRect().height +
+        note.getBoundingClientRect().height +
+        px(noteStyle.marginTop) +
+        px(sectionStyle.paddingBottom) +
+        px(stageStyle.marginTop) +
+        px(stageStyle.marginBottom) +
+        px(stageStyle.paddingTop) +
+        px(stageStyle.paddingBottom) +
+        8
+      const available = Math.floor(window.innerHeight - stage.getBoundingClientRect().top - reserved)
+      const nextHeight = Math.max(160, Math.min(480, available))
+      setStageHeight((current) => (current === nextHeight ? current : nextHeight))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(stage)
+    observer.observe(area)
+    observer.observe(section)
+    if (footer instanceof HTMLElement) observer.observe(footer)
+    if (note instanceof HTMLElement) observer.observe(note)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
   }, [])
+  const fit = Math.min(viewport / width, stageHeight / height, 1)
   const pitch = modules ? placement.size / modules : 0
   const q = 2,
     n = modules - 4,
@@ -440,7 +480,7 @@ function PosterCanvas({
     if (fillActive || settling.current) return
     onGestureStart()
     event.preventDefault()
-    const svg = scroll.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
+    const svg = sceneRef.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
     svg?.setPointerCapture(event.pointerId)
     const point = localPoint(event, svg ?? event.currentTarget.ownerSVGElement)
     gesture.current = beginPlacementGesture(kind, event.pointerId, point, placement, event.altKey)
@@ -457,7 +497,7 @@ function PosterCanvas({
       animation.current = requestAnimationFrame(() => {
         animation.current = null
         const latest = gesture.current
-        const root = scroll.current?.querySelector<SVGGElement>('[data-gesture-target]')
+        const root = sceneRef.current?.querySelector<SVGGElement>('[data-gesture-target]')
         if (!latest || !root) return
         root.setAttribute('transform', placementTransform(latest.origin, latest.latest))
         if (sizeFeedback.current)
@@ -547,8 +587,8 @@ function PosterCanvas({
     <div {...stylex.props(styles.area)}>
       {toolbar && <div {...stylex.props(styles.tools)}>{toolbar}</div>}
       <div
-        {...stylex.props(styles.scroll, ui.focusVisible)}
-        ref={scroll}
+        {...stylex.props(styles.scene, ui.focusVisible)}
+        ref={sceneRef}
         tabIndex={0}
         role="group"
         aria-label="Poster. Arrow keys move the QR; Shift moves ten pixels. Use the square and rotation handles to resize or rotate. Hold Alt while resizing to scale from the centre. Press Escape to cancel a gesture."
