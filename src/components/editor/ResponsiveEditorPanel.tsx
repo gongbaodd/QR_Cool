@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import * as stylex from '@stylexjs/stylex'
-import { motion, useReducedMotion } from 'motion/react'
+import { motion, useAnimationControls, useReducedMotion } from 'motion/react'
 import { MOBILE_LAYOUT_QUERY } from '@/lib/editor/responsive'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
@@ -81,17 +81,19 @@ export default function ResponsiveEditorPanel({
       }) => React.ReactNode)
 }) {
   const dialogRef = useRef<HTMLDialogElement | null>(null)
+  const surfaceRef = useRef<HTMLDivElement | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const headingRef = useRef<HTMLHeadingElement | null>(null)
   const previousMobile = useRef<boolean | null>(null)
   const latestOpen = useRef(open)
-  const focusFrame = useRef<number | null>(null)
   const revealFrame = useRef<number | null>(null)
-  const slideOpenRef = useRef(false)
+  const animationToken = useRef(0)
   const hasCustomHeader = typeof children === 'function'
   const [mobile, setMobile] = useState<boolean | null>(null)
-  const [slideOpen, setSlideOpen] = useState(false)
+  const controls = useAnimationControls()
   const prefersReducedMotion = useReducedMotion()
+  const hiddenX = side === 'left' ? '-100vw' : '100vw'
+  const motionTransition = prefersReducedMotion ? { duration: 0 } : { duration: 0.24, ease: 'easeOut' as const }
   latestOpen.current = open
 
   useEffect(() => {
@@ -104,59 +106,71 @@ export default function ResponsiveEditorPanel({
 
   useEffect(() => {
     const dialog = dialogRef.current
-    if (!dialog || mobile === null) return
-    const setSlidePosition = (next: boolean) => {
-      slideOpenRef.current = next
-      setSlideOpen(next)
-    }
+    const surface = surfaceRef.current
+    if (!dialog || !surface || mobile === null) return
+    const token = ++animationToken.current
     if (revealFrame.current !== null) {
       cancelAnimationFrame(revealFrame.current)
       revealFrame.current = null
+    }
+    controls.stop()
+
+    const focusPanel = () => {
+      if (token !== animationToken.current || !latestOpen.current) return
+      if (hasCustomHeader) closeButtonRef.current?.focus({ preventScroll: true })
+      else headingRef.current?.focus({ preventScroll: true })
     }
 
     if (mobile) {
       // A non-modal desktop dialog must close before it can become modal.
       if (previousMobile.current !== true && dialog.open) dialog.close()
       if (open && !dialog.open) {
-        // Let the offscreen surface paint in the top layer before sliding it in.
-        setSlidePosition(false)
+        // Set the actual DOM position before showModal promotes it to the top layer.
+        // Motion's value update then owns the same position for the slide.
+        surface.style.transform = prefersReducedMotion ? 'translateX(0)' : `translateX(${hiddenX})`
+        controls.set(prefersReducedMotion ? 'open' : 'closed')
         dialog.showModal()
-        revealFrame.current = requestAnimationFrame(() => {
+        if (prefersReducedMotion) {
+          focusPanel()
+        } else {
           revealFrame.current = requestAnimationFrame(() => {
-            revealFrame.current = null
-            if (latestOpen.current && window.matchMedia(MOBILE_LAYOUT_QUERY).matches) setSlidePosition(true)
+            revealFrame.current = requestAnimationFrame(() => {
+              revealFrame.current = null
+              if (token !== animationToken.current || !latestOpen.current) return
+              void controls.start('open').then(focusPanel)
+            })
           })
-        })
-        if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current)
-        focusFrame.current = requestAnimationFrame(() => {
-          focusFrame.current = null
-          if (!latestOpen.current || !window.matchMedia(MOBILE_LAYOUT_QUERY).matches) return
-          requestAnimationFrame(() => {
-            if (!latestOpen.current || !window.matchMedia(MOBILE_LAYOUT_QUERY).matches) return
-            if (hasCustomHeader) closeButtonRef.current?.focus()
-            else headingRef.current?.focus()
-          })
-        })
+        }
       } else if (open) {
-        setSlidePosition(true)
-      } else if (slideOpenRef.current) {
-        setSlidePosition(false)
+        if (prefersReducedMotion) {
+          controls.set('open')
+          focusPanel()
+        } else {
+          void controls.start('open').then(focusPanel)
+        }
       } else if (dialog.open) {
-        // The panel was dismissed before its entrance animation began.
-        dialog.close()
+        if (prefersReducedMotion) {
+          controls.set('closed')
+          dialog.close()
+        } else {
+          void controls.start('closed').then(() => {
+            if (token === animationToken.current && !latestOpen.current) dialog.close()
+          })
+        }
       }
     } else {
       if (previousMobile.current === true && dialog.open) dialog.close()
-      setSlidePosition(false)
+      surface.style.transform = 'translateX(0)'
+      controls.set('open')
       if (open) onOpenChange(false)
       if (!dialog.open) dialog.show()
     }
     previousMobile.current = mobile
-  }, [hasCustomHeader, mobile, onOpenChange, open])
+  }, [controls, hasCustomHeader, hiddenX, mobile, onOpenChange, open, prefersReducedMotion])
 
   useEffect(
     () => () => {
-      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current)
+      animationToken.current += 1
       if (revealFrame.current !== null) cancelAnimationFrame(revealFrame.current)
     },
     [],
@@ -165,11 +179,6 @@ export default function ResponsiveEditorPanel({
   function close() {
     onOpenChange(false)
   }
-
-  // Use the viewport width so the mobile sheet starts fully beyond its edge,
-  // even if the dialog's intrinsic sizing differs from the panel's width.
-  const hiddenX = side === 'left' ? '-100vw' : '100vw'
-  const motionTransition = prefersReducedMotion ? { duration: 0 } : { duration: 0.24, ease: 'easeOut' as const }
 
   return (
     <dialog
@@ -198,19 +207,15 @@ export default function ResponsiveEditorPanel({
       }}
     >
       <motion.div
+        ref={surfaceRef}
         {...stylex.props(styles.surface)}
         initial={false}
-        animate={mobile === true ? (slideOpen ? 'open' : 'closed') : 'open'}
+        animate={controls}
         variants={{
-          open: { x: 0 },
+          open: { x: '0vw' },
           closed: { x: hiddenX },
         }}
         transition={motionTransition}
-        onAnimationComplete={(definition) => {
-          if (definition !== 'closed' || mobile !== true || open) return
-          const dialog = dialogRef.current
-          if (dialog?.open) dialog.close()
-        }}
       >
         {hasCustomHeader ? (
           (
