@@ -12,3 +12,9 @@ output/
 playwright-report/
 test-results/
 reports/
+.env.*
+!.env.example
+**/.dev.vars*
+**/.next/
+**/.wrangler/
+apps/web/dist/

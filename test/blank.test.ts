@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { QrPosterError } from '@/core/errors'
-import { decodePng, rgbaToPng } from '@/core/image'
-import { buildManualRegionMask, detectRegionMask } from '@/core/mask'
-import { createEditorEngine, type EngineOutcome } from '@/lib/editor/engine'
-import { nodeImaging } from '@/core/imaging/node'
-import { MAX_IMAGE_BYTES, MAX_PIXELS } from '@/lib/editor/schema'
+import { QrPosterError } from '@mahu-qr/renderer/core/errors'
+import { decodePng, rgbaToPng } from '@mahu-qr/renderer/core/image'
+import { buildManualRegionMask, detectRegionMask } from '@mahu-qr/renderer/core/mask'
+import { createEditorEngine, type EngineOutcome } from '@mahu-qr/renderer/engine'
+import { nodeImaging } from '@mahu-qr/renderer/core/imaging/node'
+import { MAX_IMAGE_BYTES, MAX_PIXELS } from '@mahu-qr/renderer/schema'
 import { BLANK_POSTER_HEIGHT, BLANK_POSTER_WIDTH, buildBlankMaskRgba, buildBlankPosterRgba } from '@/lib/editor/blank'
 
 const settings = { seed: 7, qrMargin: 1 as const, plateCorners: 'texture' as const }

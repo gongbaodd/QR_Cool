@@ -1,0 +1,53 @@
+{
+  "name": "@mahu-qr/renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/worker-shim.ts"
+  ],
+  "exports": {
+    "./core/artifacts": "./src/core/artifacts.ts",
+    "./core/assemble": "./src/core/assemble.ts",
+    "./core/errors": "./src/core/errors.ts",
+    "./core/export-sizes": "./src/core/export-sizes.ts",
+    "./core/image": "./src/core/image.ts",
+    "./core/imaging/browser": "./src/core/imaging/browser.ts",
+    "./core/imaging/cloudflare": "./src/core/imaging/cloudflare.ts",
+    "./core/imaging": "./src/core/imaging/index.ts",
+    "./core/imaging/node": "./src/core/imaging/node.ts",
+    "./core/imaging/pixels": "./src/core/imaging/pixels.ts",
+    "./core/imaging/types": "./src/core/imaging/types.ts",
+    "./core/mask": "./src/core/mask.ts",
+    "./core/module-cut": "./src/core/module-cut.ts",
+    "./core/palette": "./src/core/palette.ts",
+    "./core/pattern-cut": "./src/core/pattern-cut.ts",
+    "./core/pattern": "./src/core/pattern.ts",
+    "./core/placement": "./src/core/placement.ts",
+    "./core/qr": "./src/core/qr.ts",
+    "./core/rotate": "./src/core/rotate.ts",
+    "./core/squircle": "./src/core/squircle.ts",
+    "./core/types": "./src/core/types.ts",
+    "./engine": "./src/engine/index.ts",
+    "./engine/pipeline": "./src/engine/pipeline.ts",
+    "./schema": "./src/schema.ts",
+    "./png-guard": "./src/png-guard.ts",
+    "./recipe": "./src/recipe.ts",
+    "./worker-shim": "./src/worker-shim.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@jsquash/png": "^3.1.1",
+    "@resvg/resvg-wasm": "^2.6.2",
+    "@zxing/library": "^0.23.0",
+    "jsqr": "^1.4.0",
+    "uqr": "^0.1.3",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "sharp": "^0.35.4"
+  }
+}

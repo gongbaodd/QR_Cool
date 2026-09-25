@@ -25,7 +25,7 @@ export async function startServer(): Promise<void> {
   if (await isUp()) return
   // The process group must die with us: killing the pnpm wrapper alone orphans
   // the next-server child and leaves port 3000 occupied.
-  child = spawn('pnpm', ['start', '--hostname', '127.0.0.1'], {
+  child = spawn('pnpm', ['--filter', '@mahu-qr/web', 'start', '--hostname', '127.0.0.1'], {
     stdio: 'inherit',
     env: process.env,
     detached: true,

@@ -9,12 +9,12 @@ import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { beforeAll, afterAll, describe, expect, it } from 'vitest'
-import { imaging, setImaging } from '@/core/imaging'
-import { nodeImaging } from '@/core/imaging/node'
-import { browserImaging, installBrowserImaging } from '@/core/imaging/browser'
-import type { RawImage } from '@/core/imaging/types'
-import { createEditorEngine, type EngineOutcome } from '@/lib/editor/engine'
-import { applyPlacement, engineDefaults, prepareSource, resolveQr } from '@/lib/editor/engine/pipeline'
+import { imaging, setImaging } from '@mahu-qr/renderer/core/imaging'
+import { nodeImaging } from '@mahu-qr/renderer/core/imaging/node'
+import { browserImaging, installBrowserImaging } from '@mahu-qr/renderer/core/imaging/browser'
+import type { RawImage } from '@mahu-qr/renderer/core/imaging/types'
+import { createEditorEngine, type EngineOutcome } from '@mahu-qr/renderer/engine'
+import { applyPlacement, engineDefaults, prepareSource, resolveQr } from '@mahu-qr/renderer/engine/pipeline'
 
 const require = createRequire(import.meta.url)
 const posterBytes = await readFile('source/poster.png')

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { QrPosterError } from '@/core/errors'
-import { boxIsInsideMask, placeQr } from '@/core/placement'
-import type { RegionMask } from '@/core/types'
+import { QrPosterError } from '@mahu-qr/renderer/core/errors'
+import { boxIsInsideMask, placeQr } from '@mahu-qr/renderer/core/placement'
+import type { RegionMask } from '@mahu-qr/renderer/core/types'
 
 describe('QR placement', () => {
   it('uses the largest integer module pitch that fits inside M', () => {

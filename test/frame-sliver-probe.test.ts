@@ -1,16 +1,16 @@
 import { readFile } from 'node:fs/promises'
 import { describe, it, expect } from 'vitest'
-import { createEditorEngine } from '@/lib/editor/engine'
-import { nodeImaging } from '@/core/imaging/node'
-import { prepareSource } from '@/lib/editor/engine/pipeline'
+import { createEditorEngine } from '@mahu-qr/renderer/engine'
+import { nodeImaging } from '@mahu-qr/renderer/core/imaging/node'
+import { prepareSource } from '@mahu-qr/renderer/engine/pipeline'
 import {
   localPointInPlate,
   posterToPlatePoint,
   qrWorkingFrame,
   regionPixelBounds,
   rotatedFootprintBounds,
-} from '@/core/rotate'
-import type { EditorEngineApi, EngineOutcome } from '@/lib/editor/engine'
+} from '@mahu-qr/renderer/core/rotate'
+import type { EditorEngineApi, EngineOutcome } from '@mahu-qr/renderer/engine'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
 const content = 'https://example.com/qr'
@@ -51,7 +51,7 @@ describe('probe: working frame vs writable poster pixels', () => {
     const p = placement
     const bounds = regionPixelBounds({ data: regionMask.data, width: regionMask.width, height: regionMask.height })
     const frame = qrWorkingFrame(p, bounds)
-    const { fitsMask } = await import('../src/lib/editor/schema')
+    const { fitsMask } = await import('@mahu-qr/renderer/schema')
     const directFits = fitsMask(regionMask.data, regionMask.width, regionMask.height, p)
     // Reimplement the fitsMask rotated loop to find the first pixel it should reject on.
     let firstViolation: string | undefined

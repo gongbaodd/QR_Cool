@@ -1,5 +1,7 @@
 # Cloudflare QR replay API and portable recipe export
 
+> **Path note:** This implementation plan predates the pnpm workspace move. Its `src/` paths are historical; the shipped Worker entry/config are `apps/render-api/src/index.ts` and `apps/render-api/wrangler.jsonc`, and shared rendering, schema, validation, and recipes live under `packages/renderer/src/`.
+
 Status: implementation in progress; the local Hurl/Yaak test scaffolding is implemented, while HTTP execution, manual Yaak import, automated checks, and workerd parity remain outstanding. Date: 2026-09-25.
 
 ## Outcome and scope

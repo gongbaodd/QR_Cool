@@ -1,13 +1,14 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
-import { browserImaging, installBrowserImaging } from '@/core/imaging/browser'
-import { createEditorEngine } from '@/lib/editor/engine'
-import { engineDefaults } from '@/lib/editor/engine/pipeline'
+import { browserImaging, installBrowserImaging } from '@mahu-qr/renderer/core/imaging/browser'
+import { createEditorEngine } from '@mahu-qr/renderer/engine'
+import { engineDefaults } from '@mahu-qr/renderer/engine/pipeline'
 
 const require = createRequire(import.meta.url)
-const root = process.cwd()
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const fixtureRoot = path.join(root, 'test/api/fixtures')
 const expectedRoot = path.join(fixtureRoot, 'expected')
 const generatedRoot = path.join(root, 'output/api-tests/fixtures')

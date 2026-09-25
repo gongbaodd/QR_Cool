@@ -4,10 +4,13 @@ import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { createRequire } from 'node:module'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outputDir = path.join(root, 'output/api-tests')
 const fixturesDir = path.join(root, 'test/api/fixtures')
+const apiDir = path.join(root, 'apps/render-api')
+const require = createRequire(path.join(apiDir, 'package.json'))
 const baseUrl = 'http://127.0.0.1:8799'
 const token = randomBytes(32).toString('hex')
 const args = new Set(process.argv.slice(2))
@@ -124,19 +127,19 @@ async function runHurl(files: string[], report: string, hashes: Record<string, s
 }
 
 async function startWorker() {
-  const wranglerEntrypoint = path.join(root, 'node_modules/wrangler/bin/wrangler.js')
-  const sourceConfig = await readFile(path.join(root, 'wrangler.render.jsonc'), 'utf8')
+  const wranglerPackage = path.dirname(require.resolve('wrangler/package.json'))
+  const wranglerEntrypoint = path.join(wranglerPackage, 'bin/wrangler.js')
+  const sourceConfig = await readFile(path.join(apiDir, 'wrangler.jsonc'), 'utf8')
   if (
     !sourceConfig.includes('"$schema": "node_modules/wrangler/config-schema.json"') ||
-    !sourceConfig.includes('"main": "src/worker-api/index.ts"')
+    !sourceConfig.includes('"main": "src/index.ts"')
   )
     throw new Error('The render Worker config paths changed; update the test-only config derivation.')
+  const schemaPath = path.relative(outputDir, path.join(apiDir, 'node_modules/wrangler/config-schema.json'))
+  const entryPath = path.relative(outputDir, path.join(apiDir, 'src/index.ts'))
   const isolatedConfig = sourceConfig
-    .replace(
-      '"$schema": "node_modules/wrangler/config-schema.json"',
-      '"$schema": "../../node_modules/wrangler/config-schema.json"',
-    )
-    .replace('"main": "src/worker-api/index.ts"', '"main": "../../src/worker-api/index.ts"')
+    .replace('"$schema": "node_modules/wrangler/config-schema.json"', `"$schema": "${schemaPath}"`)
+    .replace('"main": "src/index.ts"', `"main": "${entryPath}"`)
   if (isolatedConfig === sourceConfig) throw new Error('Could not derive the isolated test Worker configuration.')
   const configPath = path.join(outputDir, 'wrangler.render.jsonc')
   const localEnvPath = path.join(outputDir, 'render-worker.env')

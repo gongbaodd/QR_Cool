@@ -12,7 +12,7 @@ import {
   rgbToOklch,
   suggestPalette,
   type QrPalette,
-} from '@/core/palette'
+} from '@mahu-qr/renderer/core/palette'
 
 describe('sRGB ↔ OKLCH', () => {
   it('round-trips inside one quantization step', () => {

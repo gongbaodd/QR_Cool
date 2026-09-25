@@ -29,6 +29,12 @@ pnpm deploy:workers   # build + deploy to Cloudflare (requires `wrangler login`)
 
 No credentials or accounts are needed for local editing. QR text is never fetched as a URL. Uploaded files exist in browser memory while you edit: QRCode input decodes its PNG locally, and poster/mask decoding, detection, assembly, and verification run in the editor's Web Worker. After assembly, **Export recipe JSON** saves a portable recipe containing the source poster and final region mask. The editor does not upload it; submitting that file to the optional render API sends those images to Cloudflare for that request, where they are not stored.
 
+## Workspace layout
+
+This repository uses one pnpm workspace and lockfile. `apps/web/` owns the Next.js editor, static brand assets, `GET /api/icons`, and vinext deployment. `apps/render-api/` owns the independent recipe replay Worker and its Wrangler config. `packages/renderer/` is the private shared TypeScript package for geometry, schemas, PNG validation, imaging backends, the editor engine, and recipes. The apps import it through explicit `@mahu-qr/renderer` subpaths; neither app imports the other. Tests, fixtures, scripts, and shared tooling remain at the repository root.
+
+Root commands forward to the web app for `dev`, `build`, and `start`, and preserve the `dev:vinext`, `build:vinext`, `preview:workers`, and `deploy:workers` aliases. `dev:render-worker` and `deploy:render-worker` target only the API Worker. `pnpm typecheck` generates the web app’s route types, then covers the renderer, both apps, and repository tests/scripts; `pnpm test` runs the existing root Vitest suite.
+
 ## Portable recipe API
 
 After assembling a poster, choose **Export recipe JSON** in the result view. The file contains the committed QR content, original poster PNG, exact final selected-region mask, placement, renderer settings, and image digests. PNGs are embedded as base64 so the recipe can be replayed without the editor session or separate asset uploads. Keep the recipe private if its image or QR content is sensitive.
@@ -36,8 +42,8 @@ After assembling a poster, choose **Export recipe JSON** in the result view. The
 The standalone render Worker is separate from the editor's vinext Worker. It requires a bearer token and returns verified PNG bytes:
 
 ```sh
-# In one terminal, configure a local token in .dev.vars and start workerd:
-printf 'RENDER_API_TOKEN=replace-with-a-long-random-token\n' > .dev.vars
+# In one terminal, configure a local token in apps/render-api/.dev.vars and start workerd:
+printf 'RENDER_API_TOKEN=replace-with-a-long-random-token\n' > apps/render-api/.dev.vars
 pnpm dev:render-worker
 
 # In another terminal, render the assembled poster from the exported file:
@@ -52,13 +58,15 @@ curl --fail-with-body \
 Use `?artifact=qr.png` to return the standalone transparent QR image. The default is the full poster. Requests accept recipes up to 28 MiB; each embedded PNG is limited to 10 MiB and four megapixels. The Worker allows ten renders per minute per API token in each Cloudflare location. Configure `RENDER_API_TOKEN` as a Wrangler secret before deployment:
 
 ```sh
-pnpm exec wrangler secret put RENDER_API_TOKEN --config wrangler.render.jsonc
+pnpm --filter @mahu-qr/render-api exec wrangler secret put RENDER_API_TOKEN --config wrangler.jsonc
 pnpm deploy:render-worker
 ```
 
-The Worker does not fetch QR URLs or recipe-provided URLs and does not persist request images. `wrangler.render.jsonc` requests a 30-second CPU allowance, so deploy the renderer on a Workers plan that supports it; Cloudflare usage charges may apply. The local editor and its browser-only assembly remain usable without a Cloudflare account.
+For Cloudflare Workers Builds in this shared repository, use `apps/web` and `apps/render-api` as separate build roots while installing from the repository root. Watch each app, `packages/renderer/**`, the root workspace/lockfile and TypeScript configuration, and relevant shared scripts; renderer changes should trigger both deployments. A web-only change should not trigger the API deployment. Configure these roots and watch paths in the Cloudflare dashboard, which is outside this checkout.
 
-Run the local Worker API checks with `pnpm test:api:smoke` for a short rendering pass, `pnpm test:api` for rendering plus route/auth/validation cases, or `pnpm test:api:limits` for body limits and the isolated rate-limit window. Hurl is a separate system dependency. The runner binds only loopback, creates a fresh local-only token, and stores response PNGs, generated large request bodies, and JUnit reports under ignored `output/api-tests/`. Regenerate the browser-WASM fixtures with `pnpm api:fixtures`. For manual Yaak requests, import [the Postman v2.1 collection](test/api/yaak/mahu-qr-worker-api.postman_collection.json), then start `pnpm api:serve` in a terminal; it prints the local URL and fresh token and does not read project `.dev.vars` or `.env`:
+The Worker does not fetch QR URLs or recipe-provided URLs and does not persist request images. `apps/render-api/wrangler.jsonc` requests a 30-second CPU allowance, so deploy the renderer on a Workers plan that supports it; Cloudflare usage charges may apply. The local editor and its browser-only assembly remain usable without a Cloudflare account.
+
+Run the local Worker API checks with `pnpm test:api:smoke` for a short rendering pass, `pnpm test:api` for rendering plus route/auth/validation cases, or `pnpm test:api:limits` for body limits and the isolated rate-limit window. Hurl is a separate system dependency. The runner binds only loopback, creates a fresh local-only token, and stores response PNGs, generated large request bodies, and JUnit reports under ignored `output/api-tests/`. Regenerate the browser-WASM fixtures with `pnpm api:fixtures`. For manual Yaak requests, import [the Postman v2.1 collection](test/api/yaak/mahu-qr-worker-api.postman_collection.json), then start `pnpm api:serve` in a terminal; it prints the local URL and fresh token and does not read `apps/render-api/.dev.vars` or the repository `.env`:
 
 ```sh
 pnpm api:serve
@@ -94,14 +102,14 @@ Pattern settings provide pixel style (`square`, `rounded`, `dot`, defaulting to 
 
 ## Styling
 
-The visual language pairs the **mahu-QR** head-only tiger mascot (码码虎虎, `public/brand/mahu-tiger.svg`) with the existing Wired-Elements look: its two flat inks — near-black `#101211` and vermilion `#ff321e` — on warm cream, the hand-drawn multi-corner radii, tilts and wavy underlines, hard offset shadows, and the original Gloria Hallelujah handwriting UI. The header shows **Mahu QR** beneath the mascot. The mask fonts are separate. The controls are app-specific React components styled in [StyleX](https://stylexjs.com). The browser receives compiled atomic styles for the editor; React-Toastify supplies its own notification styles and uses the editor palette.
+The visual language pairs the **mahu-QR** head-only tiger mascot (码码虎虎, `apps/web/public/brand/mahu-tiger.svg`) with the existing Wired-Elements look: its two flat inks — near-black `#101211` and vermilion `#ff321e` — on warm cream, the hand-drawn multi-corner radii, tilts and wavy underlines, hard offset shadows, and the original Gloria Hallelujah handwriting UI. The header shows **Mahu QR** beneath the mascot. The mask fonts are separate. The controls are app-specific React components styled in [StyleX](https://stylexjs.com). The browser receives compiled atomic styles for the editor; React-Toastify supplies its own notification styles and uses the editor palette.
 
-- `src/styles/tokens.stylex.ts` is the single home for the palette (the mascot's two inks, warm cream, semantic valid/danger), the sketch radius/shadow scale, and the handwriting UI type stack. `src/styles/ui.stylex.ts` holds the recipes shared by more than one surface (buttons, fields, hints, cards), and every component keeps its own layout styles next to its JSX.
+- `apps/web/src/styles/tokens.stylex.ts` is the single home for the palette (the mascot's two inks, warm cream, semantic valid/danger), the sketch radius/shadow scale, and the handwriting UI type stack. `apps/web/src/styles/ui.stylex.ts` holds the recipes shared by more than one surface (buttons, fields, hints, cards), and every component keeps its own layout styles next to its JSX.
 - Readable UI type sizes use `rem` so browser default font preferences carry through the editor. Font-relative breakpoints keep the three-column shell, full-screen mobile panel presentation, and the panel's JavaScript mode check in sync as text size grows. Raster and QR dimensions remain pixel based.
-- `babel.config.json` compiles `stylex.create()`/`stylex.props()` calls and `postcss.config.mjs` replaces the `@stylex` directive in `src/app/globals.css` with the collected rules. Next.js 16.0.3 and later run both under Turbopack, so `pnpm dev`, `pnpm build`, and `pnpm start` are unchanged.
-- `src/app/globals.css` keeps only what StyleX cannot express: the `@font-face` declarations for the bundled UI and mask fonts, an `@layer reset` block (box-sizing and text-size-adjust), and the `@stylex` slot. Generated rules land in StyleX's own `priority…` layers, which are declared after `reset`.
+- `apps/web/babel.config.json` compiles `stylex.create()`/`stylex.props()` calls and `apps/web/postcss.config.mjs` replaces the `@stylex` directive in `apps/web/src/app/globals.css` with the collected rules. Next.js 16.0.3 and later run both under Turbopack, so `pnpm dev`, `pnpm build`, and `pnpm start` are unchanged.
+- `apps/web/src/app/globals.css` keeps only what StyleX cannot express: the `@font-face` declarations for the bundled UI and mask fonts, an `@layer reset` block (box-sizing and text-size-adjust), and the `@stylex` slot. Generated rules land in StyleX's own `priority…` layers, which are declared after `reset`.
 - Editor controls and preview surfaces keep their styles beside their components; the global stylesheet contains only the font faces, reset layer, and compiled StyleX slot.
-- Brand assets are static files, not generated routes: `public/brand/mahu-tiger.svg` (the head-only mascot, also the header lockup and empty state), `src/app/icon.svg` (favicon), `src/app/apple-icon.png`, and `src/app/opengraph-image.png` with `opengraph-image.alt.txt`. Rasters are regenerated from the mascot SVG. `public/fonts/ATTRIBUTION.md` records the bundled mask-font licenses.
+- Brand assets are static files, not generated routes: `apps/web/public/brand/mahu-tiger.svg` (the head-only mascot, also the header lockup and empty state), `apps/web/src/app/icon.svg` (favicon), `apps/web/src/app/apple-icon.png`, and `apps/web/src/app/opengraph-image.png` with `opengraph-image.alt.txt`. Rasters are regenerated from the mascot SVG. `apps/web/public/fonts/ATTRIBUTION.md` records the bundled mask-font licenses.
 
 ## Renderer contract
 
@@ -121,14 +129,14 @@ The CLI, paid image generation, QR-image upload, and standalone pattern modes ar
 
 The render pipeline is entirely client-side:
 
-- The shared pipeline lives in `src/lib/editor/engine/` (source cache, QR bundle cache, placement application, assembly, error-to-field mapping) and runs inside a **Web Worker**, exposed to React through Comlink (`src/lib/editor/worker/`). The engine depends on no platform: Node tests inject the sharp imaging backend, the worker injects the browser backend.
-- PNG decode/encode uses `@jsquash/png` (WASM, lazy-loaded inside the worker); SVG rasterization uses `@resvg/resvg-wasm`; compositing, flattening, QR nearest-neighbor resize, and poster export resampling are pure TypeScript shared by both backends (`src/core/imaging/`, `src/core/export-sizes.ts`).
+- The shared pipeline lives in `packages/renderer/src/engine/` (source cache, QR bundle cache, placement application, assembly, error-to-field mapping) and runs inside a **Web Worker**, exposed to React through Comlink (`apps/web/src/lib/editor/worker/`). The engine depends on no platform: Node tests inject the sharp imaging backend, the worker injects the browser backend.
+- PNG decode/encode uses `@jsquash/png` (WASM, lazy-loaded inside the worker); SVG rasterization uses `@resvg/resvg-wasm`; compositing, flattening, QR nearest-neighbor resize, and poster export resampling are pure TypeScript shared by both backends (`packages/renderer/src/core/imaging/`, `packages/renderer/src/core/export-sizes.ts`).
 - Source identity is the file SHA-256 (`crypto.subtle`), with a separate asset revision for source and QR appearance inputs. Placement commits update the document revision and SVG scene only; they do not invoke the worker. Preparation and assembly have independent operation guards, and stale source or operation outcomes cannot replace current state.
 - The reactive editor keeps the header, preview, mask selection, and pattern settings in one client boundary backed by an editor-scoped Zustand store. Drafts, files, mask/search selection, panels, and renderer state have explicit owners; runtime timers, worker handles, DOM refs, and object URLs stay outside the store. Zundo keeps up to 50 previous dated state snapshots plus the current one in memory for tracing through `getEditorTrace(store)`; the snapshots omit source Files, rendered Blobs, and icon payloads. This is a read-only trace, with no undo/redo controls, persistence, URL synchronization, or external logging. The preview owns the shared region-fill toolbar and an SVG editing scene with frame-coalesced pointer gestures; a complete gesture commits one canonical placement. Marker, result, and icon gallery panels remain lazy where useful. The preview stays above the fold and the mobile side panels use native dialogs rather than duplicated settings DOM.
-- Upload guards (PNG signature, IHDR, APNG `acTL` scan, 10 MiB / 4-megapixel limits) run client-side in `src/lib/editor/png-guard.ts` with the same error codes.
+- Upload guards (PNG signature, IHDR, APNG `acTL` scan, 10 MiB / 4-megapixel limits) run client-side in `packages/renderer/src/png-guard.ts` with the same error codes.
 - Outside-region pixels, partially covered modules, and QR plate pixels stay bit-exact. Uploaded-poster alpha stays bit-exact; the generated blank canvas keeps its transparent background. Mandatory verification failures reject export.
 - The only HTTP endpoint is the thin icon-search proxy `GET /api/icons` (free upstream, mocked in tests); it plays no part in rendering.
-- The separately deployed `src/worker-api/` Worker accepts explicit versioned recipe JSON at `POST /v1/render`; local Hurl checks and an importable Yaak collection live in `test/api/` (`pnpm test:api:smoke`, `pnpm test:api`, `pnpm test:api:limits`). These checks use only loopback fixtures and never run as part of editor assembly.
+- The separately deployed `apps/render-api/src/` Worker accepts explicit versioned recipe JSON at `POST /v1/render`; local Hurl checks and an importable Yaak collection live in `test/api/` (`pnpm test:api:smoke`, `pnpm test:api`, `pnpm test:api:limits`). These checks use only loopback fixtures and never run as part of editor assembly.
 
 ## Limits and hosting
 
@@ -141,11 +149,11 @@ The render pipeline is entirely client-side:
 
 The app deploys to a single Cloudflare Worker via vinext: the Worker serves the page, static assets, and the `GET /api/icons` proxy; no KV/R2/D1/Images bindings are used. The render pipeline stays in the visitor's Web Worker — nothing render-related reaches the server.
 
-- `vite.config.ts` holds the vinext build. It re-applies the StyleX Babel transform (`babel.config.json` options) to app source — Vite never reads that file, so `stylex.create`/`defineVars` would otherwise run at runtime — and rewrites the codec `.wasm` imports to asset URLs (`{ default: url }`), the same contract as the Turbopack `asset` rule in `next.config.ts`, so the codecs' own inits supply their wasm-bindgen imports. The worker uses ES-module output (top-level-await WASM inits).
-- `src/lib/editor/worker/window-shim.ts` aliases `window` to the worker global before the engine loads: ZXing's PDF417 tables touch `window.BigInt` at module scope, which Turbopack shims but Vite does not.
-- `src/core/pattern-cut.ts` encodes the cut-SVG data URI with `btoa` instead of Node's `Buffer`, which does not exist in the Workers runtime.
-- `wrangler.jsonc` pins the Worker name (`mahu-qr`), `compatibility_date`, `nodejs_compat`, and the `dist/client` assets binding. `dist/` and `.dev.vars` are gitignored; never commit API tokens.
-- The two toolchains both regenerate `next-env.d.ts` and `.next/types/routes.d.ts` when they run; `pnpm typecheck` stays green either way (the Next-only `validator.ts` is excluded from the standalone program — `next build` validates routes with its own generated checks).
+- `apps/web/vite.config.ts` holds the vinext build. It re-applies the StyleX Babel transform (`apps/web/babel.config.json` options) to app source — Vite never reads that file, so `stylex.create`/`defineVars` would otherwise run at runtime — and rewrites the codec `.wasm` imports to asset URLs (`{ default: url }`), the same contract as the Turbopack `asset` rule in `apps/web/next.config.ts`, so the codecs' own inits supply their wasm-bindgen imports. The worker uses ES-module output (top-level-await WASM inits).
+- `packages/renderer/src/worker-shim.ts` aliases `window` to the worker global before the engine loads: ZXing's PDF417 tables touch `window.BigInt` at module scope, which Turbopack shims but Vite does not.
+- `packages/renderer/src/core/pattern-cut.ts` encodes the cut-SVG data URI with `btoa` instead of Node's `Buffer`, which does not exist in the Workers runtime.
+- `apps/web/wrangler.jsonc` pins the Worker name (`mahu-qr`), `compatibility_date`, `nodejs_compat`, and the `dist/client` assets binding. `apps/web/dist/`, nested Wrangler state, and local `.dev.vars` are gitignored; never commit API tokens.
+- The Next app owns `next-env.d.ts`, generated route types, and the Next TypeScript plugin; its app-specific typecheck does not include API-generated types. Root `pnpm typecheck` also typechecks the renderer, API, and repository tests/scripts.
 
 Deploy checks: `pnpm test`, `pnpm typecheck`, `pnpm build` (Node path still green), then `pnpm build:vinext` and `pnpm preview:workers` — walk upload/mask → place → assemble → download at http://localhost:8787 and confirm zero console errors, `application/wasm` responses for both codec binaries, and `Cache-Control: no-store` on `/api/icons`. The assembled bytes must stay identical to the Node build for the same seed (verified with a fixed `crypto.getRandomValues` seed). Deploy with `pnpm deploy:workers` to the `*.workers.dev` URL, attach the custom domain afterwards, and keep the last known-good deployment for rollback from the Cloudflare dashboard (Workers → Deployments → Roll back). Production URL and owner: to be recorded here once the account is connected.
 
@@ -175,6 +183,6 @@ Vitest covers engine geometry, the engine artifacts (with captured artifact hash
 
 The core placement, marker, assembly, and fill-toolbar journeys also exist as plain-language Gherkin scenarios in `e2e/features/*.feature` with shared step definitions in `e2e/cucumber/`; `pnpm test:bdd` runs them in Chromium via `@cucumber/cucumber` (`cucumber.mjs` is the config). Icon searches in Playwright use a local `/api/icons` mock, the server lifecycle mirrors the Playwright config (starts `pnpm start`, reuses one already listening, kills the whole process group afterwards), and scenario screenshots attach to the HTML report in `reports/` on failure.
 
-The pipeline lives in `src/lib/editor/engine/` and runs in a Web Worker (`src/lib/editor/worker/`); `src/core/` holds the shared rendering algorithms behind the imaging seam, `src/lib/editor/store.ts` owns the mounted editor session while `state.ts` retains pure reducer transitions, and `src/components/editor/` owns browser interaction. The only server surface left is the `/api/icons` proxy. No request invokes a CLI or writes temporary files.
+The pipeline lives in `packages/renderer/src/engine/` and runs in a Web Worker (`apps/web/src/lib/editor/worker/`); `packages/renderer/src/core/` holds the shared rendering algorithms behind the imaging seam, `apps/web/src/lib/editor/store.ts` owns the mounted editor session while `state.ts` retains pure reducer transitions, and `apps/web/src/components/editor/` owns browser interaction. The web app’s only Next route handler is the `/api/icons` proxy. The optional replay API is a separate Worker and does not participate in editor assembly. No request invokes a CLI or writes temporary files.
 
 See [web implementation plan](doc/plan/web-qr-poster.md). The [previous artistic QR plan](doc/plan/artistic-qr-poster.md) is historical design context.

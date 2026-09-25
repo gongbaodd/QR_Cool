@@ -11,18 +11,18 @@ import {
   rotatedSquareCorners,
   sampleMaskIntoQrFrame,
   assertFrameHoldsPlacement,
-} from '@/core/rotate'
-import { QrPosterError } from '@/core/errors'
-import { canonicalPlacement, fitsMask, placementSchema } from '@/lib/editor/schema'
-import { boxIsInsideMask, placeQr } from '@/core/placement'
-import { buildModuleLattice, computePlateModules, computeSafeArea } from '@/core/module-cut'
-import { markerBandRects } from '@/core/assemble'
-import { PATTERN_QUIET_ZONE_MODULES } from '@/core/pattern'
-import { createEditorEngine } from '@/lib/editor/engine'
-import type { EditorEngineApi, EngineOutcome } from '@/lib/editor/engine'
-import { nodeImaging } from '@/core/imaging/node'
-import { prepareSource } from '@/lib/editor/engine/pipeline'
-import type { RegionMask } from '@/core/types'
+} from '@mahu-qr/renderer/core/rotate'
+import { QrPosterError } from '@mahu-qr/renderer/core/errors'
+import { canonicalPlacement, fitsMask, placementSchema } from '@mahu-qr/renderer/schema'
+import { boxIsInsideMask, placeQr } from '@mahu-qr/renderer/core/placement'
+import { buildModuleLattice, computePlateModules, computeSafeArea } from '@mahu-qr/renderer/core/module-cut'
+import { markerBandRects } from '@mahu-qr/renderer/core/assemble'
+import { PATTERN_QUIET_ZONE_MODULES } from '@mahu-qr/renderer/core/pattern'
+import { createEditorEngine } from '@mahu-qr/renderer/engine'
+import type { EditorEngineApi, EngineOutcome } from '@mahu-qr/renderer/engine'
+import { nodeImaging } from '@mahu-qr/renderer/core/imaging/node'
+import { prepareSource } from '@mahu-qr/renderer/engine/pipeline'
+import type { RegionMask } from '@mahu-qr/renderer/core/types'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
 const content = 'https://example.com/qr'

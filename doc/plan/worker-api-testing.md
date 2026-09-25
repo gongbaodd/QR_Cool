@@ -10,9 +10,9 @@ This extends the verification work in [the QR replay API plan](cloudflare-qr-rep
 
 ## Current implementation
 
-- `src/worker-api/index.ts` owns routing, bearer authentication, rate limiting, bounded body reading, response headers, and error mapping.
-- `src/lib/recipe/recipe.ts` owns recipe versioning, embedded PNG validation, digest checking, and replay through the shared assembly pipeline.
-- `wrangler.render.jsonc` is the dedicated render Worker configuration; `pnpm dev:render-worker` starts it.
+- `apps/render-api/src/index.ts` owns routing, bearer authentication, rate limiting, bounded body reading, response headers, and error mapping.
+- `packages/renderer/src/recipe.ts` owns recipe versioning, embedded PNG validation, digest checking, and replay through the shared assembly pipeline.
+- `apps/render-api/wrangler.jsonc` is the dedicated render Worker configuration; `pnpm dev:render-worker` starts it.
 - `RENDER_API_TOKEN` is required. `RENDER_API_LIMIT` permits ten authenticated requests per minute per Cloudflare location. Validation failures consume quota because the limiter runs before media-type, artifact, and body validation.
 - Limits are 28 MiB of JSON, 10 MiB per embedded PNG, and 4,000,000 pixels per image.
 - `/usr/bin/yaak-app-client` and `/usr/bin/hurl` are already available in the inspected environment. Hurl reports version 8.0.1; record the Yaak application version when creating its workspace.

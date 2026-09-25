@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { PngGuardError, parsePngHeader } from '@/lib/editor/png-guard'
+import { PngGuardError, parsePngHeader } from '@mahu-qr/renderer/png-guard'
 
 describe('png upload guard', () => {
   it('accepts the fixtures and reports dimensions', () => {

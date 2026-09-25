@@ -6,7 +6,7 @@ export default defineConfig({
   timeout: 60000,
   use: { baseURL: 'http://127.0.0.1:3000', trace: 'retain-on-failure' },
   webServer: {
-    command: 'pnpm start --hostname 127.0.0.1',
+    command: 'pnpm --filter @mahu-qr/web start --hostname 127.0.0.1',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

@@ -1,5 +1,7 @@
 # Plan: Deploy mahu-QR to Cloudflare Workers
 
+> **Path note:** This deployment plan predates the pnpm workspace move. Its source paths are historical; the shipped web app is under `apps/web/` and its Wrangler config is `apps/web/wrangler.jsonc`. The recipe replay API was later added as a separate Worker under `apps/render-api/`. Root pnpm commands continue to forward to each package.
+
 ## Goal and deployment shape
 
 Host the existing Next.js 16 editor and its single server route, `GET /api/icons`, on one Cloudflare Worker. Keep poster assembly in the visitor's Web Worker: PNGs, masks, QR artifacts, and exports stay in the browser. The deployed Worker serves the page and static assets and proxies icon search to `icons.grida.co`; it needs no database, object storage, render API, or persistent filesystem.

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { generateQrFromContent, decodeQrBuffer } from '@/core/qr'
-import { decodePng, rgbaToPng } from '@/core/image'
-import { resizeNearest } from '@/core/imaging/pixels'
-import { DEFAULT_PALETTE, TIGER_PRESET, hexToRgb, paletteGuard, type QrPalette } from '@/core/palette'
+import { generateQrFromContent, decodeQrBuffer } from '@mahu-qr/renderer/core/qr'
+import { decodePng, rgbaToPng } from '@mahu-qr/renderer/core/image'
+import { resizeNearest } from '@mahu-qr/renderer/core/imaging/pixels'
+import { DEFAULT_PALETTE, TIGER_PRESET, hexToRgb, paletteGuard, type QrPalette } from '@mahu-qr/renderer/core/palette'
 
 const content = 'https://example.com/qr-colors'
 const palette: QrPalette = { pixel: '#0d47a1', marker: '#06305e', background: '#eef3fa' }
