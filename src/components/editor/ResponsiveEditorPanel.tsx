@@ -33,7 +33,9 @@ const styles = stylex.create({
       height: '100svh',
       maxWidth: 'none',
       maxHeight: 'none',
-      overflow: 'hidden',
+      // Native dialog autofocus must not scroll to the translated sheet. A hidden
+      // overflow container can scroll; clip keeps the entrance anchored to the viewport.
+      overflow: 'clip',
     },
     '::backdrop': { backgroundColor: 'rgba(16, 18, 17, 0.45)' },
   },
