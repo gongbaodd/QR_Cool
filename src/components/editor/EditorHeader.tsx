@@ -62,6 +62,7 @@ const styles = stylex.create({
   },
   wordmark: {
     display: 'inline-flex',
+    flexDirection: 'column',
     alignItems: 'center',
     paddingInline: 8,
     outlineOffset: 3,
@@ -77,7 +78,15 @@ const styles = stylex.create({
     flexShrink: 0,
     width: 'clamp(3.5rem, 16vw, 128px)',
     height: 'clamp(3.5rem, 16vw, 128px)',
-    '@media (max-width: 56.25em)': { width: 44, height: 44 },
+    '@media (max-width: 56.25em)': { width: 38, height: 38 },
+  },
+  brandName: {
+    fontFamily: tokens.handFont,
+    fontSize: '1.125rem',
+    fontWeight: 700,
+    lineHeight: 1.2,
+    whiteSpace: 'nowrap',
+    '@media (max-width: 56.25em)': { fontSize: '0.75rem', lineHeight: 1 },
   },
   mobileTrigger: {
     display: 'none',
@@ -400,8 +409,9 @@ export default function EditorHeader({
   return (
     <div {...stylex.props(styles.shell)} onKeyDownCapture={handleDisclosureKeyDown}>
       <header {...stylex.props(styles.bar, contentOpen && styles.barOpen)}>
-        <Link href="/" aria-label="Home" {...stylex.props(styles.wordmark, ui.focusVisible)}>
+        <Link href="/" aria-label="Mahu QR home" {...stylex.props(styles.wordmark, ui.focusVisible)}>
           <img {...stylex.props(styles.mark)} src="/brand/mahu-tiger.svg" alt="" width={128} height={128} />
+          <span {...stylex.props(styles.brandName)}>Mahu QR</span>
         </Link>
         <button
           ref={triggerRef}
