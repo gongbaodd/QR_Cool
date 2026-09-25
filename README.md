@@ -27,7 +27,36 @@ pnpm preview:workers  # local Workers runtime preview on http://localhost:8787
 pnpm deploy:workers   # build + deploy to Cloudflare (requires `wrangler login`)
 ```
 
-No credentials or accounts are needed. QR text is never fetched as a URL. Uploaded files exist only in your browser: the PNG bytes and every render step live in browser memory. QRCode input decodes the uploaded PNG locally in the page; poster and mask decoding, detection, assembly, and verification run inside this page's Web Worker. Nothing render-related is ever uploaded or stored.
+No credentials or accounts are needed for local editing. QR text is never fetched as a URL. Uploaded files exist in browser memory while you edit: QRCode input decodes its PNG locally, and poster/mask decoding, detection, assembly, and verification run in the editor's Web Worker. After assembly, **Export recipe JSON** saves a portable recipe containing the source poster and final region mask. The editor does not upload it; submitting that file to the optional render API sends those images to Cloudflare for that request, where they are not stored.
+
+## Portable recipe API
+
+After assembling a poster, choose **Export recipe JSON** in the result view. The file contains the committed QR content, original poster PNG, exact final selected-region mask, placement, renderer settings, and image digests. PNGs are embedded as base64 so the recipe can be replayed without the editor session or separate asset uploads. Keep the recipe private if its image or QR content is sensitive.
+
+The standalone render Worker is separate from the editor's vinext Worker. It requires a bearer token and returns verified PNG bytes:
+
+```sh
+# In one terminal, configure a local token in .dev.vars and start workerd:
+printf 'RENDER_API_TOKEN=replace-with-a-long-random-token\n' > .dev.vars
+pnpm dev:render-worker
+
+# In another terminal, render the assembled poster from the exported file:
+curl --fail-with-body \
+  -H 'Authorization: Bearer replace-with-a-long-random-token' \
+  -H 'Content-Type: application/json' \
+  --data-binary @mahu-qr.recipe.json \
+  'http://localhost:8787/v1/render' \
+  --output poster.png
+```
+
+Use `?artifact=qr.png` to return the standalone transparent QR image. The default is the full poster. Requests accept recipes up to 28 MiB; each embedded PNG is limited to 10 MiB and four megapixels. The Worker allows ten renders per minute per API token in each Cloudflare location. Configure `RENDER_API_TOKEN` as a Wrangler secret before deployment:
+
+```sh
+pnpm exec wrangler secret put RENDER_API_TOKEN --config wrangler.render.jsonc
+pnpm deploy:render-worker
+```
+
+The Worker does not fetch QR URLs or recipe-provided URLs and does not persist request images. `wrangler.render.jsonc` requests a 30-second CPU allowance, so deploy the renderer on a Workers plan that supports it; Cloudflare usage charges may apply. The local editor and its browser-only assembly remain usable without a Cloudflare account.
 
 ## Editing
 

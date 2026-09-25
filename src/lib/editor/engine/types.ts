@@ -43,6 +43,8 @@ export interface PreparedPayload {
 export interface AssemblePayload {
   report: import('../../../core/types').AssembleReport
   artifacts: Record<string, Blob>
+  recipe?: Blob
+  recipeError?: string
 }
 
 export interface RasterExportPayload {

@@ -132,6 +132,8 @@ export default function ResultPanel({
   const variantName = variant ? `poster-${variant.width}x${variant.height}.png` : ''
   const variantUrls = useBlobUrls(variant ? { [variantName]: variant.poster } : {})
   const variantUrl = variant ? variantUrls[variantName] : undefined
+  const recipeUrls = useBlobUrls(result.recipe ? { 'mahu-qr.recipe.json': result.recipe } : {})
+  const recipeUrl = recipeUrls['mahu-qr.recipe.json']
   const showingVariant = !!variant && !!variantUrl && selectedKey === variant.key
   const posterUrl = showingVariant ? variantUrl : artifacts['poster.png']
   const pngName = showingVariant ? variantName : 'poster.png'
@@ -293,6 +295,16 @@ export default function ResultPanel({
         >
           Download SVG{svgSize ? ` · ${formatBytes(svgSize)}` : ''}
         </a>
+        {recipeUrl && (
+          <a
+            {...stylex.props(ui.button, ui.focusVisible, styles.actionButton)}
+            href={recipeUrl}
+            download="mahu-qr.recipe.json"
+            title="Includes the source poster and final region mask."
+          >
+            Export recipe JSON · Original size{result.recipe ? ` · ${formatBytes(result.recipe.size)}` : ''}
+          </a>
+        )}
         <button {...stylex.props(ui.button, ui.focusVisible, styles.actionButton)} onClick={onReturnToEditing}>
           Return to editing
         </button>

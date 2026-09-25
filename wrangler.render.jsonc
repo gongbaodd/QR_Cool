@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mahu-qr-renderer",
+  "main": "src/worker-api/index.ts",
+  "compatibility_date": "2026-09-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 0.1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 },
+  },
+  "limits": { "cpu_ms": 30000 },
+  "ratelimits": [
+    {
+      "name": "RENDER_API_LIMIT",
+      // Unique within the account; choose another unused integer if this namespace is already bound.
+      "namespace_id": "92746101",
+      "simple": { "limit": 10, "period": 60 },
+    },
+  ],
+}

@@ -19,6 +19,8 @@ export interface Result {
   apiVersion: 1
   revision: number
   artifacts: Record<string, Blob>
+  recipe?: Blob
+  recipeError?: string
 }
 export interface State {
   revision: number

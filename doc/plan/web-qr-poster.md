@@ -2,6 +2,8 @@
 
 Status: implemented; the web editor is the supported product interface and the CLI has been retired (see step 6). This document is the design record. The server-rendering parts (Node route handlers, `src/server/`, multipart requests, base64 artifact transport, the `BUSY` gate) have been superseded by the client-side pipeline described in `README.md` and `AGENTS.md` — keep reading them as design history, not as the shipped architecture.
 
+The shipped editor can also export a self-contained `mahu-qr.recipe.json` after assembly. A separately deployed Cloudflare Worker at `POST /v1/render` validates and replays that recipe through the shared renderer; editor assembly remains local. The recipe's embedded PNGs are the deliberate exception to the earlier ban on base64 transport. See the portable recipe section in `README.md` and the runtime constraints in `AGENTS.md`.
+
 ## Product goal
 
 The editor is branded **mahu-QR** (码码虎虎). The head-only mascot `public/brand/mahu-tiger.svg` drives the visual identity: near-black `#101211` and vermilion `#ff321e` on warm cream, layered onto the existing Wired-Elements sketch geometry and Gloria Hallelujah handwriting UI, with hard offset shadows. It appears in the header lockup with **Mahu QR** beneath it, the empty-state preview, the favicon (`src/app/icon.svg`), the touch icon, and the social image. Pattern colors can be customized with the per-row suggestions; `DEFAULT_PALETTE` and every engine output stay unchanged.

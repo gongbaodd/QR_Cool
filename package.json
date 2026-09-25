@@ -20,7 +20,9 @@
     "dev:vinext": "vinext dev",
     "build:vinext": "vinext build",
     "preview:workers": "wrangler dev --config dist/server/wrangler.json",
-    "deploy:workers": "vinext-cloudflare deploy --config dist/server/wrangler.json"
+    "deploy:workers": "vinext-cloudflare deploy --config dist/server/wrangler.json",
+    "dev:render-worker": "wrangler dev --config wrangler.render.jsonc",
+    "deploy:render-worker": "wrangler deploy --config wrangler.render.jsonc"
   },
   "dependencies": {
     "@jsquash/png": "^3.1.1",

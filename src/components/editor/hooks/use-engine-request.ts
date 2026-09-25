@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as Comlink from 'comlink'
+import { toast } from 'react-toastify'
 import type { EngineInput, AssembleInput, RasterExportPayload } from '@/lib/editor/engine'
 import { contentSchema, MAX_IMAGE_BYTES, type Settings } from '@/lib/editor/schema'
 import { selectCanAssemble } from '@/lib/editor/selectors'
@@ -103,9 +104,19 @@ export function useEngineRequest(): EditorRequest {
               settleError(token, requestRevision, assembled.error.message, assembled.error.field)
             return
           }
-          store
-            .getState()
-            .actions.acceptResult({ apiVersion: 1, revision: assembled.revision, artifacts: assembled.value.artifacts })
+          store.getState().actions.acceptResult({
+            apiVersion: 1,
+            revision: assembled.revision,
+            artifacts: assembled.value.artifacts,
+            ...(assembled.value.recipe ? { recipe: assembled.value.recipe } : {}),
+            ...(assembled.value.recipeError ? { recipeError: assembled.value.recipeError } : {}),
+          })
+          if (assembled.value.recipeError)
+            toast.error(assembled.value.recipeError, {
+              toastId: 'recipe-export-error',
+              autoClose: false,
+              role: 'alert',
+            })
         }
       } catch (error) {
         if (token !== operation.current) return

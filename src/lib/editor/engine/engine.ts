@@ -30,6 +30,7 @@ import {
 } from './pipeline'
 import { QrPosterError } from '@/core/errors'
 import { toEngineError } from './mapping'
+import { createRecipeBlob } from '@/lib/recipe/recipe'
 import type {
   EngineError,
   EngineInput,
@@ -120,12 +121,21 @@ export class EditorEngine {
       pixelStyle?: Settings['pixelStyle']
       finderMarkers?: Settings['finderMarkers']
       markerSub?: Settings['markerSub']
+      colors?: Settings['colors']
     },
     revision: number,
   ): Promise<EngineOutcome<AssemblePayload>> {
     if (revision > this.latestAssemblyRevision) this.latestAssemblyRevision = revision
     try {
       const value = await assemblePayload(this.imaging, input)
+      const regionMask = value.artifacts['region-mask.png']
+      if (!regionMask)
+        throw new QrPosterError('IMAGE_PROCESSING_FAILED', 'Assembly did not produce the final region mask.')
+      try {
+        value.recipe = await createRecipeBlob(input, regionMask)
+      } catch (error) {
+        value.recipeError = error instanceof Error ? error.message : 'Could not create the portable recipe.'
+      }
       return this.settle(revision, { ok: true, value }, 'assemble')
     } catch (error) {
       return this.settle(revision, { ok: false, error: toEngineError(error) }, 'assemble')
