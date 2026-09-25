@@ -18,7 +18,7 @@ import {
   samePlacement,
 } from '@/lib/editor/placement-gesture'
 import type { PlacementGesture, PlacementGestureKind } from '@/lib/editor/placement-gesture'
-import { fillMaskImageData } from '@/lib/editor/mask-fill'
+import { autoFillMaskHoles, fillMaskImageData } from '@/lib/editor/mask-fill'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 
@@ -295,7 +295,7 @@ function SourceRegionPreview({
   )
 }
 
-function notifyFill(message: string, kind: 'error' | 'warning' | 'success') {
+function notifyFill(message: string, kind: 'error' | 'warning' | 'success' | 'info') {
   const toastId = 'editor-region-fill'
   const options = {
     toastId,
@@ -308,6 +308,12 @@ function notifyFill(message: string, kind: 'error' | 'warning' | 'success') {
   } else {
     toast[kind](message, options)
   }
+}
+
+function yieldToBrowser(): Promise<void> {
+  const schedulerApi = (window as Window & { scheduler?: { yield?: () => Promise<void> } }).scheduler
+  if (schedulerApi?.yield) return schedulerApi.yield()
+  return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 function PosterCanvas({
@@ -833,7 +839,7 @@ export default function PreviewPanel({
   const [showFilledRegion, setShowFilledRegion] = useState(false)
   const sourceMaskImageData = useRef<ImageData | null>(null)
   const fillGeneration = useRef(0)
-  const fillNotificationKind = useRef<'error' | 'warning' | 'success' | 'progress' | null>(null)
+  const fillNotificationKind = useRef<'error' | 'warning' | 'success' | 'info' | 'progress' | null>(null)
   const expectedWidth = dimensions?.width
   const expectedHeight = dimensions?.height
   useEffect(() => {
@@ -997,6 +1003,84 @@ export default function PreviewPanel({
       notifyFill(`Filled ${painted} pixels.`, 'success')
     }, 'image/png')
   }
+  async function autoFill() {
+    const image = sourceMaskImageData.current
+    if (!image || !sourceMaskReady || fillPendingRef.current || busy) return
+
+    setFillActive(false)
+    fillPendingRef.current = true
+    setFillPending(true)
+    fillNotificationKind.current = 'progress'
+    const toastId = 'editor-region-fill'
+    toast.loading('Finding enclosed areas…', {
+      toastId,
+      autoClose: false,
+      role: 'status',
+      ariaLabel: 'Finding enclosed mask areas',
+    })
+
+    const generation = fillGeneration.current
+    const isStale = () => generation !== fillGeneration.current
+    const completeWithoutCommit = (message: string, kind: 'info' | 'error') => {
+      if (isStale()) return
+      fillPendingRef.current = false
+      setFillPending(false)
+      fillNotificationKind.current = kind
+      notifyFill(message, kind)
+    }
+
+    try {
+      const operation = autoFillMaskHoles(image.data, image.width, image.height)
+      let deadline = performance.now() + 50
+      let step = operation.next()
+      while (!step.done) {
+        if (isStale()) return
+        if (performance.now() >= deadline) {
+          await yieldToBrowser()
+          if (isStale()) return
+          deadline = performance.now() + 50
+        }
+        step = operation.next()
+      }
+      if (isStale()) return
+      const result = step.value
+      if (!result) {
+        completeWithoutCommit('No enclosed areas to fill.', 'info')
+        return
+      }
+
+      const outputCanvas = document.createElement('canvas')
+      outputCanvas.width = image.width
+      outputCanvas.height = image.height
+      const context = outputCanvas.getContext('2d')
+      if (!context) {
+        completeWithoutCommit('Could not update the selected region. Try again.', 'error')
+        return
+      }
+      const outputImage = new ImageData(image.width, image.height)
+      outputImage.data.set(result.data)
+      context.putImageData(outputImage, 0, 0)
+      outputCanvas.toBlob((blob) => {
+        if (isStale()) return
+        if (!blob) {
+          completeWithoutCommit('Could not save the filled mask. Try again.', 'error')
+          return
+        }
+        fillPendingRef.current = false
+        setFillPending(false)
+        setMaskRevision((revision) => revision + 1)
+        setShowFilledRegion(true)
+        fillNotificationKind.current = 'success'
+        onMaskFillCommit(blob)
+        notifyFill(
+          `Filled ${result.holeCount} enclosed ${result.holeCount === 1 ? 'area' : 'areas'} (${result.filledPixels} pixels).`,
+          'success',
+        )
+      }, 'image/png')
+    } catch {
+      completeWithoutCommit('Could not fill the selected region. Try again.', 'error')
+    }
+  }
   useEffect(() => {
     if (!fillActive) return
     const onKey = (event: KeyboardEvent) => {
@@ -1024,6 +1108,14 @@ export default function PreviewPanel({
           }}
         >
           {fillActive ? '✓ Filling region' : '🪣 Fill region'}
+        </button>
+        <button
+          {...stylex.props(ui.button, ui.focusVisible)}
+          type="button"
+          disabled={!sourceMaskReady || fillPending || busy}
+          onClick={() => void autoFill()}
+        >
+          {fillPending ? 'Filling holes…' : 'Auto fill'}
         </button>
         <button
           {...stylex.props(ui.button, ui.focusVisible, rimActive && ui.fontCardSelected)}
