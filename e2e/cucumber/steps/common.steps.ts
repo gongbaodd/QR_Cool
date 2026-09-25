@@ -1,21 +1,14 @@
 import { expect } from '@playwright/test'
 import { Given, Then, When } from '@cucumber/cucumber'
 import type { EditorWorld } from '../support/world.js'
+import { openWithQr } from '../../support/editor.js'
 
 When('I press {string}', async function (this: EditorWorld, key: string) {
   await this.page.keyboard.press(key)
 })
 
 Given('the editor has a committed QR', async function (this: EditorWorld) {
-  await this.page.goto('/')
-  await this.page.waitForTimeout(1_000)
-  await this.page.getByLabel('Text or URL', { exact: true }).fill('https://example.com/qr')
-  await expect(this.page.getByRole('img', { name: 'Poster editing preview' })).toBeVisible({ timeout: 30_000 })
-  const blank = this.page.getByRole('radio', { name: /Blank full-canvas mask/ })
-  if (!(await blank.isVisible())) await this.page.getByRole('button', { name: 'Mask', exact: true }).click()
-  await blank.click()
-  await expect(this.page.getByRole('button', { name: 'Assemble poster', exact: true })).toBeEnabled()
-  await this.page.keyboard.press('Escape')
+  await openWithQr(this.page)
 })
 
 When('I nudge the QR right', async function (this: EditorWorld) {
@@ -36,13 +29,42 @@ When('I open the top-left marker settings', async function (this: EditorWorld) {
   await this.page.getByRole('button', { name: 'Edit tl marker' }).click()
 })
 
+When('I enter fill mode', async function (this: EditorWorld) {
+  await this.page.getByRole('button', { name: /Fill region|Filling region/ }).click()
+})
+
+Then('fill mode is active', async function (this: EditorWorld) {
+  await expect(this.page.getByRole('button', { name: /Fill region|Filling region/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+})
+
+Then('fill mode is inactive', async function (this: EditorWorld) {
+  await expect(this.page.getByRole('button', { name: /Fill region|Filling region/ })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+})
+
+When('I toggle the region rim and margin', async function (this: EditorWorld) {
+  await this.page.getByRole('button', { name: /Add Rim/ }).click()
+  await this.page.getByRole('button', { name: /Add Margin/ }).click()
+})
+
+Then('the rim and margin are active', async function (this: EditorWorld) {
+  await expect(this.page.getByRole('button', { name: /Add Rim/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(this.page.getByRole('button', { name: /Add Margin/ })).toHaveAttribute('aria-pressed', 'true')
+})
+
 Then('the marker dialog is visible', async function (this: EditorWorld) {
-  await expect(this.page.getByRole('dialog', { name: 'TL finder marker' })).toBeVisible()
-  await expect(this.page.getByRole('radiogroup', { name: 'Marker shape' })).toBeVisible()
+  const markerDialog = this.page.getByRole('dialog', { name: 'Top Left finder marker' })
+  await expect(markerDialog).toBeVisible()
+  await expect(markerDialog.getByRole('radiogroup', { name: 'Marker shape' })).toBeVisible()
 })
 
 Then('the marker dialog is closed', async function (this: EditorWorld) {
-  await expect(this.page.getByRole('dialog', { name: 'TL finder marker' })).not.toBeVisible()
+  await expect(this.page.getByRole('dialog', { name: 'Top Left finder marker' })).not.toBeVisible()
 })
 
 Then('I see the message {string}', async function (this: EditorWorld, text: string) {
