@@ -2,7 +2,7 @@
 
 Status: implemented; the web editor is the supported product interface and the CLI has been retired (see step 6). This document is the design record. The server-rendering parts (Node route handlers, `src/server/`, multipart requests, base64 artifact transport, the `BUSY` gate) have been superseded by the client-side pipeline described in `README.md` and `AGENTS.md` — keep reading them as design history, not as the shipped architecture.
 
-The shipped editor can also export a self-contained `mahu-qr.recipe.json` after assembly. A separately deployed Cloudflare Worker at `POST /v1/render` validates and replays that recipe through the shared renderer; editor assembly remains local. The recipe's embedded PNGs are the deliberate exception to the earlier ban on base64 transport. See the portable recipe section in `README.md`, the local Hurl and Yaak checks in `test/api/README.md`, and the runtime constraints in `AGENTS.md`.
+The shipped editor can also export a self-contained `mahu-qr.recipe.json` after assembly. A separately deployed Cloudflare Worker at `POST /v1/render` validates and replays that recipe through the shared renderer; editor assembly remains local. The Worker's HTTP layer is a typed Hono app (`apps/render-api/src/index.ts`) with explicit method guards and centralized error/not-found responses; recipe validation and rendering stay in `@mahu-qr/renderer`. The recipe's embedded PNGs are the deliberate exception to the earlier ban on base64 transport. See the portable recipe section in `README.md`, the local Hurl and Yaak checks in `test/api/README.md`, and the runtime constraints in `AGENTS.md`.
 
 ## Product goal
 

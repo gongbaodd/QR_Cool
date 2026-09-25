@@ -39,7 +39,15 @@ Root commands forward to the web app for `dev`, `build`, and `start`, and preser
 
 After assembling a poster, choose **Export recipe JSON** in the result view. The file contains the committed QR content, original poster PNG, exact final selected-region mask, placement, renderer settings, and image digests. PNGs are embedded as base64 so the recipe can be replayed without the editor session or separate asset uploads. Keep the recipe private if its image or QR content is sensitive.
 
-The standalone render Worker is separate from the editor's vinext Worker. It requires a bearer token and returns verified PNG bytes:
+The standalone render Worker is separate from the editor's vinext Worker. Its HTTP layer is a typed [Hono](https://hono.dev) app in `apps/render-api/src/index.ts` (strict routing, request-scoped IDs, centralized `onError`/`notFound` responses), while recipe validation and rendering stay in `@mahu-qr/renderer`. It requires a bearer token and returns verified PNG bytes:
+
+Check that the Worker is responding with `GET /health`. This liveness endpoint does not require a bearer token:
+
+```sh
+curl --fail-with-body 'https://YOUR_WORKER_URL/health'
+```
+
+It returns `200` with `{"status":"ok"}`. It confirms the Worker is running; it does not perform a render or check recipe-processing dependencies.
 
 ```sh
 # In one terminal, configure a local token in apps/render-api/.dev.vars and start workerd:

@@ -59,6 +59,9 @@ importers:
       '@mahu-qr/renderer':
         specifier: workspace:*
         version: link:../../packages/renderer
+      hono:
+        specifier: ^4.13.9
+        version: 4.13.9
       zod:
         specifier: ^4.6.5
         version: 4.6.5
@@ -2067,6 +2070,10 @@ packages:
   hex-rgb@4.3.0:
     resolution: {integrity: sha512-Ox1pJVrDCyGHMG9CFg1tmrRUMRPRsAWYc/PinY0XzJU4K7y7vjNoLKIQ7BR5UJMCxNN8EM1MNDmHWA/B3aZUuw==}
     engines: {node: '>=6'}
+
+  hono@4.13.9:
+    resolution: {integrity: sha512-7dMkQmZoC4E6F7AtaQSPhlWAdnBti+j7rreMZl8QB4jFiEhP9TWbGWUMi8WYzBCgmgulxuvLQupKqo+Co6Omyg==}
+    engines: {node: '>=16.9.0'}
 
   hosted-git-info@9.0.3:
     resolution: {integrity: sha512-Hc+ghLoSt6QaYZUv0WBiIvmMDZuZZ7oaDvdH8MbfOO4lOsxdXLEvuC6ePoGs9H1X9oCLyq6+NVN0MKqD+ydxyg==}
@@ -4575,6 +4582,8 @@ snapshots:
   has-flag@4.0.0: {}
 
   hex-rgb@4.3.0: {}
+
+  hono@4.13.9: {}
 
   hosted-git-info@9.0.3:
     dependencies:

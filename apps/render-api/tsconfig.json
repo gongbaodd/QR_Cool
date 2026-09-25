@@ -1,8 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "WebWorker"],
+    "lib": ["ES2023", "dom", "dom.iterable"],
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "../../packages/renderer/src/wasm.d.ts"]
+  "include": ["src/**/*.ts", "worker-configuration.d.ts", "../../packages/renderer/src/wasm.d.ts"]
 }

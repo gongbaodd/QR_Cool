@@ -135,3 +135,52 @@ Content-Type: image/png
 [Asserts]
 # fixture-sha: baseline_poster_sha
 sha256 == hex,0000000000000000000000000000000000000000000000000000000000000000;
+
+GET {{base_url}}/health
+HTTP 200
+Content-Type: application/json
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+[Asserts]
+jsonpath "$.status" == "ok"
+
+POST {{base_url}}/health
+HTTP 405
+Allow: GET
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+
+HEAD {{base_url}}/health
+HTTP 405
+Allow: GET
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+
+HEAD {{base_url}}/v1/render
+HTTP 405
+Allow: POST
+Content-Type: application/json
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+
+# The method guard must outrank authentication even when a token is supplied.
+DELETE {{base_url}}/v1/render
+Authorization: Bearer {{bad_token}}
+HTTP 405
+Allow: POST
+[Asserts]
+jsonpath "$.error.code" == "METHOD_NOT_ALLOWED"
+
+GET {{base_url}}/health/
+HTTP 404
+Content-Type: application/json
+[Asserts]
+jsonpath "$.error.code" == "NOT_FOUND"
+jsonpath "$.requestId" matches /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
+PUT {{base_url}}/v1/render/
+HTTP 404
+Content-Type: application/json
+[Asserts]
+jsonpath "$.error.code" == "NOT_FOUND"
+jsonpath "$.requestId" matches /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
