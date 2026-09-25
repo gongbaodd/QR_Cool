@@ -16,25 +16,82 @@ import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorSto
 import { selectEffectiveMask, selectMaskFont, selectSuggestedMask } from '@/lib/editor/selectors'
 
 function drawTextMask(width: number, height: number, text: string, family: string, capPx: number): HTMLCanvasElement {
+  const measureCanvas = document.createElement('canvas')
+  measureCanvas.width = 1
+  measureCanvas.height = 1
+  const measureContext = measureCanvas.getContext('2d')!
+  const maxWidth = width * 0.94
+  let size = fitTextMaskSize(
+    (px) => {
+      measureContext.font = `${px}px "${family}"`
+      return measureContext.measureText(text).width
+    },
+    maxWidth,
+    Math.min(capPx, height),
+  )
+
+  let scratch: HTMLCanvasElement | null = null
+  let selectedBounds: { left: number; top: number; width: number; height: number } | null = null
+  for (let attempt = 0; attempt < 12; attempt++) {
+    measureContext.font = `${size}px "${family}"`
+    const metrics = measureContext.measureText(text)
+    const leftExtent = Math.max(0, metrics.actualBoundingBoxLeft)
+    const rightExtent = Math.max(0, metrics.actualBoundingBoxRight)
+    const ascent = Math.max(0, metrics.actualBoundingBoxAscent)
+    const descent = Math.max(0, metrics.actualBoundingBoxDescent)
+    const padding = 2
+    const scratchCanvas = document.createElement('canvas')
+    scratchCanvas.width = Math.max(1, Math.ceil(leftExtent + rightExtent + padding * 2))
+    scratchCanvas.height = Math.max(1, Math.ceil(ascent + descent + padding * 2))
+    const scratchContext = scratchCanvas.getContext('2d')!
+    scratchContext.fillStyle = 'white'
+    scratchContext.textAlign = 'left'
+    scratchContext.textBaseline = 'alphabetic'
+    scratchContext.font = `${size}px "${family}"`
+    scratchContext.fillText(text, padding + leftExtent, padding + ascent)
+
+    const pixels = scratchContext.getImageData(0, 0, scratchCanvas.width, scratchCanvas.height).data
+    let minX = scratchCanvas.width
+    let minY = scratchCanvas.height
+    let maxX = -1
+    let maxY = -1
+    for (let y = 0; y < scratchCanvas.height; y++) {
+      for (let x = 0; x < scratchCanvas.width; x++) {
+        // White on transparent has alpha equal to glyph coverage. The renderer
+        // selects the same pixels once that white is composited over black.
+        if (pixels[(y * scratchCanvas.width + x) * 4 + 3]! < 128) continue
+        minX = Math.min(minX, x)
+        minY = Math.min(minY, y)
+        maxX = Math.max(maxX, x)
+        maxY = Math.max(maxY, y)
+      }
+    }
+    if (maxX < minX || maxY < minY) throw new Error(`The ${family} font produced an empty text mask.`)
+
+    const bounds = { left: minX, top: minY, width: maxX - minX + 1, height: maxY - minY + 1 }
+    const fitScale = Math.min(1, maxWidth / bounds.width, height / bounds.height)
+    if (fitScale >= 1) {
+      scratch = scratchCanvas
+      selectedBounds = bounds
+      break
+    }
+
+    const nextSize = Math.max(1, Math.floor(size * fitScale * 0.98))
+    if (nextSize >= size) throw new Error(`The ${family} font could not fit inside the poster.`)
+    size = nextSize
+  }
+
+  if (!scratch || !selectedBounds) throw new Error(`The ${family} font could not fit inside the poster.`)
+
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   const context = canvas.getContext('2d')!
   context.fillStyle = 'black'
   context.fillRect(0, 0, width, height)
-  context.fillStyle = 'white'
-  context.textAlign = 'center'
-  context.textBaseline = 'middle'
-  const size = fitTextMaskSize(
-    (px) => {
-      context.font = `${px}px "${family}"`
-      return context.measureText(text).width
-    },
-    width * 0.94,
-    Math.min(capPx, height),
-  )
-  context.font = `${size}px "${family}"`
-  context.fillText(text, width / 2, height / 2)
+  const targetLeft = Math.round((width - selectedBounds.width) / 2)
+  const targetTop = Math.round((height - selectedBounds.height) / 2)
+  context.drawImage(scratch, targetLeft - selectedBounds.left, targetTop - selectedBounds.top)
   return canvas
 }
 
