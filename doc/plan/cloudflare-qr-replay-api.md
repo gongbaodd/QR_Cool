@@ -1,6 +1,6 @@
 # Cloudflare QR replay API and portable recipe export
 
-Status: implementation in progress; automated checks and workerd parity remain outstanding. Date: 2026-09-25.
+Status: implementation in progress; the local Hurl/Yaak test scaffolding is implemented, while HTTP execution, manual Yaak import, automated checks, and workerd parity remain outstanding. Date: 2026-09-25.
 
 ## Outcome and scope
 
@@ -206,7 +206,7 @@ Cover uploaded/transparent blank posters; detected/custom/text/icon masks; Fill/
 
 Compare exact decoded RGBA and protected pixels between browser WASM and workerd. Require byte identity when the same pinned encoder produces PNGs; investigate any differences before release. Keep Node golden bytes unchanged. Report comparisons may normalize runtime metadata and the intentional detected-mask-to-explicit-mask provenance change, while preserving schema 8 and mandatory check outcomes. Poster decode checks remain skipped and `phoneScan` remains `untested`.
 
-Verification commands are to be run only when the maintainer explicitly asks, per `AGENTS.md`: `pnpm test`, `pnpm typecheck`, `pnpm build`, and relevant Worker checks. Update/run `e2e/editor.spec.ts` only on request. This planning change runs no test, build, or deployment.
+Local HTTP contract tooling is implemented in `test/api/`: Hurl exercises the local Worker with browser-WASM expected fixtures, and a Postman v2.1 collection can be imported into Yaak for manual inspection. Run `pnpm test:api:smoke`, `pnpm test:api`, or the quota-isolated `pnpm test:api:limits` only when requested, per `AGENTS.md`. These HTTP cases still need an authorized run; import the collection into Yaak to verify file-body setup in the desktop app. The suite does not replace the broader workerd parity, supported-range memory, or failure-injection gates above. Update/run `e2e/editor.spec.ts` only on request.
 
 Before release, update `README.md`, `doc/plan/web-qr-poster.md`, and durable `AGENTS.md` constraints: explain local assembly versus explicit remote replay, recipe contents, the base64 exception, API authentication, limits, privacy behavior, version support, and curl usage. Document actual preview/deploy commands and rollback. Roll out the API independently; a rollback must not silently reinterpret an unsupported recipe version. Remove this proposal after its implemented constraints have been promoted to those canonical documents.
 

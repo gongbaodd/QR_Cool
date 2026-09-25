@@ -1,0 +1,29 @@
+[
+  {
+    "name": "baseline",
+    "width": 360,
+    "height": 320,
+    "hashes": {
+      "poster.png": "1b8b2c0bf8c83d58342c0412d542e01aa72d92d5da1b2dd6c9261969efa381f0",
+      "qr.png": "b7af543f2a77f5901802d10d3b80368c14176a9db75d492ba87454ec286677e9"
+    }
+  },
+  {
+    "name": "transparent",
+    "width": 360,
+    "height": 320,
+    "hashes": {
+      "poster.png": "16f8cabf31ae8c781e92978f973187076e9935aba69b4aff31296b0ed0981e15",
+      "qr.png": "b7af543f2a77f5901802d10d3b80368c14176a9db75d492ba87454ec286677e9"
+    }
+  },
+  {
+    "name": "rotated",
+    "width": 360,
+    "height": 320,
+    "hashes": {
+      "poster.png": "9caa46c4924df335d3ca9ebbb3c3fb38cf03d23887faaccc2b3babe2053429ee",
+      "qr.png": "b7af543f2a77f5901802d10d3b80368c14176a9db75d492ba87454ec286677e9"
+    }
+  }
+]

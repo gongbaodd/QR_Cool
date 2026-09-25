@@ -1,0 +1,190 @@
+{
+  "info": {
+    "name": "mahu-QR Worker API",
+    "description": "Import this Postman v2.1 collection into Yaak. Set the local base_url and render_api_token variables first. For render requests, select Body → Binary File and choose the matching test/api/fixtures/*.recipe.json file from this repository. Keep request sends sequential because authenticated requests share a ten-per-minute limit.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{render_api_token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8799", "type": "string" },
+    { "key": "render_api_token", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Success",
+      "item": [
+        {
+          "name": "Render baseline poster",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "file", "file": { "src": "test/api/fixtures/baseline.recipe.json" } },
+            "url": "{{base_url}}/v1/render"
+          }
+        },
+        {
+          "name": "Render standalone QR",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "file", "file": { "src": "test/api/fixtures/baseline.recipe.json" } },
+            "url": "{{base_url}}/v1/render?artifact=qr.png"
+          }
+        },
+        {
+          "name": "Render rotated poster",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "file", "file": { "src": "test/api/fixtures/rotated.recipe.json" } },
+            "url": "{{base_url}}/v1/render"
+          }
+        },
+        {
+          "name": "Render transparent poster",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "file", "file": { "src": "test/api/fixtures/transparent.recipe.json" } },
+            "url": "{{base_url}}/v1/render"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Routing and authentication",
+      "item": [
+        {
+          "name": "GET render route (405)",
+          "request": { "method": "GET", "url": "{{base_url}}/v1/render" }
+        },
+        {
+          "name": "PUT render route (405)",
+          "request": { "method": "PUT", "url": "{{base_url}}/v1/render" }
+        },
+        {
+          "name": "OPTIONS render route (405)",
+          "request": { "method": "OPTIONS", "url": "{{base_url}}/v1/render" }
+        },
+        {
+          "name": "Unknown route (404)",
+          "request": { "method": "GET", "url": "{{base_url}}/missing" }
+        },
+        {
+          "name": "Missing bearer token (401)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{base_url}}/v1/render"
+          }
+        },
+        {
+          "name": "Wrong bearer token (401)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "invalid-api-test-token", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "not json" },
+            "url": "{{base_url}}/v1/render"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation",
+      "item": [
+        {
+          "name": "Invalid artifact (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{base_url}}/v1/render?artifact=jpeg"
+          }
+        },
+        {
+          "name": "Unsupported media type (415)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "not json" },
+            "url": "{{base_url}}/v1/render"
+          }
+        },
+        {
+          "name": "Invalid recipe digest (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "file", "file": { "src": "test/api/fixtures/invalid-digest.recipe.json" } },
+            "url": "{{base_url}}/v1/render"
+          }
+        },
+        {
+          "name": "Unsupported recipe version (400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "file", "file": { "src": "test/api/fixtures/invalid-schema.recipe.json" } },
+            "url": "{{base_url}}/v1/render"
+          }
+        },
+        {
+          "name": "Invalid placement (422)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "file", "file": { "src": "test/api/fixtures/invalid-placement.recipe.json" } },
+            "url": "{{base_url}}/v1/render"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Limits",
+      "item": [
+        {
+          "name": "Request body above 28 MiB (413)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "file", "file": { "src": "output/api-tests/fixtures/oversized-request.json" } },
+            "url": "{{base_url}}/v1/render"
+          }
+        },
+        {
+          "name": "Embedded image above 10 MiB (413)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "file", "file": { "src": "output/api-tests/fixtures/oversized-image.recipe.json" } },
+            "url": "{{base_url}}/v1/render"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rate Limit",
+      "description": "This is a terminal case: send it only after ten authenticated requests inside the current one-minute limit window.",
+      "item": [
+        {
+          "name": "Authenticated request after quota (429)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "text/plain" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{base_url}}/v1/render"
+          }
+        }
+      ]
+    }
+  ]
+}

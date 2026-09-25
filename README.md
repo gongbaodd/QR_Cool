@@ -58,6 +58,14 @@ pnpm deploy:render-worker
 
 The Worker does not fetch QR URLs or recipe-provided URLs and does not persist request images. `wrangler.render.jsonc` requests a 30-second CPU allowance, so deploy the renderer on a Workers plan that supports it; Cloudflare usage charges may apply. The local editor and its browser-only assembly remain usable without a Cloudflare account.
 
+Run the local Worker API checks with `pnpm test:api:smoke` for a short rendering pass, `pnpm test:api` for rendering plus route/auth/validation cases, or `pnpm test:api:limits` for body limits and the isolated rate-limit window. Hurl is a separate system dependency. The runner binds only loopback, creates a fresh local-only token, and stores response PNGs, generated large request bodies, and JUnit reports under ignored `output/api-tests/`. Regenerate the browser-WASM fixtures with `pnpm api:fixtures`. For manual Yaak requests, import [the Postman v2.1 collection](test/api/yaak/mahu-qr-worker-api.postman_collection.json), then start `pnpm api:serve` in a terminal; it prints the local URL and fresh token and does not read project `.dev.vars` or `.env`:
+
+```sh
+pnpm api:serve
+```
+
+Set the collection variables and use each request's Binary File body with its matching `test/api/fixtures/*.recipe.json`. See [the API check guide](test/api/README.md) for details.
+
 ## Editing
 
 Error correction uses a four-stop slider for L, M, Q, and H, with approximate recovery percentages shown at each stop. Pixel-style cards preview QR styling encoded from an empty text value, so the options remain visible and comparable before content is entered.
@@ -120,6 +128,7 @@ The render pipeline is entirely client-side:
 - Upload guards (PNG signature, IHDR, APNG `acTL` scan, 10 MiB / 4-megapixel limits) run client-side in `src/lib/editor/png-guard.ts` with the same error codes.
 - Outside-region pixels, partially covered modules, and QR plate pixels stay bit-exact. Uploaded-poster alpha stays bit-exact; the generated blank canvas keeps its transparent background. Mandatory verification failures reject export.
 - The only HTTP endpoint is the thin icon-search proxy `GET /api/icons` (free upstream, mocked in tests); it plays no part in rendering.
+- The separately deployed `src/worker-api/` Worker accepts explicit versioned recipe JSON at `POST /v1/render`; local Hurl checks and an importable Yaak collection live in `test/api/` (`pnpm test:api:smoke`, `pnpm test:api`, `pnpm test:api:limits`). These checks use only loopback fixtures and never run as part of editor assembly.
 
 ## Limits and hosting
 
