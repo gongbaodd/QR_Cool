@@ -156,8 +156,8 @@ function markerRefillSeed(seed: number): number {
 
 /**
  * Renders a pixel style — square is full cells, dot is circles, rounded blends neighbours.
- * Square and dot follow the same toolkit design as https://qrcode.antfu.me; rounded matches
- * the previous implementation: one inscribed circle per dark module plus corner wedges that
+ * Square and dot use the standard full-cell and circular module styles; rounded uses one
+ * inscribed circle per dark module plus corner wedges that
  * bridge dark neighbours (and fill inner corners of light modules).
  */
 export async function renderPattern(

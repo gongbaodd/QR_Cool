@@ -363,7 +363,7 @@ export function decodeQrRawDetailed(data: Uint8Array, width: number, height: num
   }
 }
 
-export function inspectAntfuQr(image: LoadedPng, decodedText: string, detectedVersion?: number): QrMetadata {
+export function inspectQrSource(image: LoadedPng, decodedText: string, detectedVersion?: number): QrMetadata {
   if (image.width !== image.height)
     throw new QrPosterError('QR_INVALID', `QR image must be square; received ${image.width}x${image.height}.`)
 
@@ -372,7 +372,7 @@ export function inspectAntfuQr(image: LoadedPng, decodedText: string, detectedVe
   if (candidates.length !== 1) {
     throw new QrPosterError(
       'QR_INVALID',
-      `QR dimensions do not uniquely match the qrcode.antfu.me two-module quiet-zone profile (found ${candidates.length} candidates).`,
+      `QR dimensions do not uniquely match the two-module quiet-zone profile (found ${candidates.length} candidates).`,
     )
   }
 
@@ -452,7 +452,7 @@ export async function resolveQrSource(source: LoadedPng, detectedVersion?: numbe
         : `the image is ${source.width}x${source.height}, not square`
     throw new QrPosterError(
       'QR_INVALID',
-      `QR input does not match the qrcode.antfu.me profile (${reason}) and no integer-scaled code grid` +
+      `QR input does not match the two-module quiet-zone profile (${reason}) and no integer-scaled code grid` +
         ` could be recovered from its pixels. Supply a square QR PNG with a two-module light margin,` +
         ` or a code-only crop whose modules are an integer number of pixels.`,
     )

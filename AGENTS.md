@@ -31,7 +31,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 
 ## QR pattern generation
 
-- Encode with `uqr`, the encoder behind qrcode.antfu.me, using the toolkit's defaults only: `ecc: 'M'`, `maskPattern: -1`, `border: 0`, and a locally drawn 2-module margin.
+- Encode with `uqr` using its defaults only: `ecc: 'M'`, `maskPattern: -1`, `border: 0`, and a locally drawn 2-module margin.
 - "Remove the marker" means dropping `QrCodeDataType.Position` (finder patterns and their separators) and `Alignment`; keep `Timing` and `Function` cells. Dropped cells are refilled with seeded random modules, never left light.
 - Each finder marker supports independent outer shapes (`square`, `circle`, `octagon`, `squircle`) and inner shapes (`square`, `circle`, `plus`, `diamond`, `squircle`). Squircle uses the shared fourth-power superellipse path; defaults remain circle/circle. The alignment marker keeps its separate square/circle setting.
 - Pattern colors are settings (`colors: { pixel, marker, background }`, 6-digit hex): pixel inks the texture cells, data modules, rim, and refill bits; marker inks the finder/alignment markers; background fills the light modules (quiet zone, marker rings, plate band, region margin). The palette lives in `src/core/palette.ts` (pure sRGB↔OKLCH, OKLCH suggestions from the pixel color, contrast guard), the schema defaults `#000000/#000000/#ffffff` keep existing outputs byte-identical, the palette joins the engine's `qrCacheKey`, and the guard rejects unscannable palettes with `COLOR_INVALID` → field `colors` before generation. The pattern-settings UI uses one row of `usePickr` swatches with pending-vs-commit local state as the only surface for editing colors.
@@ -40,7 +40,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 - A module is safe only when its whole `pitch x pitch` block is on the canvas and every pixel of it is inside the region; a partially covered module keeps the original artwork. Add Margin paints the outer safe-module ring of the selected region with the normalized QR's marker background pixels; when Rim is also on, its dark rings start immediately inside the light margin. Without Add Margin, the outer 0–5 rings of drawn modules are forced dark cells as before. A rounded rim is antialiased. The plate remains the code grid plus finder-only light bands of one module.
 - The poster is deliberately not decode-verified: `poster`/`posterHalfScale`/`posterJpeg80` are skipped checks, `phoneScan` stays `untested`, and the UI warns that artistic margins can affect scanning.
 - Raster downloads preserve poster aspect ratio and use integer QR module pitches of at least 4px. The result calculates the smallest verified size and distinct 320/640/1280px bounding-box tiers below the original. Each smaller choice is reassembled in the worker from an area-weighted premultiplied-alpha poster and conservative selected-region mask, then must pass the normal placement and mandatory pixel checks. `poster.svg` is a self-contained image-backed SVG embedding the exact verified original PNG; it is not a vector reconstruction. Keep schema-8 report and original PNG bytes unchanged.
-- Upstream reference: `antfu/qrcode-toolkit` `logic/generate.ts` and `unjs/uqr` (`encode`, `QrCodeDataType`).
+- Encoder reference: `unjs/uqr` (`encode`, `QrCodeDataType`).
 
 ## Editor behavior and ownership
 

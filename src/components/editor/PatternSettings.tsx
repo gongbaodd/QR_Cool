@@ -365,7 +365,7 @@ function MiniPixelQrPreview({
       </svg>
     )
   }
-  // rounded: circles + corner wedges bridging dark neighbours (same as qrcode.antfu.me)
+  // rounded: circles + corner wedges bridging dark neighbours
   const circles: string[] = []
   const wedges: string[] = []
   const half = 0.5

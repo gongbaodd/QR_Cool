@@ -22,7 +22,7 @@ import { placeQr, findClosestSquare } from '@/core/placement'
 import {
   generateQrFromContent,
   decodeQrRawDetailed,
-  inspectAntfuQr,
+  inspectQrSource,
   normalizeQr,
   transparentQrBackground,
 } from '@/core/qr'
@@ -211,7 +211,7 @@ export async function resolveQr(imaging: Imaging, input: EngineInput): Promise<Q
   }
   if (decoded.text !== input.content)
     throw new QrPosterError('QR_TEXT_MISMATCH', 'Generated QR did not preserve the entered text.')
-  const qrMetadata = inspectAntfuQr(qrSource, input.content, generated.version)
+  const qrMetadata = inspectQrSource(qrSource, input.content, generated.version)
   return { qrSource, decoded, qrMetadata }
 }
 

@@ -54,9 +54,9 @@ Visual result: failed, and this verdict is separate from the passing scan. The f
 
 ## Change of plan: offline pattern preview (2026-09-15)
 
-The Qwen fill is set aside. Instead of asking the model for cells, the pattern is generated locally from a random text line with the encoder behind qrcode.antfu.me, then examined on its own before anything is composited onto the poster.
+The Qwen fill is set aside. Instead of asking the model for cells, the pattern is generated locally from a random text line with `uqr`, then examined on its own before anything is composited onto the poster.
 
-What the toolkit actually does, checked against `antfu/qrcode-toolkit` v1.4.4:
+The encoder and rendering behavior used for the pattern:
 
 - `logic/generate.ts` calls `uqr`'s `encode(text, { minVersion, maxVersion, ecc, maskPattern, boostEcc, border: 0 })` and draws the margin itself.
 - Defaults are `ecc: 'M'`, `margin: 2`, `scale: 20`, `pixelStyle: 'rounded'`, `markerStyle: 'auto'`, `markerShape: 'square'`, `maskPattern: -1`, `renderPointsType: 'all'`.
