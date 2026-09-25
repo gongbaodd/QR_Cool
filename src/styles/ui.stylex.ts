@@ -353,6 +353,7 @@ export const ui = stylex.create({
     flexDirection: 'column',
     alignItems: 'center',
     gap: 2,
+    minWidth: 0,
     paddingBlock: 10,
     paddingInline: 4,
     lineHeight: 1.2,
@@ -375,11 +376,13 @@ export const ui = stylex.create({
     minHeight: 44,
   },
   fontName: {
+    minWidth: 0,
     fontSize: '0.75rem',
     lineHeight: 1.4,
     letterSpacing: 0,
     textAlign: 'center',
     textTransform: 'none',
+    overflowWrap: 'anywhere',
   },
   /** Highlighter-pen treatment shared by artifact and inline links. */
   textLink: {
