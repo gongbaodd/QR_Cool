@@ -176,7 +176,6 @@ const styles = stylex.create({
     borderTopColor: tokens.ink,
     '@media (max-width: 1000px)': { flexWrap: 'wrap' },
   },
-  sizeReadout: { display: 'block', marginTop: 4, fontSize: '0.8125rem', fontVariantNumeric: 'tabular-nums' },
   nudges: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -196,15 +195,6 @@ const styles = stylex.create({
     gap: 12,
   },
   fillActions: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', minWidth: 0, gap: 12 },
-  note: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginTop: 14,
-    fontSize: '0.875rem',
-    color: tokens.inkMuted,
-    '@media (max-width: 600px)': { flexDirection: 'column', gap: 2 },
-  },
 })
 
 function useImage(url: string) {
@@ -355,35 +345,29 @@ function PosterCanvas({
   onGestureStart: () => void
 }) {
   const sceneRef = useRef<HTMLDivElement>(null)
-  const sizeFeedback = useRef<HTMLOutputElement | null>(null)
   const [viewport, setViewport] = useState(800)
-  const [stageHeight, setStageHeight] = useState(480)
+  const [stageHeight, setStageHeight] = useState(640)
   const [hoverMarker, setHoverMarker] = useState<string | null>(null)
   const gesture = useRef<PlacementGesture | null>(null)
   const animation = useRef<number | null>(null)
   const settling = useRef(false)
   const committedPlacement = useRef(placement)
   committedPlacement.current = placement
-  const cancelGesture = useCallback(
-    (pointer?: number) => {
-      const active = gesture.current
-      if (pointer !== undefined && active?.pointer !== pointer) return
-      if (!active && !settling.current) return
-      gesture.current = null
-      settling.current = false
-      if (animation.current !== null) {
-        cancelAnimationFrame(animation.current)
-        animation.current = null
-      }
-      const svg = sceneRef.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
-      if (active && svg?.hasPointerCapture(active.pointer)) svg.releasePointerCapture(active.pointer)
-      const root = sceneRef.current?.querySelector<SVGGElement>('[data-gesture-target]')
-      if (root) root.setAttribute('transform', placementFrameTransform(committedPlacement.current))
-      if (sizeFeedback.current)
-        sizeFeedback.current.textContent = `QR size ${committedPlacement.current.size} px · ${committedPlacement.current.size / modules} px/module`
-    },
-    [modules],
-  )
+  const cancelGesture = useCallback((pointer?: number) => {
+    const active = gesture.current
+    if (pointer !== undefined && active?.pointer !== pointer) return
+    if (!active && !settling.current) return
+    gesture.current = null
+    settling.current = false
+    if (animation.current !== null) {
+      cancelAnimationFrame(animation.current)
+      animation.current = null
+    }
+    const svg = sceneRef.current?.querySelector<SVGSVGElement>('svg[aria-label="Poster editing preview"]')
+    if (active && svg?.hasPointerCapture(active.pointer)) svg.releasePointerCapture(active.pointer)
+    const root = sceneRef.current?.querySelector<SVGGElement>('[data-gesture-target]')
+    if (root) root.setAttribute('transform', placementFrameTransform(committedPlacement.current))
+  }, [])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || (!gesture.current && !settling.current)) return
@@ -418,18 +402,14 @@ function PosterCanvas({
     const section = stage?.closest('section')
     if (!stage || !area || !section) return
     const footer = area.lastElementChild
-    const note = section.lastElementChild
     const measure = () => {
       setViewport(stage.clientWidth)
-      if (!(footer instanceof HTMLElement) || !(note instanceof HTMLElement)) return
+      if (!(footer instanceof HTMLElement)) return
       const stageStyle = window.getComputedStyle(stage)
       const sectionStyle = window.getComputedStyle(section)
-      const noteStyle = window.getComputedStyle(note)
       const px = (value: string) => Number.parseFloat(value) || 0
       const reserved =
         footer.getBoundingClientRect().height +
-        note.getBoundingClientRect().height +
-        px(noteStyle.marginTop) +
         px(sectionStyle.paddingBottom) +
         px(stageStyle.marginTop) +
         px(stageStyle.marginBottom) +
@@ -437,7 +417,7 @@ function PosterCanvas({
         px(stageStyle.paddingBottom) +
         8
       const available = Math.floor(window.innerHeight - stage.getBoundingClientRect().top - reserved)
-      const nextHeight = Math.max(160, Math.min(480, available))
+      const nextHeight = Math.max(160, Math.min(640, available))
       setStageHeight((current) => (current === nextHeight ? current : nextHeight))
     }
     measure()
@@ -446,7 +426,6 @@ function PosterCanvas({
     observer.observe(area)
     observer.observe(section)
     if (footer instanceof HTMLElement) observer.observe(footer)
-    if (note instanceof HTMLElement) observer.observe(note)
     window.addEventListener('resize', measure)
     return () => {
       observer.disconnect()
@@ -500,8 +479,6 @@ function PosterCanvas({
         const root = sceneRef.current?.querySelector<SVGGElement>('[data-gesture-target]')
         if (!latest || !root) return
         root.setAttribute('transform', placementTransform(latest.origin, latest.latest))
-        if (sizeFeedback.current)
-          sizeFeedback.current.textContent = `QR size ${latest.latest.size.toFixed(1)} px · ${(latest.latest.size / modules).toFixed(2)} px/module`
       })
   }
   const end = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -525,8 +502,6 @@ function PosterCanvas({
     gesture.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId)
-    if (sizeFeedback.current)
-      sizeFeedback.current.textContent = `QR size ${next.size} px · ${next.size / modules} px/module`
     if (samePlacement(next, active.origin)) {
       root.setAttribute('transform', placementFrameTransform(active.origin))
       return
@@ -759,16 +734,6 @@ function PosterCanvas({
         </div>
       </div>
       <div {...stylex.props(styles.footer)}>
-        <div>
-          <span>
-            {fillActive
-              ? 'Click the poster outside the QR to fill an enclosed area.'
-              : 'Assemble to check placement and render the final poster.'}
-          </span>
-          <output ref={sizeFeedback} aria-live="off" {...stylex.props(styles.sizeReadout)}>
-            QR size {placement.size} px · {placement.size / modules} px/module
-          </output>
-        </div>
         <div {...stylex.props(styles.nudges)} aria-label="Touch position controls">
           <button
             {...stylex.props(ui.button, ui.focusVisible, styles.nudge)}
@@ -1268,10 +1233,6 @@ export default function PreviewPanel({
           onClose={() => setMarkerDialog(null)}
         />
       )}
-      <div {...stylex.props(styles.note)}>
-        <span>Original dimensions. Precise placement.</span>
-        <span>Pixels outside your region stay untouched.</span>
-      </div>
     </section>
   )
 }
