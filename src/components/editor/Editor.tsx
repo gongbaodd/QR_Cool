@@ -448,7 +448,6 @@ function EditorWorkspace() {
           modules={editorDocument.prepared?.qrMetadata.totalModules ?? 0}
           invalid={!!editorDocument.error}
           busy={busy}
-          error={preparationError}
           current={current}
           onMove={actions.movePlacement}
           onPlacementGestureStart={cancelAssembly}

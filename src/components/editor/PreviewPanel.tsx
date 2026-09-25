@@ -95,7 +95,6 @@ const styles = stylex.create({
     boxSizing: 'border-box',
     padding: 24,
   },
-  regionCaption: { margin: '10px 0 0', color: tokens.inkMuted, textAlign: 'center' },
   previewCanvas: {
     display: 'block',
     maxWidth: '100%',
@@ -792,7 +791,6 @@ export default function PreviewPanel({
   modules,
   invalid,
   busy,
-  error,
   current,
   onMove,
   onPlacementGestureStart,
@@ -819,7 +817,6 @@ export default function PreviewPanel({
   modules: number
   invalid: boolean
   busy: boolean
-  error: string | null
   current: boolean
   onMove: (box: Placement) => void
   onPlacementGestureStart: () => void
@@ -1188,29 +1185,19 @@ export default function PreviewPanel({
           />
         </div>
       ) : (regionOnly || showFilledRegion) && posterUrl && sourceMaskUrl ? (
-        <>
-          <div {...stylex.props(styles.regionPreview)}>
-            {regionToolsVisible && <div {...stylex.props(styles.tools)}>{fillToolbar}</div>}
-            <div {...stylex.props(styles.regionContent)}>
-              <SourceRegionPreview
-                poster={posterUrl}
-                maskCanvas={sourceMaskCanvas}
-                revision={maskRevision}
-                fillActive={fillActive}
-                fillReady={sourceMaskReady && !fillPending && !busy}
-                onFillAt={fillAt}
-              />
-            </div>
+        <div {...stylex.props(styles.regionPreview)}>
+          {regionToolsVisible && <div {...stylex.props(styles.tools)}>{fillToolbar}</div>}
+          <div {...stylex.props(styles.regionContent)}>
+            <SourceRegionPreview
+              poster={posterUrl}
+              maskCanvas={sourceMaskCanvas}
+              revision={maskRevision}
+              fillActive={fillActive}
+              fillReady={sourceMaskReady && !fillPending && !busy}
+              onFillAt={fillAt}
+            />
           </div>
-          <p {...stylex.props(styles.regionCaption)}>
-            Selected region ·{' '}
-            {error
-              ? 'the QR code does not fit inside this region.'
-              : regionOnly
-                ? 'enter text or a URL to add a QR code.'
-                : 'updating the QR preview…'}
-          </p>
-        </>
+        </div>
       ) : (
         <div {...stylex.props(busy ? styles.loading : styles.empty)}>
           {busy ? (
