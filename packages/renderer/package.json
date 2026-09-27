@@ -2,6 +2,7 @@
   "name": "@mahu-qr/renderer",
   "version": "0.1.0",
   "description": "Generate artistic QR posters from mahu-QR portable recipe JSON.",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/gongbaodd/QR_Cool.git",
@@ -11,7 +12,8 @@
     "src/",
     "dist/node.js",
     "dist/types/",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "type": "module",
   "sideEffects": [
