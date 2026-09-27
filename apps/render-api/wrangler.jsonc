@@ -6,7 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true,
-    "logs": { "enabled": false, "invocation_logs": true },
+    "logs": { "enabled": true, "invocation_logs": true },
     "traces": { "enabled": true, "head_sampling_rate": 0.01 },
   },
   "limits": { "cpu_ms": 30000 },
