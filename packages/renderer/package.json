@@ -1,12 +1,27 @@
 {
   "name": "@mahu-qr/renderer",
   "version": "0.1.0",
-  "private": true,
+  "description": "Generate artistic QR posters from mahu-QR portable recipe JSON.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gongbaodd/QR_Cool.git",
+    "directory": "packages/renderer"
+  },
+  "files": [
+    "src/",
+    "dist/node.js",
+    "dist/types/",
+    "README.md"
+  ],
   "type": "module",
   "sideEffects": [
     "./src/worker-shim.ts"
   ],
   "exports": {
+    "./node": {
+      "types": "./dist/types/node.d.ts",
+      "import": "./dist/node.js"
+    },
     "./core/artifacts": "./src/core/artifacts.ts",
     "./core/assemble": "./src/core/assemble.ts",
     "./core/errors": "./src/core/errors.ts",
@@ -36,6 +51,8 @@
     "./worker-shim": "./src/worker-shim.ts"
   },
   "scripts": {
+    "build": "pnpm exec esbuild src/node.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/node.js && tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -43,11 +60,15 @@
     "@resvg/resvg-wasm": "^2.6.2",
     "@zxing/library": "^0.23.0",
     "jsqr": "^1.4.0",
+    "sharp": "^0.35.4",
     "uqr": "^0.1.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "sharp": "^0.35.4"
+    "esbuild": "^0.28.2"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
