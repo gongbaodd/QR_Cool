@@ -6,7 +6,7 @@ import {
   MAX_IMAGE_BYTES,
   type Placement,
   type Settings,
-} from '@mahu-qr/renderer/schema'
+} from '@gongbaodd/qr-renderer/schema'
 import { deriveMaskLetter, TEXT_MASK_MAX_LENGTH } from './text-mask'
 import { createInitialState, reducer, type Prepared, type Result, type State } from './state'
 import { sameTraceSnapshot, traceSnapshot, type EditorTrace } from './trace'

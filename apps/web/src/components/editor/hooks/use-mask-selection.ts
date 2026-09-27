@@ -9,9 +9,9 @@ import {
   fitTextMaskSize,
 } from '@/lib/editor/text-mask'
 import type { IconItem, TextMaskFont } from '@/lib/editor/text-mask'
-import { MAX_IMAGE_BYTES } from '@mahu-qr/renderer/schema'
-import { parsePngHeader } from '@mahu-qr/renderer/png-guard'
-import { isSelectedMaskPixel } from '@mahu-qr/renderer/core/mask'
+import { MAX_IMAGE_BYTES } from '@gongbaodd/qr-renderer/schema'
+import { parsePngHeader } from '@gongbaodd/qr-renderer/png-guard'
+import { isSelectedMaskPixel } from '@gongbaodd/qr-renderer/core/mask'
 import { useEditorStore, useEditorStoreApi } from '@/components/editor/EditorStoreProvider'
 import { selectEffectiveMask, selectMaskFont, selectSuggestedMask } from '@/lib/editor/selectors'
 

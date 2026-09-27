@@ -1,3 +1,3 @@
-import { setImaging } from '@mahu-qr/renderer/core/imaging'
-import { nodeImaging } from '@mahu-qr/renderer/core/imaging/node'
+import { setImaging } from '@gongbaodd/qr-renderer/core/imaging'
+import { nodeImaging } from '@gongbaodd/qr-renderer/core/imaging/node'
 setImaging(nodeImaging)

@@ -9,7 +9,7 @@
     "start": "pnpm --filter @mahu-qr/web start",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "typecheck": "pnpm --filter @mahu-qr/renderer typecheck && pnpm --filter @mahu-qr/web typecheck && pnpm --filter @mahu-qr/render-api typecheck",
+    "typecheck": "pnpm --filter @gongbaodd/qr-renderer typecheck && pnpm --filter @mahu-qr/web typecheck && pnpm --filter @mahu-qr/render-api typecheck",
     "api:fixtures": "node --import tsx scripts/prepare-api-fixtures.ts",
     "test:api": "node --import tsx scripts/test-worker-api.ts",
     "test:api:smoke": "node --import tsx scripts/test-worker-api.ts --smoke",
@@ -30,8 +30,8 @@
   },
   "devDependencies": {
     "@cucumber/cucumber": "^13.2.1",
+    "@gongbaodd/qr-renderer": "workspace:*",
     "@jsquash/png": "^3.1.1",
-    "@mahu-qr/renderer": "workspace:*",
     "@playwright/test": "^1.58.2",
     "@resvg/resvg-wasm": "^2.6.2",
     "@types/node": "^24.0.0",

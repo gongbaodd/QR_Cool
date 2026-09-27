@@ -3,9 +3,9 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
-import { browserImaging, installBrowserImaging } from '@mahu-qr/renderer/core/imaging/browser'
-import { createEditorEngine } from '@mahu-qr/renderer/engine'
-import { engineDefaults } from '@mahu-qr/renderer/engine/pipeline'
+import { browserImaging, installBrowserImaging } from '@gongbaodd/qr-renderer/core/imaging/browser'
+import { createEditorEngine } from '@gongbaodd/qr-renderer/engine'
+import { engineDefaults } from '@gongbaodd/qr-renderer/engine/pipeline'
 
 const require = createRequire(import.meta.url)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

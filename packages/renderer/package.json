@@ -1,5 +1,5 @@
 {
-  "name": "@mahu-qr/renderer",
+  "name": "@gongbaodd/qr-renderer",
   "version": "0.1.0",
   "description": "Generate artistic QR posters from mahu-QR portable recipe JSON.",
   "license": "MIT",
@@ -51,6 +51,9 @@
     "./png-guard": "./src/png-guard.ts",
     "./recipe": "./src/recipe.ts",
     "./worker-shim": "./src/worker-shim.ts"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "pnpm exec esbuild src/node.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/node.js && tsc -p tsconfig.build.json",

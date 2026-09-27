@@ -1,5 +1,5 @@
 // HTTP layer for the standalone recipe player. Recipe validation and
-// rendering stay in `@mahu-qr/renderer`; this Worker only routes and composes
+// rendering stay in `@gongbaodd/qr-renderer`; this Worker only routes and composes
 // requests. Hono matches HEAD requests with their GET route, so every known
 // path keeps an explicit method guard that runs ahead of authentication.
 // Generic pieces come from Hono's built-in modules (`request-id`,
@@ -8,7 +8,7 @@
 // would change the asserted API contract (bearer-auth answers a non-Bearer
 // header with 400 and enforces an RFC 6750 token charset; `bodyLimit` trusts
 // Content-Length and never decodes bytes from the stream).
-import '@mahu-qr/renderer/worker-shim'
+import '@gongbaodd/qr-renderer/worker-shim'
 import { Hono } from 'hono'
 import type { MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
@@ -16,11 +16,11 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { requestId, type RequestIdVariables } from 'hono/request-id'
 import { bodyLimit } from 'hono/body-limit'
 import { z } from 'zod'
-import { QrPosterError } from '@mahu-qr/renderer/core/errors'
-import { PngGuardError } from '@mahu-qr/renderer/png-guard'
-import { cloudflareImagingReady } from '@mahu-qr/renderer/core/imaging/cloudflare'
-import { browserImaging } from '@mahu-qr/renderer/core/imaging/browser'
-import { MAX_RECIPE_BYTES, renderRecipe } from '@mahu-qr/renderer/recipe'
+import { QrPosterError } from '@gongbaodd/qr-renderer/core/errors'
+import { PngGuardError } from '@gongbaodd/qr-renderer/png-guard'
+import { cloudflareImagingReady } from '@gongbaodd/qr-renderer/core/imaging/cloudflare'
+import { browserImaging } from '@gongbaodd/qr-renderer/core/imaging/browser'
+import { MAX_RECIPE_BYTES, renderRecipe } from '@gongbaodd/qr-renderer/recipe'
 
 const PNG_HEADERS = {
   'Content-Type': 'image/png',

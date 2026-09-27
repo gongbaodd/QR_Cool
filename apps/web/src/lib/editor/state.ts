@@ -1,6 +1,6 @@
-import type { Placement, Settings } from '@mahu-qr/renderer/schema'
-import { recenterPlacement } from '@mahu-qr/renderer/schema'
-import { DEFAULT_PALETTE } from '@mahu-qr/renderer/core/palette'
+import type { Placement, Settings } from '@gongbaodd/qr-renderer/schema'
+import { recenterPlacement } from '@gongbaodd/qr-renderer/schema'
+import { DEFAULT_PALETTE } from '@gongbaodd/qr-renderer/core/palette'
 export interface Prepared {
   apiVersion: 1
   revision: number

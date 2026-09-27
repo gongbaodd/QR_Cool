@@ -1,16 +1,16 @@
-# @mahu-qr/renderer
+# @gongbaodd/qr-renderer
 
 Render `mahu-qr.recipe.json` files exported by the mahu-QR editor with the same renderer used by the editor and its replay Worker.
 
 Requires Node.js 22 or newer. The Node entry uses Sharp for PNG processing; Sharp installs a native binary for the current platform.
 
 ```sh
-npm install @mahu-qr/renderer
+npm install @gongbaodd/qr-renderer
 ```
 
 ```js
 import { readFile, writeFile } from 'node:fs/promises'
-import { renderRecipeFile } from '@mahu-qr/renderer/node'
+import { renderRecipeFile } from '@gongbaodd/qr-renderer/node'
 
 const { png, filename } = await renderRecipeFile(await readFile('mahu-qr.recipe.json'), { artifact: 'poster.png' })
 await writeFile(filename, png)

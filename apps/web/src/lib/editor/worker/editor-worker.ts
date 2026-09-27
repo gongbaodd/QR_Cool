@@ -4,11 +4,11 @@
  * lazily inside this worker only, keeping it off the page's initial bundle.
  */
 
-import '@mahu-qr/renderer/worker-shim'
+import '@gongbaodd/qr-renderer/worker-shim'
 import * as Comlink from 'comlink'
-import { browserImaging } from '@mahu-qr/renderer/core/imaging/browser'
-import { createEditorEngine } from '@mahu-qr/renderer/engine'
-import type { EditorEngineApi } from '@mahu-qr/renderer/engine'
+import { browserImaging } from '@gongbaodd/qr-renderer/core/imaging/browser'
+import { createEditorEngine } from '@gongbaodd/qr-renderer/engine'
+import type { EditorEngineApi } from '@gongbaodd/qr-renderer/engine'
 
 const engine: Promise<EditorEngineApi> = createEditorEngine(browserImaging)
 

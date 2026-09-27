@@ -14,7 +14,7 @@
     "deploy:workers": "vinext-cloudflare deploy --config dist/server/wrangler.json"
   },
   "dependencies": {
-    "@mahu-qr/renderer": "workspace:*",
+    "@gongbaodd/qr-renderer": "workspace:*",
     "@simonwep/pickr": "^1.10.2",
     "@stylexjs/stylex": "^0.19.1",
     "comlink": "^4.4.2",

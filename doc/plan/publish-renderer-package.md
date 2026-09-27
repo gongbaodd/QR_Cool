@@ -1,6 +1,6 @@
 # Plan: Publish the renderer as a standalone package
 
-Status: implementation in progress; local Node API and package build are prepared. Registry release is pending package license, registry access, and an external install check. Date: 2026-09-27.
+Status: implementation prepared; package is configured for public release under `@gongbaodd`. Registry release is pending an external install check and npm authentication. Date: 2026-09-27.
 
 ## Outcome
 
@@ -10,7 +10,7 @@ The first public workflow should be straightforward:
 
 ```ts
 import { readFile, writeFile } from 'node:fs/promises'
-import { renderRecipeFile } from '@mahu-qr/renderer/node'
+import { renderRecipeFile } from '@gongbaodd/qr-renderer/node'
 
 const result = await renderRecipeFile(await readFile('mahu-qr.recipe.json'), {
   artifact: 'poster.png',
@@ -22,7 +22,7 @@ The API and exact entry-point name are provisional. Decide and document whether 
 
 ## Current baseline
 
-- `packages/renderer/package.json` is `@mahu-qr/renderer@0.1.0`, marked `private: true`, and exports source TypeScript subpaths directly.
+- `packages/renderer/package.json` is `@gongbaodd/qr-renderer@0.1.0`, marked `private: true`, and exports source TypeScript subpaths directly.
 - `src/recipe.ts` exports `recipeSchema`, `PortableRecipe`, `createRecipeBlob`, and `renderRecipe`. `renderRecipe` validates the strict schema, verifies embedded PNG digests and dimensions, then calls the shared assembly pipeline.
 - Imaging backends are split across browser, Cloudflare, and Node. The Node backend currently depends on Sharp, while the package manifest lists the browser codec and decoder dependencies as ordinary dependencies.
 - The root workspace consumes the package through `workspace:*`. The editor and render Worker rely on explicit subpaths and their runtime-specific imaging setup.
@@ -47,7 +47,7 @@ The API and exact entry-point name are provisional. Decide and document whether 
 
 ## Package design
 
-1. **Define supported public entry points.** Keep low-level source subpaths used inside this monorepo stable. Add a deliberate Node entry such as `@mahu-qr/renderer/node` and a small root API only if it has unambiguous runtime behavior. Do not expose internal modules merely because they exist. Separate public API types from internal imaging types where practical.
+1. **Define supported public entry points.** Keep low-level source subpaths used inside this monorepo stable. Add a deliberate Node entry such as `@gongbaodd/qr-renderer/node` and a small root API only if it has unambiguous runtime behavior. Do not expose internal modules merely because they exist. Separate public API types from internal imaging types where practical.
 2. **Add recipe replay adapters.** Retain the strict schema, version checks, SHA-256 verification, PNG dimension checks, and `assemblePayload` replay. Add a Node-friendly adapter that reads a file's supplied bytes without requiring the caller to construct a browser `Blob`; keep filesystem access out of the core recipe and render functions. Parse strings/bytes with a documented UTF-8 and size policy before schema validation. Reject malformed or unsupported recipe/renderer versions with actionable errors.
 3. **Choose Node imaging dependencies deliberately.** Use the existing Sharp backend for Node. Decide whether Sharp is a required dependency or an optional peer selected by the `/node` entry; ensure the published dependency graph does not force browser-only consumers to install Sharp or native binaries. Keep jSquash/resvg WASM setup confined to browser/Worker paths. Verify the Node entry does not load browser globals, `worker-shim`, or Cloudflare bindings.
 4. **Create a reproducible package build.** Compile distributable ESM JavaScript and `.d.ts` files into package-local output and map `exports`, `types`, and `files` to only supported artifacts. Preserve source imports for workspace applications as needed without publishing raw TypeScript as the Node default. Ensure packed files include any required WASM, licenses, and notices, and exclude tests, fixtures, generated app output, and repository-only tools.

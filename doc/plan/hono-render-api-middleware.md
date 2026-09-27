@@ -6,7 +6,7 @@ Status: implemented 2026-09-26, verified 2026-09-26 against local workerd (manua
 
 Replace hand-rolled HTTP helpers in the Worker entry with modules that already ship inside the installed `hono` package. Keep the public API, PNG bytes, error envelope, header set, and check order unchanged. Do not add another npm dependency, a second validation schema, or a generic API framework.
 
-Recipe validation and rendering stay in `@mahu-qr/renderer`. This is still an HTTP-layer change only.
+Recipe validation and rendering stay in `@gongbaodd/qr-renderer`. This is still an HTTP-layer change only.
 
 ## Why now
 
@@ -180,7 +180,7 @@ No `apps/web/` or `packages/renderer/` source changes. The root lockfile should 
 
 ## Acceptance ✅
 
-- `apps/render-api/package.json` still lists only `hono`, `zod`, and `@mahu-qr/renderer` as runtime dependencies. _Confirmed; hono stays 4.13.9 from the lockfile._
+- `apps/render-api/package.json` still lists only `hono`, `zod`, and `@gongbaodd/qr-renderer` as runtime dependencies. _Confirmed; hono stays 4.13.9 from the lockfile._
 - Local helpers that Hono can own without contract drift (`requestId`, `HTTPException`, declared-size `bodyLimit`) are gone from `apps/render-api/src/index.ts`. _Confirmed._
 - Local helpers that Hono cannot own without drift (method guard, Bearer compare, streamed UTF-8 reader, limiter key, domain error mapping, PNG headers) remain. _Confirmed._
 - Every existing Hurl assertion still passes against local workerd; PNG hashes are unchanged. _Verified by a manual workerd pass over every surface in `contract.hurl`, `recipes.hurl`, `limits.hurl`, `rate-limit.hurl`, and `smoke.hurl`: status, exact `code`, envelope `Content-Type: application/json` without charset, `no-store` + `nosniff` everywhere, `Allow` headers, trailing-slash 404s, method-before-auth priority, quota counting, auth-401 consuming no quota, 10-then-429, and SHA-256-identical baseline/QR/transparent/rotated PNGs against `test/api/fixtures/expected/manifest.json`. The gated suites themselves remain maintainer checks._

@@ -4,7 +4,7 @@
  */
 
 import * as Comlink from 'comlink'
-import type { EditorEngineApi } from '@mahu-qr/renderer/engine'
+import type { EditorEngineApi } from '@gongbaodd/qr-renderer/engine'
 
 export type EditorWorkerClient = Comlink.Remote<EditorEngineApi>
 

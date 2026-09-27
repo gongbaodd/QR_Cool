@@ -1,8 +1,8 @@
 import sharp from 'sharp'
 import { describe, it, expect } from 'vitest'
-import { cropQrPattern } from '@mahu-qr/renderer/core/qr'
-import { renderPattern } from '@mahu-qr/renderer/core/pattern'
-import { decodePng } from '@mahu-qr/renderer/core/image'
+import { cropQrPattern } from '@gongbaodd/qr-renderer/core/qr'
+import { renderPattern } from '@gongbaodd/qr-renderer/core/pattern'
+import { decodePng } from '@gongbaodd/qr-renderer/core/image'
 
 describe('QR center pattern', () => {
   it.each([21, 25, 37, 177])('excludes all corner finder regions for %s QR modules', async (qrModules) => {

@@ -1,4 +1,4 @@
-import { contentSchema } from '@mahu-qr/renderer/schema'
+import { contentSchema } from '@gongbaodd/qr-renderer/schema'
 import { deriveMaskLetter, TEXT_MASK_FONTS } from './text-mask'
 import type { EditorStoreState } from './store'
 

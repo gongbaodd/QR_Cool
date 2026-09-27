@@ -1,5 +1,5 @@
-import { plateToPosterPoint } from '@mahu-qr/renderer/core/rotate'
-import { canonicalPlacement, type Placement } from '@mahu-qr/renderer/schema'
+import { plateToPosterPoint } from '@gongbaodd/qr-renderer/core/rotate'
+import { canonicalPlacement, type Placement } from '@gongbaodd/qr-renderer/schema'
 
 export type PlacementGestureKind = 'move' | 'resize' | 'rotate'
 

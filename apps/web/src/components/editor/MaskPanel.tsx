@@ -6,7 +6,7 @@ import * as stylex from '@stylexjs/stylex'
 import { TEXT_MASK_FONTS, TEXT_MASK_MAX_LENGTH, searchControlState } from '@/lib/editor/text-mask'
 import type { IconSearch } from './hooks/use-icon-search'
 import type { MaskSelection } from './hooks/use-mask-selection'
-import { MAX_IMAGE_BYTES } from '@mahu-qr/renderer/schema'
+import { MAX_IMAGE_BYTES } from '@gongbaodd/qr-renderer/schema'
 import { tokens } from '@/styles/tokens.stylex'
 import { ui } from '@/styles/ui.stylex'
 

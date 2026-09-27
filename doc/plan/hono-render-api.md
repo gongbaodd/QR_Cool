@@ -4,7 +4,7 @@ Status: implemented 2026-09-26, pending verification (the gated `pnpm test:api*`
 
 ## Goal
 
-Use Hono for routing and request composition in the independently deployed `apps/render-api/` Worker. Keep recipe validation and rendering in `@mahu-qr/renderer`; this is an HTTP-layer rewrite, with the current public API and PNG bytes preserved.
+Use Hono for routing and request composition in the independently deployed `apps/render-api/` Worker. Keep recipe validation and rendering in `@gongbaodd/qr-renderer`; this is an HTTP-layer rewrite, with the current public API and PNG bytes preserved.
 
 The current baseline is `apps/render-api/src/index.ts`, including the staged `GET /health` endpoint. `README.md` also has staged health documentation. Preserve those changes while implementing this plan.
 
@@ -23,7 +23,7 @@ Retain the 28 MiB request limit on both declared length and streamed bytes, stri
 
 ## Design
 
-1. Add `hono` only to `apps/render-api/package.json` using the root pnpm workspace and update the single root lockfile. Keep `apps/render-api/wrangler.jsonc`, the package boundary, and the renderer imports. Import `@mahu-qr/renderer/worker-shim` before decoder modules.
+1. Add `hono` only to `apps/render-api/package.json` using the root pnpm workspace and update the single root lockfile. Keep `apps/render-api/wrangler.jsonc`, the package boundary, and the renderer imports. Import `@gongbaodd/qr-renderer/worker-shim` before decoder modules.
 2. Build one typed Hono app in `apps/render-api/src/index.ts`, exported as the Worker entry. Use Hono's strict path matching, `get('/health')`, `post('/v1/render')`, and a top-level `notFound` handler. Put an explicit method guard on each known path so Hono's default 404 and automatic `HEAD` handling cannot change the existing 405 contract. Keep the guard ahead of auth, and check the original request method for `HEAD` on `/health`.
 3. Give each request a UUID in request-scoped Hono context. Compose render-route checks in the existing order: method, auth, rate limit, content type, artifact, bounded body, JSON parse, imaging readiness, render. Small route-specific middleware or helpers are appropriate; do not add a generic API framework, a second validation schema, or Hono's default bearer/body parsers if they change error shapes or buffer an unchecked request body.
 4. Reuse the existing bounded reader, token hashing and comparison, limiter key, and error mapping. Centralize API error responses through Hono's `onError` and `notFound` hooks where they preserve the contract. The bounded reader must remain the only path that consumes recipe JSON; `c.req.json()` is unsuitable before its byte and UTF-8 checks. Return the renderer's PNG bytes directly, without re-encoding.

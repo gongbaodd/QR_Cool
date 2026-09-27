@@ -1,5 +1,5 @@
-import { plateToPosterPoint } from '@mahu-qr/renderer/core/rotate'
-import type { Placement } from '@mahu-qr/renderer/schema'
+import { plateToPosterPoint } from '@gongbaodd/qr-renderer/core/rotate'
+import type { Placement } from '@gongbaodd/qr-renderer/schema'
 import { describe, expect, it } from 'vitest'
 import {
   beginPlacementGesture,

@@ -5,9 +5,9 @@ import type { ReactNode } from 'react'
 import * as stylex from '@stylexjs/stylex'
 import { toast } from 'react-toastify'
 import type { Result } from '@/lib/editor/state'
-import type { RasterExportPayload } from '@mahu-qr/renderer/engine'
-import type { Placement, Settings } from '@mahu-qr/renderer/schema'
-import { canonicalizeRotation } from '@mahu-qr/renderer/core/rotate'
+import type { RasterExportPayload } from '@gongbaodd/qr-renderer/engine'
+import type { Placement, Settings } from '@gongbaodd/qr-renderer/schema'
+import { canonicalizeRotation } from '@gongbaodd/qr-renderer/core/rotate'
 import {
   beginPlacementGesture,
   canonicalGesturePlacement,

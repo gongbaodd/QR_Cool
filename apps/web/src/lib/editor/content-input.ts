@@ -1,4 +1,4 @@
-import { contentSchema } from '@mahu-qr/renderer/schema'
+import { contentSchema } from '@gongbaodd/qr-renderer/schema'
 
 export type ContentKind = 'URL' | 'Text' | 'Phone' | 'WiFi' | 'SMS' | 'Email' | 'QRCode'
 export type WifiEncryption = 'WEP' | 'WPA/WPA2'

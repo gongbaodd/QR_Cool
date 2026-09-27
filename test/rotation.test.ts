@@ -11,18 +11,18 @@ import {
   rotatedSquareCorners,
   sampleMaskIntoQrFrame,
   assertFrameHoldsPlacement,
-} from '@mahu-qr/renderer/core/rotate'
-import { QrPosterError } from '@mahu-qr/renderer/core/errors'
-import { canonicalPlacement, fitsMask, placementSchema } from '@mahu-qr/renderer/schema'
-import { boxIsInsideMask, placeQr } from '@mahu-qr/renderer/core/placement'
-import { buildModuleLattice, computePlateModules, computeSafeArea } from '@mahu-qr/renderer/core/module-cut'
-import { markerBandRects } from '@mahu-qr/renderer/core/assemble'
-import { PATTERN_QUIET_ZONE_MODULES } from '@mahu-qr/renderer/core/pattern'
-import { createEditorEngine } from '@mahu-qr/renderer/engine'
-import type { EditorEngineApi, EngineOutcome } from '@mahu-qr/renderer/engine'
-import { nodeImaging } from '@mahu-qr/renderer/core/imaging/node'
-import { prepareSource } from '@mahu-qr/renderer/engine/pipeline'
-import type { RegionMask } from '@mahu-qr/renderer/core/types'
+} from '@gongbaodd/qr-renderer/core/rotate'
+import { QrPosterError } from '@gongbaodd/qr-renderer/core/errors'
+import { canonicalPlacement, fitsMask, placementSchema } from '@gongbaodd/qr-renderer/schema'
+import { boxIsInsideMask, placeQr } from '@gongbaodd/qr-renderer/core/placement'
+import { buildModuleLattice, computePlateModules, computeSafeArea } from '@gongbaodd/qr-renderer/core/module-cut'
+import { markerBandRects } from '@gongbaodd/qr-renderer/core/assemble'
+import { PATTERN_QUIET_ZONE_MODULES } from '@gongbaodd/qr-renderer/core/pattern'
+import { createEditorEngine } from '@gongbaodd/qr-renderer/engine'
+import type { EditorEngineApi, EngineOutcome } from '@gongbaodd/qr-renderer/engine'
+import { nodeImaging } from '@gongbaodd/qr-renderer/core/imaging/node'
+import { prepareSource } from '@gongbaodd/qr-renderer/engine/pipeline'
+import type { RegionMask } from '@gongbaodd/qr-renderer/core/types'
 
 const posterBytes = new Uint8Array(await readFile('source/poster.png'))
 const content = 'https://example.com/qr'
