@@ -229,4 +229,10 @@ app.all('/v1/render', requireMethod('POST'), renderChecks, bodyLimitCheck, async
 app.onError((error, c) => apiErrorResponse(error, c.get('requestId')))
 app.notFound((c) => apiErrorBody(404, 'NOT_FOUND', 'Route not found.', c.get('requestId')))
 
-export default app
+// Workers requires the module `fetch` entry point to return a Promise. Hono's
+// fetch method can return a Response synchronously on its single-handler
+// fast path, so keep the Worker boundary explicitly async.
+export default {
+  fetch: async (request: Request, env: Env['Bindings'], executionCtx: ExecutionContext): Promise<Response> =>
+    await app.fetch(request, env, executionCtx),
+}
