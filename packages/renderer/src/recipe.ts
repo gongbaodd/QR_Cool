@@ -129,8 +129,10 @@ export async function renderRecipe(
   imaging: Imaging,
   rawRecipe: unknown,
   artifact: 'poster.png' | 'qr.png',
+  contentOverride?: string,
 ): Promise<{ png: Blob; filename: string }> {
   const recipe = recipeSchema.parse(rawRecipe)
+  const content = contentOverride === undefined ? recipe.content : contentSchema.parse(contentOverride)
   const poster = fromBase64(recipe.source.poster.data)
   const regionMask = fromBase64(recipe.source.regionMask.data)
   const [posterSha, maskSha] = await Promise.all([sha256Hex(poster), sha256Hex(regionMask)])
@@ -151,7 +153,7 @@ export async function renderRecipe(
     posterBytes: poster,
     maskBytes: regionMask,
     transparentBlank: recipe.source.transparentBlank,
-    content: recipe.content,
+    content,
     placement: recipe.placement,
     ...settings,
   })

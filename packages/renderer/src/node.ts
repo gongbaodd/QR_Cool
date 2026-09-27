@@ -6,6 +6,7 @@ export type RecipeArtifact = 'poster.png' | 'qr.png'
 
 export interface RenderRecipeOptions {
   artifact?: RecipeArtifact
+  content?: string
 }
 
 export interface RenderRecipeResult {
@@ -19,7 +20,7 @@ export async function renderRecipeJson(
   options: RenderRecipeOptions = {},
 ): Promise<RenderRecipeResult> {
   const artifact = options.artifact ?? 'poster.png'
-  const result = await renderRecipe(nodeImaging, rawRecipe, artifact)
+  const result = await renderRecipe(nodeImaging, rawRecipe, artifact, options.content)
   return { png: new Uint8Array(await result.png.arrayBuffer()), filename: result.filename as RecipeArtifact }
 }
 

@@ -12,11 +12,16 @@ npm install @gongbaodd/qr-renderer
 import { readFile, writeFile } from 'node:fs/promises'
 import { renderRecipeFile } from '@gongbaodd/qr-renderer/node'
 
-const { png, filename } = await renderRecipeFile(await readFile('mahu-qr.recipe.json'), { artifact: 'poster.png' })
+const { png, filename } = await renderRecipeFile(await readFile('mahu-qr.recipe.json'), {
+  artifact: 'poster.png',
+  content: 'https://example.com/new',
+})
 await writeFile(filename, png)
 ```
 
 `poster.png` is the default and contains the full assembled poster. Select `{ artifact: 'qr.png' }` for the standalone transparent QR image. The API returns `Uint8Array` PNG bytes and the matching filename; it does not read or write filesystem paths itself.
+
+Set the optional `content` option to replace the recipe's saved QR text for this render while preserving its poster, placement, and settings. It must be non-empty, one line, and within QR capacity.
 
 `renderRecipeFile(input, options?)` accepts UTF-8 JSON text or bytes. `renderRecipeJson(value, options?)` accepts an already parsed JSON value. Both validate the recipe schema and renderer version, enforce recipe and PNG limits, verify embedded image SHA-256 digests and dimensions, and run the normal assembly validation before returning an image. Invalid or unsupported recipes reject with an error. Inputs are processed locally: recipe content is never fetched, and this package makes no network requests.
 

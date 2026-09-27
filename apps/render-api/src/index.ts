@@ -219,7 +219,7 @@ app.all('/v1/render', requireMethod('POST'), renderChecks, bodyLimitCheck, async
       return apiErrorBody(400, 'INVALID_JSON', 'Recipe must contain valid JSON.', requestId)
     }
     await cloudflareImagingReady
-    const result = await renderRecipe(browserImaging, recipe, c.get('artifact'))
+    const result = await renderRecipe(browserImaging, recipe, c.get('artifact'), c.req.query('content'))
     return renderResponse(result, requestId)
   } catch (error) {
     return apiErrorResponse(error, requestId)
