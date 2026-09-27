@@ -1,6 +1,6 @@
 {
   "name": "@gongbaodd/qr-renderer",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Generate artistic QR posters from mahu-QR portable recipe JSON.",
   "license": "MIT",
   "repository": {
