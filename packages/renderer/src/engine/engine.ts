@@ -115,6 +115,7 @@ export class EditorEngine {
       qrMargin: 1
       plateCorners: Settings['plateCorners']
       regionMargin?: boolean
+      backdropModules?: number
       rimModules?: number
       rimRounded?: boolean
       ecc?: Settings['ecc']
@@ -150,6 +151,7 @@ export class EditorEngine {
       qrMargin: 1
       plateCorners: Settings['plateCorners']
       regionMargin?: boolean
+      backdropModules?: number
       rimModules?: number
       rimRounded?: boolean
       ecc?: Settings['ecc']
@@ -169,6 +171,7 @@ export class EditorEngine {
         qrMargin: input.qrMargin,
         plateCorners: input.plateCorners,
         regionMargin: input.regionMargin ?? engineDefaults.regionMargin,
+        backdropModules: input.backdropModules ?? engineDefaults.backdropModules,
         rimModules: input.rimModules ?? engineDefaults.rimModules,
         rimRounded: input.rimRounded ?? engineDefaults.rimRounded,
         ecc: input.ecc ?? engineDefaults.ecc,

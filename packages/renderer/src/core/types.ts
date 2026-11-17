@@ -337,6 +337,8 @@ export type AssemblePosterOptions = PosterInputOptions &
     qrMargin?: 1
     /** Keep one safe-module ring along the inside edge of the selected region light. */
     regionMargin?: boolean
+    /** Grow the selected region by this many modules and fill it with the background color, 0-4. */
+    backdropModules?: number
     /**
      * Plate corner treatment: zero keeps the diagonal corner block beside each finder marker light,
      * and any positive value hands those three blocks to the texture. Defaults to two module pitches
@@ -413,6 +415,8 @@ export interface AssembleReport {
     rim: { modules: number; style: 'cell' | 'rounded-antialiased' }
     /** Light ring of safe modules along the region edge, 0 when disabled. */
     regionMarginModules: 0 | 1
+    /** Modules the smooth background backdrop extends past the selected region; absent when off. */
+    backdropModules?: number
     /** Modules of the plate handed back to the texture: the diagonal block at each marker corner. */
     plateCornerModules: number
     /** The cut shape is the detected or supplied painted region itself. */

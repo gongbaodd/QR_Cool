@@ -25,6 +25,7 @@ export const settingsSchema = z
     qrMargin: z.literal(1).default(1),
     plateCorners: z.enum(['texture', 'light']).default('texture'),
     regionMargin: z.boolean().default(false),
+    backdropModules: z.number().int().min(0).max(4).default(0),
     rimModules: z.number().int().min(0).max(5).default(1),
     rimRounded: z.boolean().default(false),
     ecc: z.enum(['L', 'M', 'Q', 'H']).default('M'),

@@ -57,6 +57,7 @@ export const engineDefaults: Settings = {
   qrMargin: 1,
   plateCorners: 'texture',
   regionMargin: false,
+  backdropModules: 0,
   rimModules: 1,
   rimRounded: false,
   ecc: 'M',
@@ -374,6 +375,7 @@ export async function assemblePayload(
     qrMargin: 1
     plateCorners: Settings['plateCorners']
     regionMargin?: boolean
+    backdropModules?: number
     rimModules?: number
     rimRounded?: boolean
     ecc?: Settings['ecc']
@@ -388,6 +390,7 @@ export async function assemblePayload(
     qrMargin: input.qrMargin,
     plateCorners: input.plateCorners,
     regionMargin: input.regionMargin ?? input.settings?.regionMargin ?? engineDefaults.regionMargin,
+    backdropModules: input.backdropModules ?? input.settings?.backdropModules ?? engineDefaults.backdropModules,
     rimModules: input.rimModules ?? input.settings?.rimModules ?? engineDefaults.rimModules,
     rimRounded: input.rimRounded ?? input.settings?.rimRounded ?? engineDefaults.rimRounded,
     ecc: input.ecc ?? input.settings?.ecc ?? engineDefaults.ecc,
@@ -407,6 +410,7 @@ export async function assemblePayload(
     qrMargin: flat.qrMargin,
     radius: flat.plateCorners === 'light' ? 0 : layout.placement.modulePixels * 2,
     regionMargin: flat.regionMargin,
+    backdropModules: flat.backdropModules,
     rimModules: flat.rimModules,
     rimRounded: flat.rimRounded,
     pixelStyle: flat.pixelStyle,
@@ -483,6 +487,7 @@ export async function assembleRasterVariant(
     qrMargin: settings.qrMargin,
     radius: settings.plateCorners === 'light' ? 0 : targetPitch * 2,
     regionMargin: settings.regionMargin,
+    backdropModules: settings.backdropModules,
     rimModules: settings.rimModules,
     rimRounded: settings.rimRounded,
     pixelStyle: settings.pixelStyle,

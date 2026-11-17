@@ -26,6 +26,7 @@ export type AssembleInput = EngineInput & {
   qrMargin: 1
   plateCorners: Settings['plateCorners']
   regionMargin?: boolean
+  backdropModules?: number
   rimModules?: number
   rimRounded?: boolean
   ecc?: Settings['ecc']

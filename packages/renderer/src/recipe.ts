@@ -80,6 +80,7 @@ function normalizedSettings(input: AssembleInput): Settings {
     qrMargin: input.qrMargin,
     plateCorners: input.plateCorners,
     regionMargin: input.regionMargin,
+    backdropModules: input.backdropModules,
     rimModules: input.rimModules,
     rimRounded: input.rimRounded,
     ecc: input.ecc,

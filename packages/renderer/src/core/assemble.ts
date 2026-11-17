@@ -1,4 +1,5 @@
 import { renderRegionMask } from './artifacts'
+import { computeBackdropCoverage, paintBackdrop } from './backdrop'
 import { QrPosterError } from './errors'
 import { imaging } from './imaging'
 import { decodePng, rgbaToPng } from './image'
@@ -46,6 +47,8 @@ const BAND_MODULES = 1 as const
 const MARKER_MODULES = 7 as const
 /** Default outer rings of drawn modules forced dark; configurable 0-5. UI exposes 0/1 via Add Rim checkbox. */
 const DEFAULT_RIM_MODULES = 1 as const
+/** Largest backdrop growth beyond the selected region, in modules. */
+export const MAX_BACKDROP_MODULES = 4
 /** A requested `--cut-radius` below this keeps the marker corner blocks light; any larger value cuts them. */
 const PLATE_CORNER_EPSILON = 0.01
 const SKIPPED_DECODE_CHECKS = ['poster', 'posterHalfScale', 'posterJpeg80'] as const
@@ -76,6 +79,7 @@ export async function assembleResolved(
     rimModules?: number
     rimRounded?: boolean
     regionMargin?: boolean
+    backdropModules?: number
     pixelStyle?: PixelStyle
     transparentBlank?: boolean
     palette?: QrPalette
@@ -101,6 +105,7 @@ async function assembleUpright(
     rimModules?: number
     rimRounded?: boolean
     regionMargin?: boolean
+    backdropModules?: number
     pixelStyle?: PixelStyle
     transparentBlank?: boolean
     palette?: QrPalette
@@ -127,6 +132,15 @@ async function assembleUpright(
   const light = hexToRgb(palette.background)
   if (!Number.isInteger(rimModulesCount) || rimModulesCount < 0 || rimModulesCount > 5)
     throw new QrPosterError('INVALID_INPUT', 'rimModules must be an integer between 0 and 5.')
+  const backdropModules = options.backdropModules ?? 0
+  if (!Number.isInteger(backdropModules) || backdropModules < 0 || backdropModules > MAX_BACKDROP_MODULES)
+    throw new QrPosterError(
+      'INVALID_INPUT',
+      `backdropModules must be an integer between 0 and ${MAX_BACKDROP_MODULES}.`,
+    )
+  // Poster-space backdrop: the selected region grown by whole module pitches, antialiased, and
+  // painted under the texture so the staircase of whole modules sits inside one smooth outline.
+  const backdrop = computeBackdropCoverage(selection, width, height, backdropModules * pitch)
   // The plate copies the normalized QR verbatim. Its light band is limited to the three finder
   // markers. The code grid sits inside the placement box by the profile's quiet zone.
   const codeGrid: BoundingBox = {
@@ -284,6 +298,7 @@ async function assembleUpright(
   // The normalized QR is copied verbatim wherever the plate is. Every plate pixel maps to the same
   // position inside the placement box, so its light band uses the QR's own background pixels.
   const output = Uint8Array.from(poster.data)
+  if (backdrop) paintBackdrop(output, backdrop, light, transparentBlank)
   for (let row = 0; row < height; row++) {
     for (let column = 0; column < width; column++) {
       const index = row * width + column
@@ -331,12 +346,13 @@ async function assembleUpright(
       const isCorner = cell >= 0 && plate.corners[cell] === 1
       const isDrawn = cell >= 0 && drawn[cell] === 1
       const hasCoverage = coverage[index]! > 0
+      const inBackdrop = backdrop !== null && backdrop[index]! > 0
       if (isCorner) cornerTexturePixels++
       let changed = false
       for (let channel = 0; channel < 4; channel++) {
         const value = output[offset + channel]!
         if (value !== poster.data[offset + channel]!) changed = true
-        if (!regionMask.data[index] && value !== poster.data[offset + channel]!) outsidePassed = false
+        if (!regionMask.data[index] && !inBackdrop && value !== poster.data[offset + channel]!) outsidePassed = false
         if (isPlate && value !== qrRaw[plateSource + channel]!) qrPassed = false
         if (isCorner) {
           const expected =
@@ -348,10 +364,10 @@ async function assembleUpright(
       }
       // Square rim: whole modules or nothing. Rounded rim: antialiased coverage may change pixels
       // where coverage is partial, so allow any pixel with coverage >0.
-      const allowed = rimRounded ? hasCoverage || isPlate : isDrawn || isPlate
+      const allowed = inBackdrop || (rimRounded ? hasCoverage || isPlate : isDrawn || isPlate)
       if (changed && !allowed) moduleCutPassed = false
       if (output[offset + 3] !== poster.data[offset + 3]!) alphaPassed = false
-      if (transparentBlank) {
+      if (transparentBlank && !inBackdrop) {
         const expectedAlpha = isPlate
           ? qrRaw[plateSource + 3]!
           : Math.round((render.data[offset + 3]! * coverage[index]!) / 255)
@@ -400,7 +416,12 @@ async function assembleUpright(
     warnings.push(
       `A one-module light margin follows the selected region inside its edge (${regionMarginModuleCount} whole modules).`,
     )
-  if (safeArea.partialModules > 0) {
+  if (backdropModules > 0)
+    warnings.push(
+      `A ${backdropModules}-module backdrop in the pattern background color extends the selected region with a ` +
+        'smooth edge; pixels under it are repainted instead of kept bit-exact.',
+    )
+  if (safeArea.partialModules > 0 && backdropModules === 0) {
     warnings.push(
       `${safeArea.partialModules} module(s) crossed the painted region's edge and kept the original ` +
         `artwork (${safeArea.droppedPartialPixels} region pixels); the cut draws whole modules only.`,
@@ -498,6 +519,7 @@ async function assembleUpright(
       drawnModules,
       rim: { modules: rimModulesCount, style: rimRounded ? 'rounded-antialiased' : 'cell' },
       regionMarginModules: regionMargin ? 1 : 0,
+      ...(backdropModules > 0 ? { backdropModules } : {}),
       plateCornerModules: plate.cornerModules,
       keep: 'region-mask',
       edgeBlend: rimRounded ? 'antialiased' : 'cell-aligned-over-original',
@@ -565,6 +587,7 @@ async function assembleRotated(
     rimModules?: number
     rimRounded?: boolean
     regionMargin?: boolean
+    backdropModules?: number
     pixelStyle?: PixelStyle
     transparentBlank?: boolean
     palette?: QrPalette
@@ -600,6 +623,15 @@ async function assembleRotated(
   const light = hexToRgb(palette.background)
   if (!Number.isInteger(rimModulesCount) || rimModulesCount < 0 || rimModulesCount > 5)
     throw new QrPosterError('INVALID_INPUT', 'rimModules must be an integer between 0 and 5.')
+  const backdropModules = options.backdropModules ?? 0
+  if (!Number.isInteger(backdropModules) || backdropModules < 0 || backdropModules > MAX_BACKDROP_MODULES)
+    throw new QrPosterError(
+      'INVALID_INPUT',
+      `backdropModules must be an integer between 0 and ${MAX_BACKDROP_MODULES}.`,
+    )
+  // Poster-space backdrop: the selected region grown by whole module pitches, antialiased, and
+  // painted under the texture so the staircase of whole modules sits inside one smooth outline.
+  const backdrop = computeBackdropCoverage(selection, width, height, backdropModules * pitch)
   const codeGrid: BoundingBox = {
     x: frame.qr.x + QUIET_ZONE_MODULES * pitch,
     y: frame.qr.y + QUIET_ZONE_MODULES * pitch,
@@ -783,6 +815,7 @@ async function assembleRotated(
   // Rotate back: destination-driven nearest-neighbour inverse-map pass, clipped to the original
   // region so the artistic margin never paints outside the mask and the alpha channel survives.
   const output = Uint8Array.from(poster.data)
+  if (backdrop) paintBackdrop(output, backdrop, light, transparentBlank)
   let outsidePassed = true
   let qrPassed = true
   let plateCornersPassed = true
@@ -804,6 +837,7 @@ async function assembleRotated(
       const isDrawn = cell >= 0 && drawn[cell] === 1
       const overlayOffset = inFrame ? (wy * frame.width + wx) * 4 : -1
       const srcA = inFrame ? overlay[overlayOffset! + 3]! / 255 : 0
+      const inBackdrop = backdrop !== null && backdrop[index]! > 0
       let changed = false
       // Only original-region pixels may be written, and only where the inverse map lands on a
       // drawn module or the plate: moduleCut judges writes through the inverse map, not the
@@ -834,16 +868,16 @@ async function assembleRotated(
       }
       for (let channel = 0; channel < 4; channel++) {
         const value = output[offset + channel]!
-        if (!regionMask.data[index] && value !== poster.data[offset + channel]!) outsidePassed = false
+        if (!regionMask.data[index] && !inBackdrop && value !== poster.data[offset + channel]!) outsidePassed = false
         if (isPlate && value !== qrRaw[workingQrSourceOffset(frame, wx, wy) + channel]!) qrPassed = false
         if (isCorner && value !== overlay[overlayOffset! + channel]!) plateCornersPassed = false
       }
       // Square rim: whole modules or nothing. Rounded rim: antialiased coverage may change pixels
       // where coverage is partial, so allow any pixel whose sample has coverage.
-      const allowed = rimRounded ? srcA > 0 || isPlate : isDrawn || isPlate
+      const allowed = inBackdrop || (rimRounded ? srcA > 0 || isPlate : isDrawn || isPlate)
       if (changed && !allowed) moduleCutPassed = false
       if (output[offset + 3] !== poster.data[offset + 3]!) alphaPassed = false
-      if (transparentBlank) {
+      if (transparentBlank && !inBackdrop) {
         const expectedAlpha = regionMask.data[index] && inFrame ? overlay[overlayOffset! + 3]! : 0
         if (poster.data[offset + 3] !== 0 || output[offset + 3] !== expectedAlpha) transparentBackgroundPassed = false
       }
@@ -891,7 +925,12 @@ async function assembleRotated(
     warnings.push(
       `A one-module light margin follows the selected region inside its edge (${regionMarginModuleCount} whole modules).`,
     )
-  if (safeArea.partialModules > 0) {
+  if (backdropModules > 0)
+    warnings.push(
+      `A ${backdropModules}-module backdrop in the pattern background color extends the selected region with a ` +
+        'smooth edge; pixels under it are repainted instead of kept bit-exact.',
+    )
+  if (safeArea.partialModules > 0 && backdropModules === 0) {
     warnings.push(
       `${safeArea.partialModules} module(s) crossed the painted region's edge in the QR's frame and kept the ` +
         `original artwork (${safeArea.droppedPartialPixels} region pixels); the cut draws whole modules only.`,
@@ -989,6 +1028,7 @@ async function assembleRotated(
       drawnModules,
       rim: { modules: rimModulesCount, style: rimRounded ? 'rounded-antialiased' : 'cell' },
       regionMarginModules: regionMargin ? 1 : 0,
+      ...(backdropModules > 0 ? { backdropModules } : {}),
       plateCornerModules: plate.cornerModules,
       keep: 'region-mask',
       edgeBlend: rimRounded ? 'antialiased' : 'cell-aligned-over-original',

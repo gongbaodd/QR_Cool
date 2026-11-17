@@ -26,7 +26,7 @@ Web editor (Next.js) for artistic QR posters. Upload a PNG with a solid black re
 ## Invariants
 
 - Inputs are PNG only (10 MiB, 4 megapixels, one frame; guards run client-side in `packages/renderer/src/png-guard.ts`). Masks must match the poster dimensions; opaque white selects the region. Mask Selection accepts one custom PNG drop/upload at its bottom and rejects invalid or stale uploads without replacing the active mask.
-- Pixels outside the selected region, pixels in modules the region covers only in part, and pixels inside the placed QR stay bit-exact. Mandatory verification failures reject export.
+- Pixels outside the selected region, pixels in modules the region covers only in part, and pixels inside the placed QR stay bit-exact. The opt-in backdrop (`backdropModules` 0–4, default 0) is the one exception: it repaints the region dilated by that many module pitches in the background color with an antialiased edge, and only those pixels are exempt. Mandatory verification failures reject export.
 - The painted region is auto-detected from the dense central black shape; an uploaded mask overrides detection.
 - Tests never make paid calls: mock API responses, use local fixtures.
 - Worker API contract tests live in `test/api/`, use local workerd/Hurl plus the importable Yaak collection, and never call production by default. The maintainer explicitly asks before `pnpm test:api`, `pnpm test:api:smoke`, `pnpm test:api:limits`, or fixture regeneration. Their runner writes only under ignored `output/api-tests/`; no request handler launches a CLI or writes test artifacts.

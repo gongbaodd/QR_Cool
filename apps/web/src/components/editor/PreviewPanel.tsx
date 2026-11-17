@@ -24,6 +24,8 @@ import { ui } from '@/styles/ui.stylex'
 
 const ResultPanel = dynamic(() => import('./ResultPanel'))
 const MarkerDialog = dynamic(() => import('./MarkerDialog'))
+/** Modules the Add Backdrop toggle grows the selected region by before filling it with the background. */
+const BACKDROP_MODULES = 2
 
 const styles = stylex.create({
   panel: { minWidth: 0, paddingBlock: 24, paddingInline: 24 },
@@ -1095,6 +1097,7 @@ export default function PreviewPanel({
   const ready = externallyReady && !!dimensions && !!placement && !!posterUrl && current
   const rimActive = pattern.settings.rimModules !== 0
   const marginActive = pattern.settings.regionMargin
+  const backdropActive = pattern.settings.backdropModules > 0
   const regionToolsVisible = !showingResult && !!posterUrl && !!sourceMaskUrl
   const keepPlacementCanvas =
     !!dimensions && !!placement && !!posterUrl && !!previews['qr.png'] && (!regionOnly || busy || placementInvalid)
@@ -1135,6 +1138,15 @@ export default function PreviewPanel({
           onClick={() => pattern.onSettings({ regionMargin: !marginActive })}
         >
           {marginActive ? '✓ Margin added' : '＋ Add Margin'}
+        </button>
+        <button
+          {...stylex.props(ui.button, ui.focusVisible, backdropActive && ui.fontCardSelected)}
+          type="button"
+          aria-pressed={backdropActive}
+          title="Fill the region, grown by two modules, with the background color for a smooth QR border"
+          onClick={() => pattern.onSettings({ backdropModules: backdropActive ? 0 : BACKDROP_MODULES })}
+        >
+          {backdropActive ? '✓ Backdrop added' : '＋ Add Backdrop'}
         </button>
       </div>
       {!regionOnly && keepPlacementCanvas && (

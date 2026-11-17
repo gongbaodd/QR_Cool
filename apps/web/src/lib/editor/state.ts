@@ -45,6 +45,7 @@ export function createInitialState(): State {
       qrMargin: 1,
       plateCorners: 'texture',
       regionMargin: false,
+      backdropModules: 0,
       rimModules: 1,
       rimRounded: false,
       ecc: 'M',
